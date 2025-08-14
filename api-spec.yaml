@@ -1,0 +1,251 @@
+openapi: 3.0.0
+info:
+  title: ESP32 MAVLink Bridge
+  version: 1.0.0
+  description: ESP32 MAVLink bridge with WebSocket support, optimized for resource constraints
+
+servers:
+  - url: http://{deviceIp}
+    variables:
+      deviceIp:
+        default: 192.168.4.1
+        description: ESP32 device IP address
+
+paths:
+  /api/health:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/config:
+    get:
+      summary: Get complete configuration
+      responses:
+        '200':
+          description: Current configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Configuration'
+
+    post:
+      summary: Replace entire configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Configuration'
+      responses:
+        '200':
+          description: Configuration updated
+        '400':
+          description: Invalid configuration
+
+    patch:
+      summary: Update specific configuration fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigurationPatch'
+      responses:
+        '200':
+          description: Configuration patched
+        '400':
+          description: Invalid patch
+
+  /api/wifi/connect:
+    post:
+      summary: Connect to WiFi network
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WiFiCredentials'
+      responses:
+        '200':
+          description: WiFi connection initiated
+        '400':
+          description: Invalid credentials
+
+  /api/wifi/disconnect:
+    post:
+      summary: Disconnect from WiFi
+      responses:
+        '200':
+          description: WiFi disconnected
+
+  /api/rtcm/start:
+    post:
+      summary: Start RTCM client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RTCMConfig'
+      responses:
+        '200':
+          description: RTCM client started
+        '400':
+          description: Invalid configuration
+
+  /api/rtcm/stop:
+    post:
+      summary: Stop RTCM client
+      responses:
+        '200':
+          description: RTCM client stopped
+
+  /ws:
+    get:
+      summary: WebSocket endpoint for real-time communication
+      description: |
+        WebSocket connection for real-time events and data streaming.
+        Message format: JSON with 'type' and 'payload' fields.
+      responses:
+        '101':
+          description: Switching Protocols
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - uptime
+        - freeHeap
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded]
+        uptime:
+          type: integer
+          description: Uptime in seconds
+        freeHeap:
+          type: integer
+          description: Free heap memory in bytes
+
+    Configuration:
+      type: object
+      required:
+        - device
+        - connection
+        - rtcm
+      properties:
+        device:
+          $ref: '#/components/schemas/DeviceConfig'
+        connection:
+          $ref: '#/components/schemas/ConnectionConfig'
+        rtcm:
+          $ref: '#/components/schemas/RTCMConfig'
+
+    ConfigurationPatch:
+      type: object
+      description: JSON Patch document for granular updates
+      example:
+        - op: 'replace'
+          path: '/device/name'
+          value: 'MyESP32'
+
+    DeviceConfig:
+      type: object
+      required:
+        - name
+        - mode
+      properties:
+        name:
+          type: string
+          maxLength: 32
+        mode:
+          type: string
+          enum: [usb_otg, uart]
+          default: usb_otg
+
+    ConnectionConfig:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [wifi, ethernet]
+        wifi:
+          $ref: '#/components/schemas/WiFiConfig'
+
+    WiFiConfig:
+      type: object
+      properties:
+        ssid:
+          type: string
+          maxLength: 32
+        autoConnect:
+          type: boolean
+          default: true
+
+    WiFiCredentials:
+      type: object
+      required:
+        - ssid
+        - password
+      properties:
+        ssid:
+          type: string
+          maxLength: 32
+        password:
+          type: string
+          maxLength: 64
+
+    RTCMConfig:
+      type: object
+      required:
+        - enabled
+        - source
+      properties:
+        enabled:
+          type: boolean
+        source:
+          type: object
+          required:
+            - type
+          properties:
+            type:
+              type: string
+              enum: [ntrip, tcp, udp]
+            host:
+              type: string
+            port:
+              type: integer
+              minimum: 1
+              maximum: 65535
+            mountpoint:
+              type: string
+              description: NTRIP mountpoint (required for NTRIP)
+            username:
+              type: string
+              description: NTRIP username (optional)
+            password:
+              type: string
+              description: NTRIP password (optional)
+
+    WebSocketMessage:
+      type: object
+      required:
+        - type
+        - payload
+      properties:
+        type:
+          type: string
+          enum: [status, config_changed, rtcm_data, error, log]
+        payload:
+          type: object
+          description: Event-specific payload
