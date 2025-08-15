@@ -1,8 +1,11 @@
 import { HttpClient } from './core/HttpClient';
 import { WebSocketClient } from './core/WebSocketClient';
 import { ConfigClient } from './config/ConfigClient';
-import { EventType, EventHandler, StatusPayload, ConfigChangedPayload, RTCMDataPayload, ErrorPayload, LogPayload } from './core/EventTypes';
+import { WiFiClient } from './wifi/WiFiClient';
+import { RTCMClient } from './rtcm/RTCMClient';
+import { EventType, EventHandler, StatusPayload, ConfigChangedPayload, RTCMDataPayload, ErrorPayload, LogPayload, WiFiConnectedPayload, WiFiDisconnectedPayload, WiFiSignalUpdatePayload } from './core/EventTypes';
 import { Configuration, HealthResponse, WiFiCredentials } from './config/ConfigTypes';
+import { WiFiState, WiFiStatus, WiFiNetwork, SignalQuality } from './wifi/WiFiTypes';
 
 /**
  * Configuration options for the MAVLinkBridge client
@@ -25,6 +28,8 @@ export class MAVLinkBridgeClient {
   private readonly httpClient: HttpClient;
   private readonly wsClient: WebSocketClient;
   private readonly configClient: ConfigClient;
+  private readonly wifiClient: WiFiClient;
+  private readonly rtcmClient: RTCMClient;
   private readonly options: Required<MAVLinkBridgeClientOptions>;
 
   /**
@@ -51,6 +56,12 @@ export class MAVLinkBridgeClient {
 
     // Initialize configuration client
     this.configClient = new ConfigClient(this.httpClient);
+
+    // Initialize WiFi client
+    this.wifiClient = new WiFiClient(this.httpClient, this.wsClient);
+
+    // Initialize RTCM client
+    this.rtcmClient = new RTCMClient(this.httpClient, this.wsClient);
   }
 
   /**
@@ -132,17 +143,66 @@ export class MAVLinkBridgeClient {
   // WiFi Management
 
   /**
+   * Get WiFi client for advanced WiFi operations
+   */
+  get wifi(): WiFiClient {
+    return this.wifiClient;
+  }
+
+  /**
+   * Get RTCM client for advanced RTCM operations
+   */
+  get rtcm(): RTCMClient {
+    return this.rtcmClient;
+  }
+
+  /**
    * Connect to a WiFi network
    */
   async connectToWiFi(credentials: WiFiCredentials): Promise<void> {
-    await this.httpClient.post<void>('/api/wifi/connect', credentials);
+    await this.wifiClient.connect(credentials);
   }
 
   /**
    * Disconnect from WiFi
    */
   async disconnectFromWiFi(): Promise<void> {
-    await this.httpClient.post<void>('/api/wifi/disconnect');
+    await this.wifiClient.disconnect();
+  }
+
+  /**
+   * Get current WiFi status
+   */
+  async getWiFiStatus(): Promise<WiFiStatus> {
+    return this.wifiClient.getStatus();
+  }
+
+  /**
+   * Scan for WiFi networks
+   */
+  async scanWiFiNetworks(force: boolean = false): Promise<WiFiNetwork[]> {
+    return this.wifiClient.scan({ force });
+  }
+
+  /**
+   * Add a saved WiFi network
+   */
+  async addSavedWiFiNetwork(ssid: string, password: string, priority: number = 0): Promise<void> {
+    await this.wifiClient.addSavedNetwork(ssid, password, priority);
+  }
+
+  /**
+   * Remove a saved WiFi network
+   */
+  async removeSavedWiFiNetwork(ssid: string): Promise<void> {
+    await this.wifiClient.removeSavedNetwork(ssid);
+  }
+
+  /**
+   * Get saved WiFi networks
+   */
+  async getSavedWiFiNetworks(): Promise<any[]> {
+    return this.wifiClient.getSavedNetworks();
   }
 
   /**
@@ -198,42 +258,77 @@ export class MAVLinkBridgeClient {
   /**
    * Listen for status updates
    */
-  onStatus(handler: EventHandler<StatusPayload>): void {
-    this.wsClient.on(EventType.STATUS, handler);
+  onStatus(handler: (payload: StatusPayload) => void): void {
+    this.wsClient.on(EventType.STATUS, handler as any);
   }
 
   /**
    * Listen for configuration changes
    */
-  onConfigChanged(handler: EventHandler<ConfigChangedPayload>): void {
-    this.wsClient.on(EventType.CONFIG_CHANGED, handler);
+  onConfigChanged(handler: (payload: ConfigChangedPayload) => void): void {
+    this.wsClient.on(EventType.CONFIG_CHANGED, handler as any);
   }
 
   /**
    * Listen for RTCM data
    */
-  onRTCMData(handler: EventHandler<RTCMDataPayload>): void {
-    this.wsClient.on(EventType.RTCM_DATA, handler);
+  onRTCMData(handler: (payload: RTCMDataPayload) => void): void {
+    this.wsClient.on(EventType.RTCM_DATA, handler as any);
   }
 
   /**
    * Listen for errors
    */
-  onError(handler: EventHandler<ErrorPayload>): void {
-    this.wsClient.on(EventType.ERROR, handler);
+  onError(handler: (payload: ErrorPayload) => void): void {
+    this.wsClient.on(EventType.ERROR, handler as any);
   }
 
   /**
    * Listen for log messages
    */
-  onLog(handler: EventHandler<LogPayload>): void {
-    this.wsClient.on(EventType.LOG, handler);
+  onLog(handler: (payload: LogPayload) => void): void {
+    this.wsClient.on(EventType.LOG, handler as any);
+  }
+
+  /**
+   * Listen for WiFi connection events
+   */
+  onWiFiConnected(handler: (payload: WiFiConnectedPayload) => void): void {
+    this.wsClient.on(EventType.WIFI_CONNECTED, handler as any);
+  }
+
+  /**
+   * Listen for WiFi disconnection events
+   */
+  onWiFiDisconnected(handler: (payload: WiFiDisconnectedPayload) => void): void {
+    this.wsClient.on(EventType.WIFI_DISCONNECTED, handler as any);
+  }
+
+  /**
+   * Listen for WiFi signal updates
+   */
+  onWiFiSignalUpdate(handler: (payload: WiFiSignalUpdatePayload) => void): void {
+    this.wsClient.on(EventType.WIFI_SIGNAL_UPDATE, handler as any);
+  }
+
+  /**
+   * Listen for WiFi state changes (convenience method)
+   */
+  onWiFiStateChange(handler: (state: WiFiState) => void): () => void {
+    return this.wifiClient.onStateChange(handler);
+  }
+
+  /**
+   * Listen for WiFi connection status changes (convenience method)
+   */
+  onWiFiStatusChange(handler: (status: WiFiStatus) => void): () => void {
+    return this.wifiClient.onConnectionChange(handler);
   }
 
   /**
    * Remove event handler
    */
-  removeEventListener<T extends EventType>(event: T, handler: EventHandler): void {
+  removeEventListener(event: EventType, handler: any): void {
     this.wsClient.off(event, handler);
   }
 

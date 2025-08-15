@@ -49,7 +49,24 @@ void HttpServer::begin(uint16_t port) {
                         AsyncWebServerResponse *response = request->beginResponse(res.statusCode, res.contentType, res.body);
                         if (res.cors) {
                             response->addHeader("Access-Control-Allow-Origin", "*");
-                            response->addHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+                            response->addHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+                            response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+                        }
+                        request->send(response);
+                    });
+                break;
+                
+            case HttpMethod::DELETE:
+                server->on(route.path.c_str(), HTTP_DELETE, 
+                    [this, &route](AsyncWebServerRequest *request) {
+                        HttpRequest req = {route.path, "", request};
+                        HttpResponse res;
+                        route.handler(req, res);
+                        
+                        AsyncWebServerResponse *response = request->beginResponse(res.statusCode, res.contentType, res.body);
+                        if (res.cors) {
+                            response->addHeader("Access-Control-Allow-Origin", "*");
+                            response->addHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
                             response->addHeader("Access-Control-Allow-Headers", "Content-Type");
                         }
                         request->send(response);
@@ -78,7 +95,7 @@ void HttpServer::setupCORS() {
     server->on("/*", HTTP_OPTIONS, [](AsyncWebServerRequest *request) {
         AsyncWebServerResponse *response = request->beginResponse(200);
         response->addHeader("Access-Control-Allow-Origin", "*");
-        response->addHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+        response->addHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
         response->addHeader("Access-Control-Allow-Headers", "Content-Type");
         response->addHeader("Access-Control-Max-Age", "86400");
         request->send(response);

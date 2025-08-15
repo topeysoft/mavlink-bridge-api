@@ -1,0 +1,433 @@
+#include "CaptivePortal.h"
+#include <WiFi.h>
+
+DNSServer CaptivePortal::dnsServer;
+bool CaptivePortal::dnsStarted = false;
+
+void CaptivePortal::registerRoutes(HttpServer* server) {
+    // Captive portal routes
+    server->addRoute("/", HttpMethod::GET, handleRoot);
+    server->addRoute("/setup", HttpMethod::GET, handleRoot);
+    server->addRoute("/portal", HttpMethod::GET, handleRoot);
+    server->addRoute("/portal/connect", HttpMethod::POST, handleConnect);
+    server->addRoute("/portal/scan", HttpMethod::GET, handleScan);
+    server->addRoute("/portal/status", HttpMethod::GET, handleStatus);
+    
+    // Catch-all for captive portal
+    server->addRoute("/generate_204", HttpMethod::GET, handleRoot); // Android
+    server->addRoute("/fwlink", HttpMethod::GET, handleRoot); // Microsoft
+    server->addRoute("/hotspot-detect.html", HttpMethod::GET, handleRoot); // Apple
+}
+
+void CaptivePortal::startDNSServer() {
+    if (!dnsStarted) {
+        dnsServer.start(53, "*", WiFi.softAPIP());
+        dnsStarted = true;
+        Serial.println("✓ DNS Server started for captive portal");
+    }
+}
+
+void CaptivePortal::stopDNSServer() {
+    if (dnsStarted) {
+        dnsServer.stop();
+        dnsStarted = false;
+        Serial.println("✓ DNS Server stopped");
+    }
+}
+
+void CaptivePortal::loop() {
+    if (dnsStarted) {
+        dnsServer.processNextRequest();
+    }
+}
+
+void CaptivePortal::handleRoot(const HttpRequest& req, HttpResponse& res) {
+    res.body = getPortalHTML();
+    res.statusCode = 200;
+    res.contentType = "text/html";
+}
+
+void CaptivePortal::handleConnect(const HttpRequest& req, HttpResponse& res) {
+    // Parse form data (simplified - would need proper form parsing)
+    String ssid = "";
+    String password = "";
+    
+    // Basic form data parsing
+    int ssidStart = req.body.indexOf("ssid=");
+    int passwordStart = req.body.indexOf("password=");
+    
+    if (ssidStart != -1) {
+        int ssidEnd = req.body.indexOf("&", ssidStart);
+        if (ssidEnd == -1) ssidEnd = req.body.length();
+        ssid = req.body.substring(ssidStart + 5, ssidEnd);
+        ssid.replace("+", " ");
+        // URL decode would be needed here
+    }
+    
+    if (passwordStart != -1) {
+        int passwordEnd = req.body.indexOf("&", passwordStart);
+        if (passwordEnd == -1) passwordEnd = req.body.length();
+        password = req.body.substring(passwordStart + 9, passwordEnd);
+        password.replace("+", " ");
+        // URL decode would be needed here
+    }
+    
+    if (ssid.length() > 0) {
+        WiFiManager* wifiManager = WiFiManager::getInstance();
+        bool success = wifiManager->connect(ssid, password);
+        
+        if (success) {
+            // Add to saved networks
+            wifiManager->addSavedNetwork(ssid, password, 1);
+            
+            res.body = R"(
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MAVLinkBridge - Connecting</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 50px; }
+        .status { padding: 20px; background: #e7f3ff; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>MAVLinkBridge Setup</h1>
+    <div class="status">
+        <h2>Connecting to WiFi...</h2>
+        <p>Attempting to connect to: <strong>)" + ssid + R"(</strong></p>
+        <p>This page will refresh automatically.</p>
+        <script>
+            setTimeout(function() {
+                window.location.href = '/portal/status';
+            }, 3000);
+        </script>
+    </div>
+</body>
+</html>
+            )";
+        } else {
+            res.body = R"(
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MAVLinkBridge - Error</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 50px; }
+        .error { padding: 20px; background: #ffe7e7; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>MAVLinkBridge Setup</h1>
+    <div class="error">
+        <h2>Connection Failed</h2>
+        <p>Failed to initiate connection. Please try again.</p>
+        <a href="/">← Back to Setup</a>
+    </div>
+</body>
+</html>
+            )";
+        }
+    } else {
+        res.body = R"(
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MAVLinkBridge - Error</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 50px; }
+        .error { padding: 20px; background: #ffe7e7; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>MAVLinkBridge Setup</h1>
+    <div class="error">
+        <h2>Missing Information</h2>
+        <p>Please provide a network name (SSID).</p>
+        <a href="/">← Back to Setup</a>
+    </div>
+</body>
+</html>
+        )";
+    }
+    
+    res.statusCode = 200;
+    res.contentType = "text/html";
+}
+
+void CaptivePortal::handleScan(const HttpRequest& req, HttpResponse& res) {
+    res.body = getNetworkOptionsHTML();
+    res.statusCode = 200;
+    res.contentType = "text/html";
+}
+
+void CaptivePortal::handleStatus(const HttpRequest& req, HttpResponse& res) {
+    WiFiManager* wifiManager = WiFiManager::getInstance();
+    WiFiManager::State state = wifiManager->getState();
+    
+    if (state == WiFiManager::CONNECTED) {
+        WiFiManager::ConnectionInfo info = wifiManager->getConnectionInfo();
+        res.body = R"(
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MAVLinkBridge - Connected</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 50px; }
+        .success { padding: 20px; background: #e7ffe7; border-radius: 5px; }
+        .info { text-align: left; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>MAVLinkBridge Setup</h1>
+    <div class="success">
+        <h2>✓ WiFi Connected!</h2>
+        <div class="info">
+            <p><strong>Network:</strong> )" + info.ssid + R"(</p>
+            <p><strong>IP Address:</strong> )" + info.ip.toString() + R"(</p>
+            <p><strong>Signal Strength:</strong> )" + String(info.rssi) + R"( dBm</p>
+        </div>
+        <p>Setup complete! You can now access the device at:<br>
+        <a href="http://)" + info.ip.toString() + R"(">http://)" + info.ip.toString() + R"(</a></p>
+    </div>
+</body>
+</html>
+        )";
+    } else if (state == WiFiManager::CONNECTING) {
+        res.body = R"(
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MAVLinkBridge - Connecting</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 50px; }
+        .status { padding: 20px; background: #e7f3ff; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>MAVLinkBridge Setup</h1>
+    <div class="status">
+        <h2>Connecting...</h2>
+        <p>Please wait while we connect to the network.</p>
+        <script>
+            setTimeout(function() {
+                window.location.reload();
+            }, 2000);
+        </script>
+    </div>
+</body>
+</html>
+        )";
+    } else {
+        res.body = R"(
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MAVLinkBridge - Setup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 50px; }
+        .error { padding: 20px; background: #ffe7e7; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>MAVLinkBridge Setup</h1>
+    <div class="error">
+        <h2>Connection Failed</h2>
+        <p>Could not connect to the selected network.</p>
+        <a href="/">← Try Again</a>
+    </div>
+</body>
+</html>
+        )";
+    }
+    
+    res.statusCode = 200;
+    res.contentType = "text/html";
+}
+
+String CaptivePortal::getPortalHTML() {
+    return R"(
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MAVLinkBridge Setup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .scan-btn {
+            background: #28a745;
+            margin-bottom: 20px;
+        }
+        .scan-btn:hover {
+            background: #1e7e34;
+        }
+        .network-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .network-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        .network-item:hover {
+            background: #f8f9fa;
+        }
+        .network-item:last-child {
+            border-bottom: none;
+        }
+        .signal-strength {
+            float: right;
+            color: #666;
+        }
+        .secure {
+            color: #dc3545;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MAVLinkBridge Setup</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 30px;">
+            Connect your device to a WiFi network to get started.
+        </p>
+        
+        <button type="button" class="scan-btn" onclick="scanNetworks()">Scan for Networks</button>
+        
+        <div id="networkList" class="network-list" style="display: none;"></div>
+        
+        <form action="/portal/connect" method="POST">
+            <div class="form-group">
+                <label for="ssid">Network Name (SSID):</label>
+                <input type="text" id="ssid" name="ssid" required placeholder="Enter network name">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" placeholder="Enter network password">
+            </div>
+            
+            <button type="submit">Connect to Network</button>
+        </form>
+        
+        <div style="text-align: center; margin-top: 30px; color: #666; font-size: 14px;">
+            <p>Need help? Visit the <a href="/api/status" target="_blank">status page</a> for more information.</p>
+        </div>
+    </div>
+
+    <script>
+        function scanNetworks() {
+            document.getElementById('networkList').style.display = 'block';
+            document.getElementById('networkList').innerHTML = '<div style="padding: 20px; text-align: center;">Scanning for networks...</div>';
+            
+            fetch('/portal/scan')
+                .then(response => response.text())
+                .then(html => {
+                    document.getElementById('networkList').innerHTML = html;
+                })
+                .catch(error => {
+                    document.getElementById('networkList').innerHTML = '<div style="padding: 20px; text-align: center; color: red;">Error scanning networks</div>';
+                });
+        }
+        
+        function selectNetwork(ssid) {
+            document.getElementById('ssid').value = ssid;
+            document.getElementById('password').focus();
+        }
+    </script>
+</body>
+</html>
+    )";
+}
+
+String CaptivePortal::getNetworkOptionsHTML() {
+    WiFiManager* wifiManager = WiFiManager::getInstance();
+    std::vector<WiFiNetwork> networks = wifiManager->scan(true);
+    
+    String html = "";
+    
+    if (networks.size() == 0) {
+        html = "<div style='padding: 20px; text-align: center;'>No networks found</div>";
+    } else {
+        for (const auto& network : networks) {
+            String secureIcon = (network.authMode != WIFI_AUTH_OPEN) ? "[SECURE] " : "[OPEN] ";
+            String signalBars = "";
+            
+            // Signal strength indicator
+            if (network.rssi >= -50) signalBars = "████";
+            else if (network.rssi >= -60) signalBars = "███░";
+            else if (network.rssi >= -70) signalBars = "██░░";
+            else if (network.rssi >= -80) signalBars = "█░░░";
+            else signalBars = "░░░░";
+            
+            html += "<div class='network-item' onclick='selectNetwork(\"" + network.ssid + "\")'>";
+            html += secureIcon + network.ssid;
+            html += "<span class='signal-strength'>" + signalBars + " (" + String(network.rssi) + " dBm)</span>";
+            html += "</div>";
+        }
+    }
+    
+    return html;
+}
+
+bool CaptivePortal::isSetupComplete() {
+    WiFiManager* wifiManager = WiFiManager::getInstance();
+    return (wifiManager->getState() == WiFiManager::CONNECTED);
+}

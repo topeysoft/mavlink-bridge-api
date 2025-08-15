@@ -45,6 +45,6 @@
 // Feature flags
 #define ENABLE_WEBSOCKET true
 #define ENABLE_EVENT_MANAGER true
-#define ENABLE_CONFIG_PERSISTENCE false // Stage 2 feature
-#define ENABLE_WIFI_MANAGER false // Stage 3 feature
+#define ENABLE_CONFIG_PERSISTENCE true // Stage 2 feature
+#define ENABLE_WIFI_MANAGER true // Stage 3 feature
 #define ENABLE_RTCM_CLIENT false // Stage 4 feature

@@ -48,7 +48,7 @@ private:
     State currentState;
     State previousState;
     ConnectionInfo connectionInfo;
-    TaskHandle_t wifiTask;
+    TaskHandle_t wifiTaskHandle;
     uint8_t reconnectAttempts;
     unsigned long lastReconnectTime;
     unsigned long lastSignalCheck;
@@ -90,7 +90,7 @@ public:
     
 private:
     static void wifiTaskFunction(void* parameter);
-    void wifiTask();
+    void runWifiTask();
     void handleStateTransition();
     void attemptReconnection();
     void updateConnectionInfo();

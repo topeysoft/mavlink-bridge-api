@@ -5,7 +5,8 @@
  */
 
 // Main client export
-export { MAVLinkBridgeClient, MAVLinkBridgeClientOptions } from './MAVLinkBridgeClient';
+export { MAVLinkBridgeClient } from './MAVLinkBridgeClient';
+export type { MAVLinkBridgeClientOptions } from './MAVLinkBridgeClient';
 
 // Core exports
 export { HttpClient, HttpError } from './core/HttpClient';
@@ -18,6 +19,12 @@ export {
   RTCMDataPayload,
   ErrorPayload,
   LogPayload,
+  WiFiConnectingPayload,
+  WiFiConnectedPayload,
+  WiFiDisconnectedPayload,
+  WiFiSignalUpdatePayload,
+  WiFiAPModeStartedPayload,
+  WiFiScanCompletedPayload,
   EventHandler,
   EventHandlers
 } from './core/EventTypes';
@@ -41,6 +48,43 @@ export {
   isRTCMSourceType,
   isHealthStatus
 } from './config/ConfigTypes';
+
+// WiFi exports
+export { WiFiClient } from './wifi/WiFiClient';
+export {
+  WiFiCredentials as WiFiConnectionCredentials,
+  WiFiState,
+  WiFiStatus,
+  WiFiNetwork,
+  WiFiScanResult,
+  SavedWiFiNetwork,
+  SavedNetworksResult,
+  SignalQuality,
+  WiFiErrorCode,
+  WiFiError,
+  WiFiResponse,
+  WiFiConnectResponse,
+  WiFiDisconnectResponse,
+  AddNetworkResponse,
+  RemoveNetworkResponse,
+  WiFiConnectOptions,
+  WiFiScanOptions
+} from './wifi/WiFiTypes';
+
+// RTCM exports
+export { RTCMClient } from './rtcm/RTCMClient';
+export {
+  RTCMConfig,
+  NTRIPSource,
+  TCPSource,
+  UDPSource,
+  RTCMState,
+  RTCMStatistics,
+  RTCMStatus,
+  RTCMDataEvent,
+  RTCMStateChangeEvent,
+  RTCMResponse
+} from './rtcm/RTCMTypes';
 
 // Version info
 export const VERSION = '1.0.0';
@@ -78,11 +122,14 @@ export const DEFAULT_CONFIG = {
  * });
  * ```
  */
+import { MAVLinkBridgeClient } from './MAVLinkBridgeClient';
+import type { MAVLinkBridgeClientOptions } from './MAVLinkBridgeClient';
+
 export function createClient(
   deviceUrl: string, 
-  options: MAVLinkBridgeClientOptions = {}
+  options?: MAVLinkBridgeClientOptions
 ): MAVLinkBridgeClient {
-  return new MAVLinkBridgeClient(deviceUrl, options);
+  return new MAVLinkBridgeClient(deviceUrl, options || {});
 }
 
 /**

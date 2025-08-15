@@ -10,7 +10,7 @@ const uint16_t WiFiManager::RECONNECT_DELAYS[MAX_RECONNECT_ATTEMPTS] = {
 };
 
 WiFiManager::WiFiManager() 
-    : currentState(DISCONNECTED), previousState(DISCONNECTED), wifiTask(nullptr), 
+    : currentState(DISCONNECTED), previousState(DISCONNECTED), wifiTaskHandle(nullptr), 
       reconnectAttempts(0), lastReconnectTime(0), lastSignalCheck(0),
       eventManager(nullptr), configManager(nullptr), connectingSsid(""), 
       isScanning(false), lastScanTime(0) {
@@ -20,8 +20,8 @@ WiFiManager::WiFiManager()
 }
 
 WiFiManager::~WiFiManager() {
-    if (wifiTask != nullptr) {
-        vTaskDelete(wifiTask);
+    if (wifiTaskHandle != nullptr) {
+        vTaskDelete(wifiTaskHandle);
     }
 }
 
@@ -48,7 +48,7 @@ void WiFiManager::begin() {
         4096,
         this,
         2,
-        &wifiTask
+        &wifiTaskHandle
     );
     
     Serial.println("WiFiManager initialized");
@@ -246,10 +246,10 @@ void WiFiManager::tryAutoConnect() {
 
 void WiFiManager::wifiTaskFunction(void* parameter) {
     WiFiManager* manager = static_cast<WiFiManager*>(parameter);
-    manager->wifiTask();
+    manager->runWifiTask();
 }
 
-void WiFiManager::wifiTask() {
+void WiFiManager::runWifiTask() {
     while (true) {
         handleStateTransition();
         
@@ -429,7 +429,7 @@ unsigned long WiFiManager::getReconnectDelay(uint8_t attempt) {
 }
 
 SavedNetwork* WiFiManager::findBestSavedNetwork() {
-    const Configuration& config = configManager->getConfiguration();
+    Configuration& config = configManager->getConfiguration();
     
     if (config.connection.wifi.networkCount == 0) {
         return nullptr;

@@ -21,8 +21,8 @@ export class HttpClient {
   /**
    * Perform a GET request
    */
-  async get<T>(path: string): Promise<T> {
-    return this.request<T>('GET', path);
+  async get<T>(path: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>('GET', path, undefined, options);
   }
 
   /**
@@ -40,10 +40,17 @@ export class HttpClient {
   }
 
   /**
+   * Perform a DELETE request
+   */
+  async delete<T>(path: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>('DELETE', path, undefined, options);
+  }
+
+  /**
    * Generic request method
    */
   private async request<T>(
-    method: 'GET' | 'POST' | 'PATCH',
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
     path: string,
     data?: unknown,
     options?: RequestOptions

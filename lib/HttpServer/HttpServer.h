@@ -7,7 +7,8 @@
 enum class HttpMethod {
     GET,
     POST,
-    PATCH
+    PATCH,
+    DELETE
 };
 
 struct HttpRequest {
