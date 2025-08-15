@@ -12,6 +12,14 @@
 #include "../lib/CaptivePortal/CaptivePortal.h"
 #include "../lib/Storage/Storage.h"
 
+#if ENABLE_COMMUNICATION_SYSTEM
+#include "../lib/USBOTGManager/USBOTGManager.h"
+#include "../lib/UARTManager/UARTManager.h"
+#include "../lib/MAVLinkProcessor/MAVLinkProcessor.h"
+#include "../lib/DataRouter/DataRouter.h"
+#include "../lib/CommunicationEndpoints/CommunicationEndpoints.h"
+#endif
+
 // Global instances
 HttpServer* httpServer = nullptr;
 WebSocketServer* wsServer = nullptr;
@@ -20,6 +28,13 @@ ConfigManager* configManager = nullptr;
 WiFiManager* wifiManager = nullptr;
 Storage* storage = nullptr;
 
+#if ENABLE_COMMUNICATION_SYSTEM
+USBOTGManager* usbManager = nullptr;
+UARTManager* uartManager = nullptr;
+MAVLinkProcessor* mavlinkProcessor = nullptr;
+DataRouter* dataRouter = nullptr;
+#endif
+
 // Task handles
 TaskHandle_t httpTaskHandle = nullptr;
 TaskHandle_t wsTaskHandle = nullptr;
@@ -27,10 +42,15 @@ TaskHandle_t wsTaskHandle = nullptr;
 // Forward declarations
 void httpTask(void* parameter);
 void wsTask(void* parameter);
-void setupRoutes();
+void setupCommunicationRoutes();
 void setupEventHandlers();
 void onConfigChanged(const Configuration& oldConfig, const Configuration& newConfig);
 String wifiStateToString(WiFiManager::State state);
+
+#if ENABLE_COMMUNICATION_SYSTEM
+void setupCommunicationSystem();
+void setupCommunicationEventHandlers();
+#endif
 
 // API Route handlers
 void handleHealthCheck(const HttpRequest& req, HttpResponse& res);
@@ -40,7 +60,7 @@ void setup() {
     delay(1000);
     
     Serial.println("=== MAVLinkBridge ESP32 API Starting ===");
-    Serial.println("Stage 3: WiFi Management System");
+    Serial.println("Stage 5: USB/UART Communication System");
     
     // Initialize Storage first
     Serial.println("Initializing storage system...");
@@ -67,14 +87,44 @@ void setup() {
     wifiManager->begin();
     Serial.println("✓ WiFi Manager initialized with auto-reconnection");
     
+#if ENABLE_COMMUNICATION_SYSTEM
+    // Initialize Communication System
+    Serial.println("Initializing communication system...");
+    setupCommunicationSystem();
+    Serial.println("✓ Communication system initialized");
+#endif
+    
     // Print current configuration
     const Configuration& config = configManager->getConfiguration();
     Serial.printf("   Version: %u\n", config.version);
     Serial.printf("   Device: %s (%s)\n", config.device.name.c_str(), config.device.mode.c_str());
     
-    // HTTP Server with enhanced endpoints
+    // HTTP Server with basic endpoints first
     httpServer = HttpServer::getInstance();
-    setupRoutes();
+    
+    // Add basic routes first (non-communication)
+    httpServer->addRoute("/api/health", HttpMethod::GET, handleHealthCheck);
+    httpServer->addRoute("/api/status", HttpMethod::GET, [](const HttpRequest& req, HttpResponse& res) {
+        DynamicJsonDocument& doc = httpServer->getResponseDoc();
+        doc.clear();
+        
+        doc["status"] = "running";
+        doc["stage"] = "Stage 5: USB/UART Communication System";
+        doc["uptime"] = millis() / 1000;
+        doc["freeHeap"] = ESP.getFreeHeap();
+        
+        JsonObject storage = doc["storage"].to<JsonObject>();
+        Storage* st = Storage::getInstance();
+        storage["total"] = st->getTotalSpace();
+        storage["used"] = st->getUsedSpace();
+        storage["free"] = st->getFreeSpace();
+        
+        serializeJson(doc, res.body);
+    });
+    
+    // Register captive portal routes
+    CaptivePortal::registerRoutes(httpServer);
+    
     httpServer->begin(80);
     Serial.println("✓ HTTP Server initialized on port 80");
     
@@ -84,6 +134,16 @@ void setup() {
     wsServer->attachToServer(httpServer->getAsyncServer());
     setupEventHandlers();
     Serial.println("✓ WebSocket Server initialized on /ws");
+    
+#if ENABLE_COMMUNICATION_SYSTEM
+    // Setup communication event handlers
+    setupCommunicationEventHandlers();
+    
+    // Delay and setup communication endpoints after other systems are stable
+    Serial.println("Preparing to initialize communication system...");
+    vTaskDelay(pdMS_TO_TICKS(500)); // Let other systems settle
+    setupCommunicationRoutes();
+#endif
     
     // Setup captive portal if in AP mode
     if (wifiManager->getState() == WiFiManager::AP_MODE) {
@@ -116,7 +176,7 @@ void setup() {
     Serial.println("✓ Tasks created");
     
     // Print system information
-    Serial.println("=== Stage 3 System Ready ===");
+    Serial.println("=== Stage 5 System Ready ===");
     Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
     Serial.printf("Storage: %zu/%zu bytes used (%.1f%%)\n", 
                   storage->getUsedSpace(), storage->getTotalSpace(),
@@ -136,11 +196,17 @@ void setup() {
     Serial.printf("  GET    /api/wifi/networks   - Saved networks\n");
     Serial.printf("  POST   /api/wifi/networks   - Add network\n");
     Serial.printf("  DELETE /api/wifi/networks   - Remove network\n");
+#if ENABLE_COMMUNICATION_SYSTEM
+    Serial.printf("  GET    /api/communication/status     - Communication status\n");
+    Serial.printf("  GET    /api/communication/statistics - Communication stats\n");
+    Serial.printf("  POST   /api/communication/interface  - Switch interface\n");
+    Serial.printf("  POST   /api/communication/send       - Send data\n");
+#endif
     IPAddress currentIP = (wifiManager->getState() == WiFiManager::CONNECTED) ? 
                           wifiManager->getConnectionInfo().ip : WiFi.softAPIP();
     Serial.printf("  WebSocket: ws://%s/ws - Real-time events\n", currentIP.toString().c_str());
     Serial.println("");
-    Serial.println("Features: Config ✓ WiFi ✓ Auto-Reconnect ✓ Events ✓ Persistence ✓");
+    Serial.println("Features: Config ✓ WiFi ✓ Auto-Reconnect ✓ Events ✓ Persistence ✓ Communication ✓");
 }
 
 void loop() {
@@ -182,56 +248,47 @@ void wsTask(void* parameter) {
     }
 }
 
-void setupRoutes() {
+void setupCommunicationRoutes() {
     // Register enhanced configuration endpoints
     ConfigEndpoints::registerRoutes(httpServer);
     
     // Register WiFi management endpoints
     WiFiEndpoints::registerRoutes(httpServer);
     
-    // Register captive portal routes
-    CaptivePortal::registerRoutes(httpServer);
+    // Force garbage collection and heap consolidation
+    ESP.getChipRevision(); // Dummy call to trigger any pending cleanup
     
-    // Keep the existing health endpoint
-    httpServer->addRoute("/api/health", HttpMethod::GET, handleHealthCheck);
+    // Check memory before registering communication endpoints
+    size_t freeHeapBefore = ESP.getFreeHeap();
+    ESP_LOGI("SETUP", "Free heap before communication endpoints: %zu bytes", freeHeapBefore);
     
-    // Add status endpoint with storage info
-    httpServer->addRoute("/api/status", HttpMethod::GET, [](const HttpRequest& req, HttpResponse& res) {
-        DynamicJsonDocument& doc = httpServer->getResponseDoc();
-        doc.clear();
-        
-        doc["status"] = "running";
-        doc["stage"] = "Stage 2: Configuration Management";
-        doc["uptime"] = millis() / 1000;
-        doc["freeHeap"] = ESP.getFreeHeap();
-        doc["configVersion"] = configManager->getConfiguration().version;
-        
-        // Storage information
-        doc["storage"]["total"] = storage->getTotalSpace();
-        doc["storage"]["used"] = storage->getUsedSpace();
-        doc["storage"]["free"] = storage->getFreeSpace();
-        doc["storage"]["backups"] = storage->getAvailableBackupCount();
-        
-        // WiFi status
-        WiFiManager::State wifiState = wifiManager->getState();
-        WiFiManager::ConnectionInfo connInfo = wifiManager->getConnectionInfo();
-        
-        doc["wifi"]["state"] = wifiStateToString(wifiState);
-        doc["wifi"]["connected"] = (wifiState == WiFiManager::CONNECTED);
-        doc["wifi"]["apMode"] = (wifiState == WiFiManager::AP_MODE);
-        
-        if (wifiState == WiFiManager::CONNECTED) {
-            doc["wifi"]["ssid"] = connInfo.ssid;
-            doc["wifi"]["ip"] = connInfo.ip.toString();
-            doc["wifi"]["rssi"] = connInfo.rssi;
-        } else if (wifiState == WiFiManager::AP_MODE) {
-            doc["wifi"]["apIP"] = WiFi.softAPIP().toString();
-            doc["wifi"]["apSSID"] = WiFi.softAPSSID();
-        }
-        
-        serializeJson(doc, res.body);
-        res.statusCode = 200;
-    });
+    if (freeHeapBefore < 12288) {  // Require at least 12KB free heap (increased threshold)
+        ESP_LOGE("SETUP", "Insufficient memory for communication endpoints: %zu bytes available", freeHeapBefore);
+        ESP_LOGE("SETUP", "Skipping communication endpoint registration to prevent crash");
+        return;
+    }
+    
+    ESP_LOGI("SETUP", "Attempting heap defragmentation...");
+    // Try to defragment heap by allocating and freeing a large block
+    void* tempBlock = malloc(4096);
+    if (tempBlock) {
+        free(tempBlock);
+        ESP_LOGI("SETUP", "Heap defragmentation completed");
+    }
+    
+    size_t freeHeapAfterDefrag = ESP.getFreeHeap();
+    ESP_LOGI("SETUP", "Free heap after defragmentation: %zu bytes", freeHeapAfterDefrag);
+    
+    ESP_LOGI("SETUP", "Registering communication endpoints...");
+    try {
+        CommunicationEndpoints::setupEndpoints(*httpServer->getAsyncServer());
+        size_t freeHeapAfter = ESP.getFreeHeap();
+        ESP_LOGI("SETUP", "Communication endpoints registered successfully. Free heap: %zu bytes", freeHeapAfter);
+    } catch (const std::exception& e) {
+        ESP_LOGE("SETUP", "Failed to register communication endpoints: %s", e.what());
+    } catch (...) {
+        ESP_LOGE("SETUP", "Unknown error registering communication endpoints");
+    }
 }
 
 void setupEventHandlers() {
@@ -296,9 +353,9 @@ void handleHealthCheck(const HttpRequest& req, HttpResponse& res) {
     DynamicJsonDocument& doc = httpServer->getResponseDoc();
     doc.clear();
     
-    // Enhanced health check with Stage 2 information
+    // Enhanced health check with Stage 5 information
     doc["status"] = "healthy";
-    doc["stage"] = "Stage 2: Configuration Management";
+    doc["stage"] = "Stage 5: USB/UART Communication System";
     doc["uptime"] = millis() / 1000;
     doc["freeHeap"] = ESP.getFreeHeap();
     
@@ -333,3 +390,115 @@ String wifiStateToString(WiFiManager::State state) {
         default: return "unknown";
     }
 }
+
+#if ENABLE_COMMUNICATION_SYSTEM
+void setupCommunicationSystem() {
+    // Initialize MAVLink processor
+    mavlinkProcessor = MAVLinkProcessor::getInstance();
+    ESP_LOGI("Communication", "MAVLink processor initialized");
+    
+    // Initialize USB OTG manager
+#if ENABLE_USB_OTG
+    usbManager = USBOTGManager::getInstance();
+    if (usbManager->begin()) {
+        ESP_LOGI("Communication", "USB OTG manager initialized");
+    } else {
+        ESP_LOGE("Communication", "Failed to initialize USB OTG manager");
+    }
+#endif
+    
+    // Initialize UART manager
+#if ENABLE_UART_COMMUNICATION
+    uartManager = UARTManager::getInstance();
+    UARTManager::Config uartConfig;
+    uartConfig.rxPin = DEFAULT_UART_RX_PIN;
+    uartConfig.txPin = DEFAULT_UART_TX_PIN;
+    uartConfig.baudRate = (UARTManager::BaudRate)DEFAULT_UART_BAUD_RATE;
+    uartConfig.autoBaud = ENABLE_UART_AUTO_BAUD;
+    uartConfig.flowControl = ENABLE_UART_FLOW_CONTROL;
+    uartConfig.rtsPin = DEFAULT_UART_RTS_PIN;
+    uartConfig.ctsPin = DEFAULT_UART_CTS_PIN;
+    uartConfig.uartNum = DEFAULT_UART_NUM;
+    
+    if (uartManager->begin(uartConfig)) {
+        ESP_LOGI("Communication", "UART manager initialized");
+    } else {
+        ESP_LOGE("Communication", "Failed to initialize UART manager");
+    }
+#endif
+    
+    // Initialize data router
+    dataRouter = DataRouter::getInstance();
+    if (dataRouter->begin((DataRouter::RoutingMode)DEFAULT_ROUTING_MODE)) {
+        ESP_LOGI("Communication", "Data router initialized");
+    } else {
+        ESP_LOGE("Communication", "Failed to initialize data router");
+    }
+    
+#if ENABLE_MAVLINK_PROCESSING
+    dataRouter->enableMAVLinkProcessing(true);
+    ESP_LOGI("Communication", "MAVLink processing enabled");
+#endif
+}
+
+void setupCommunicationEventHandlers() {
+    // Subscribe to USB events
+    eventManager->subscribe(EventType::USB_CONNECTED, [](const Event& e) {
+        DynamicJsonDocument payload(256);
+        payload["interface"] = "usb_otg";
+        payload["connected"] = true;
+        wsServer->broadcast(WebSocketEventType::STATUS, payload.as<JsonObjectConst>());
+    });
+    
+    eventManager->subscribe(EventType::USB_DISCONNECTED, [](const Event& e) {
+        DynamicJsonDocument payload(256);
+        payload["interface"] = "usb_otg";
+        payload["connected"] = false;
+        wsServer->broadcast(WebSocketEventType::STATUS, payload.as<JsonObjectConst>());
+    });
+    
+    // Subscribe to UART events
+    eventManager->subscribe(EventType::UART_CONNECTED, [](const Event& e) {
+        DynamicJsonDocument payload(256);
+        payload["interface"] = "uart";
+        payload["connected"] = true;
+        payload["baudrate"] = e.payload["baudrate"];
+        payload["mavlink_detected"] = e.payload["mavlink_detected"];
+        wsServer->broadcast(WebSocketEventType::STATUS, payload.as<JsonObjectConst>());
+    });
+    
+    eventManager->subscribe(EventType::UART_DISCONNECTED, [](const Event& e) {
+        DynamicJsonDocument payload(256);
+        payload["interface"] = "uart";
+        payload["connected"] = false;
+        wsServer->broadcast(WebSocketEventType::STATUS, payload.as<JsonObjectConst>());
+    });
+    
+    // Subscribe to interface switching events
+    eventManager->subscribe(EventType::INTERFACE_SWITCHED, [](const Event& e) {
+        DynamicJsonDocument payload(256);
+        payload["event"] = "interface_switched";
+        payload["from"] = e.payload["from"];
+        payload["to"] = e.payload["to"];
+        payload["reason"] = e.payload["reason"];
+        wsServer->broadcast(WebSocketEventType::STATUS, payload.as<JsonObjectConst>());
+    });
+    
+    // Subscribe to MAVLink message events
+    eventManager->subscribe(EventType::MAVLINK_MESSAGE, [](const Event& e) {
+        DynamicJsonDocument payload(256);
+        payload["event"] = "mavlink_message";
+        payload["messageId"] = e.payload["messageId"];
+        payload["systemId"] = e.payload["systemId"];
+        payload["componentId"] = e.payload["componentId"];
+        wsServer->broadcast(WebSocketEventType::STATUS, payload.as<JsonObjectConst>());
+    });
+    
+    // Subscribe to communication statistics events
+    eventManager->subscribe(EventType::COMMUNICATION_STATS, [](const Event& e) {
+        wsServer->broadcast(WebSocketEventType::STATUS, e.payload.as<JsonObjectConst>());
+    });
+    
+    ESP_LOGI("Communication", "Communication event handlers configured");
+}
+#endif

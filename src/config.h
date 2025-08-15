@@ -48,3 +48,50 @@
 #define ENABLE_CONFIG_PERSISTENCE true // Stage 2 feature
 #define ENABLE_WIFI_MANAGER true // Stage 3 feature
 #define ENABLE_RTCM_CLIENT false // Stage 4 feature
+#define ENABLE_COMMUNICATION_SYSTEM true // Stage 5 feature
+
+// Communication system configuration (Stage 5)
+#define ENABLE_USB_OTG true
+#define ENABLE_UART_COMMUNICATION true
+#define ENABLE_MAVLINK_PROCESSING true
+
+// USB OTG configuration
+#define USB_OTG_BUFFER_SIZE 4096
+#define USB_OTG_TASK_STACK_SIZE 4096
+#define USB_OTG_TASK_PRIORITY 6
+
+// UART configuration
+#define DEFAULT_UART_NUM 1
+#define DEFAULT_UART_RX_PIN 16
+#define DEFAULT_UART_TX_PIN 17
+#define DEFAULT_UART_RTS_PIN 255  // Disabled
+#define DEFAULT_UART_CTS_PIN 255  // Disabled
+#define DEFAULT_UART_BAUD_RATE 57600
+#define UART_BUFFER_SIZE 4096
+#define UART_TASK_STACK_SIZE 4096
+#define UART_TASK_PRIORITY 5
+#define ENABLE_UART_AUTO_BAUD true
+#define ENABLE_UART_FLOW_CONTROL false
+
+// MAVLink processor configuration
+#define MAVLINK_BUFFER_SIZE 512
+#define MAVLINK_MAX_MESSAGE_TYPES 256
+#define ENABLE_MAVLINK_FILTERING false
+#define ENABLE_MAVLINK_SEQUENCE_CHECK true
+
+// Data router configuration
+#define DATA_ROUTER_BUFFER_SIZE 8192
+#define DATA_ROUTER_QUEUE_SIZE 32
+#define DATA_ROUTER_TASK_STACK_SIZE 8192
+#define DATA_ROUTER_TASK_PRIORITY 7
+#define DEFAULT_ROUTING_MODE 0  // AUTO
+#define INTERFACE_HEALTH_CHECK_INTERVAL 5000  // 5 seconds
+#define INTERFACE_SWITCH_TIMEOUT 1000  // 1 second
+
+// Communication statistics
+#define COMM_STATS_UPDATE_INTERVAL 1000  // 1 second
+#define ENABLE_COMM_STATISTICS true
+
+// Performance settings
+#define COMM_MAX_THROUGHPUT 1000000  // 1 Mbps
+#define COMM_MAX_PACKET_SIZE 256

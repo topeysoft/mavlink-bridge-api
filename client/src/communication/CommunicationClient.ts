@@ -1,0 +1,356 @@
+import { HttpClient } from '../core/HttpClient';
+import { WebSocketClient } from '../core/WebSocketClient';
+import { EventType } from '../core/EventTypes';
+import {
+  Interface,
+  RoutingMode,
+  InterfaceChangeEvent,
+  DataFlowStats,
+  CommunicationStats,
+  MAVLinkMessage,
+  MAVLinkFilter,
+  CommunicationConfig,
+  CommunicationStatus,
+  CommunicationError,
+  CommunicationErrorType,
+  InterfaceChangeCallback,
+  DataFlowCallback,
+  MAVLinkMessageCallback,
+  CommunicationErrorCallback,
+  StatisticsCallback
+} from './CommunicationTypes';
+
+/**
+ * Client for managing communication system
+ */
+export class CommunicationClient {
+  private httpClient: HttpClient;
+  private wsClient: WebSocketClient;
+  private callbacks = new Map<string, Function[]>();
+
+  constructor(httpClient: HttpClient, wsClient: WebSocketClient) {
+    this.httpClient = httpClient;
+    this.wsClient = wsClient;
+    this.setupEventListeners();
+  }
+
+  /**
+   * Set up WebSocket event listeners
+   */
+  private setupEventListeners(): void {
+    // Interface events
+    this.wsClient.on(EventType.USB_CONNECTED, (payload) => {
+      this.triggerCallbacks('interfaceChange', {
+        from: Interface.NONE,
+        to: Interface.USB_OTG,
+        reason: 'usb_connected',
+        timestamp: Date.now()
+      });
+    });
+
+    this.wsClient.on(EventType.USB_DISCONNECTED, (payload) => {
+      this.triggerCallbacks('interfaceChange', {
+        from: Interface.USB_OTG,
+        to: Interface.NONE,
+        reason: 'usb_disconnected',
+        timestamp: Date.now()
+      });
+    });
+
+    this.wsClient.on(EventType.UART_CONNECTED, (payload) => {
+      this.triggerCallbacks('interfaceChange', {
+        from: Interface.NONE,
+        to: Interface.UART,
+        reason: 'uart_connected',
+        timestamp: Date.now()
+      });
+    });
+
+    this.wsClient.on(EventType.UART_DISCONNECTED, (payload) => {
+      this.triggerCallbacks('interfaceChange', {
+        from: Interface.UART,
+        to: Interface.NONE,
+        reason: 'uart_disconnected',
+        timestamp: Date.now()
+      });
+    });
+
+    this.wsClient.on(EventType.INTERFACE_SWITCHED, (payload) => {
+      const event: InterfaceChangeEvent = {
+        from: payload.from as Interface,
+        to: payload.to as Interface,
+        reason: payload.reason as string,
+        timestamp: Date.now()
+      };
+      this.triggerCallbacks('interfaceChange', event);
+    });
+
+    // MAVLink events
+    this.wsClient.on(EventType.MAVLINK_MESSAGE, (payload) => {
+      const message: MAVLinkMessage = {
+        messageId: payload.messageId as number,
+        systemId: payload.systemId as number,
+        componentId: payload.componentId as number,
+        sequence: 0, // This would need to be added to the payload
+        length: payload.length as number,
+        payload: payload.data as string,
+        timestamp: Date.now(),
+        valid: true
+      };
+      this.triggerCallbacks('mavlinkMessage', message);
+    });
+
+    // Statistics events
+    this.wsClient.on(EventType.COMMUNICATION_STATS, (payload) => {
+      const stats: DataFlowStats = {
+        interface: payload.interface as Interface,
+        upstreamRate: payload.upstreamRate as number,
+        downstreamRate: payload.downstreamRate as number,
+        packetsReceived: payload.packetsReceived as number,
+        packetsSent: payload.packetsSent as number,
+        bytesReceived: payload.bytesReceived as number,
+        bytesSent: payload.bytesSent as number,
+        interfaceSwitches: 0, // This would need to be added to the payload
+        lastSwitchMs: 0 // This would need to be added to the payload
+      };
+      this.triggerCallbacks('dataFlow', stats);
+    });
+
+    // Error events
+    this.wsClient.on(EventType.ERROR, (payload) => {
+      if (payload.component === 'communication') {
+        const error: CommunicationError = {
+          type: CommunicationErrorType.INTERFACE_ERROR,
+          message: payload.message as string,
+          timestamp: payload.timestamp as number,
+          details: payload
+        };
+        this.triggerCallbacks('error', error);
+      }
+    });
+  }
+
+  /**
+   * Trigger callbacks for a specific event type
+   */
+  private triggerCallbacks(eventType: string, data: unknown): void {
+    const callbacks = this.callbacks.get(eventType) || [];
+    callbacks.forEach(callback => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error(`Error in ${eventType} callback:`, error);
+      }
+    });
+  }
+
+  /**
+   * Add a callback for a specific event type
+   */
+  private addCallback(eventType: string, callback: Function): void {
+    if (!this.callbacks.has(eventType)) {
+      this.callbacks.set(eventType, []);
+    }
+    this.callbacks.get(eventType)!.push(callback);
+  }
+
+  /**
+   * Remove a callback for a specific event type
+   */
+  private removeCallback(eventType: string, callback: Function): void {
+    const callbacks = this.callbacks.get(eventType);
+    if (callbacks) {
+      const index = callbacks.indexOf(callback);
+      if (index !== -1) {
+        callbacks.splice(index, 1);
+      }
+    }
+  }
+
+  // Event subscription methods
+
+  /**
+   * Subscribe to interface change events
+   */
+  onInterfaceChange(callback: InterfaceChangeCallback): () => void {
+    this.addCallback('interfaceChange', callback);
+    return () => this.removeCallback('interfaceChange', callback);
+  }
+
+  /**
+   * Subscribe to data flow statistics
+   */
+  onDataFlow(callback: DataFlowCallback): () => void {
+    this.addCallback('dataFlow', callback);
+    return () => this.removeCallback('dataFlow', callback);
+  }
+
+  /**
+   * Subscribe to MAVLink messages
+   */
+  onMAVLinkMessage(callback: MAVLinkMessageCallback): () => void {
+    this.addCallback('mavlinkMessage', callback);
+    return () => this.removeCallback('mavlinkMessage', callback);
+  }
+
+  /**
+   * Subscribe to communication errors
+   */
+  onError(callback: CommunicationErrorCallback): () => void {
+    this.addCallback('error', callback);
+    return () => this.removeCallback('error', callback);
+  }
+
+  /**
+   * Subscribe to statistics updates
+   */
+  onStatistics(callback: StatisticsCallback): () => void {
+    this.addCallback('statistics', callback);
+    return () => this.removeCallback('statistics', callback);
+  }
+
+  // API methods
+
+  /**
+   * Get current communication status
+   */
+  async getStatus(): Promise<CommunicationStatus> {
+    const response = await this.httpClient.get('/api/communication/status');
+    return response.data as CommunicationStatus;
+  }
+
+  /**
+   * Get current communication statistics
+   */
+  async getStatistics(): Promise<CommunicationStats> {
+    const response = await this.httpClient.get('/api/communication/statistics');
+    return response.data as CommunicationStats;
+  }
+
+  /**
+   * Get current active interface
+   */
+  async getActiveInterface(): Promise<Interface> {
+    const status = await this.getStatus();
+    return status.activeInterface;
+  }
+
+  /**
+   * Get current routing mode
+   */
+  async getRoutingMode(): Promise<RoutingMode> {
+    const status = await this.getStatus();
+    return status.routingMode;
+  }
+
+  /**
+   * Set routing mode
+   */
+  async setRoutingMode(mode: RoutingMode): Promise<void> {
+    await this.httpClient.post('/api/communication/routing-mode', { mode });
+  }
+
+  /**
+   * Switch to a specific interface
+   */
+  async switchInterface(interface: Interface): Promise<void> {
+    await this.httpClient.post('/api/communication/interface', { interface });
+  }
+
+  /**
+   * Get communication configuration
+   */
+  async getConfiguration(): Promise<CommunicationConfig> {
+    const response = await this.httpClient.get('/api/communication/config');
+    return response.data as CommunicationConfig;
+  }
+
+  /**
+   * Update communication configuration
+   */
+  async updateConfiguration(config: Partial<CommunicationConfig>): Promise<void> {
+    await this.httpClient.patch('/api/communication/config', config);
+  }
+
+  /**
+   * Enable/disable MAVLink processing
+   */
+  async setMAVLinkProcessing(enabled: boolean): Promise<void> {
+    await this.httpClient.post('/api/communication/mavlink/processing', { enabled });
+  }
+
+  /**
+   * Set MAVLink message filter
+   */
+  async setMAVLinkFilter(filter: MAVLinkFilter): Promise<void> {
+    await this.httpClient.post('/api/communication/mavlink/filter', filter);
+  }
+
+  /**
+   * Get MAVLink message filter
+   */
+  async getMAVLinkFilter(): Promise<MAVLinkFilter> {
+    const response = await this.httpClient.get('/api/communication/mavlink/filter');
+    return response.data as MAVLinkFilter;
+  }
+
+  /**
+   * Clear MAVLink message filter
+   */
+  async clearMAVLinkFilter(): Promise<void> {
+    await this.httpClient.delete('/api/communication/mavlink/filter');
+  }
+
+  /**
+   * Send data to the active interface
+   */
+  async sendData(data: string): Promise<void> {
+    await this.httpClient.post('/api/communication/send', { data });
+  }
+
+  /**
+   * Reset communication statistics
+   */
+  async resetStatistics(): Promise<void> {
+    await this.httpClient.post('/api/communication/statistics/reset');
+  }
+
+  /**
+   * Test interface connectivity
+   */
+  async testInterface(interface: Interface): Promise<boolean> {
+    const response = await this.httpClient.post('/api/communication/test', { interface });
+    return response.data.success as boolean;
+  }
+
+  /**
+   * Get available interfaces
+   */
+  async getAvailableInterfaces(): Promise<Interface[]> {
+    const response = await this.httpClient.get('/api/communication/interfaces');
+    return response.data.interfaces as Interface[];
+  }
+
+  /**
+   * Force interface detection
+   */
+  async detectInterfaces(): Promise<Interface[]> {
+    const response = await this.httpClient.post('/api/communication/detect');
+    return response.data.interfaces as Interface[];
+  }
+
+  /**
+   * Get interface health status
+   */
+  async getInterfaceHealth(): Promise<Record<Interface, boolean>> {
+    const response = await this.httpClient.get('/api/communication/health');
+    return response.data as Record<Interface, boolean>;
+  }
+
+  /**
+   * Restart communication system
+   */
+  async restart(): Promise<void> {
+    await this.httpClient.post('/api/communication/restart');
+  }
+}

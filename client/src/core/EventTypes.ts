@@ -17,7 +17,15 @@ export enum EventType {
   WIFI_SIGNAL_UPDATE = 'wifi_signal_update',
   WIFI_AP_MODE_STARTED = 'wifi_ap_mode_started',
   WIFI_AP_MODE_STOPPED = 'wifi_ap_mode_stopped',
-  WIFI_SCAN_COMPLETED = 'wifi_scan_completed'
+  WIFI_SCAN_COMPLETED = 'wifi_scan_completed',
+  // Communication events
+  USB_CONNECTED = 'usb_connected',
+  USB_DISCONNECTED = 'usb_disconnected',
+  UART_CONNECTED = 'uart_connected',
+  UART_DISCONNECTED = 'uart_disconnected',
+  INTERFACE_SWITCHED = 'interface_switched',
+  MAVLINK_MESSAGE = 'mavlink_message',
+  COMMUNICATION_STATS = 'communication_stats'
 }
 
 /**
@@ -130,6 +138,82 @@ export interface WiFiScanCompletedPayload {
 }
 
 /**
+ * USB connected event payload
+ */
+export interface USBConnectedPayload {
+  interface: string;
+  speed: string;
+  vid: number;
+  pid: number;
+  vendor: string;
+  product: string;
+  is_flight_controller: boolean;
+  is_identified: boolean;
+}
+
+/**
+ * USB disconnected event payload
+ */
+export interface USBDisconnectedPayload {
+  interface: string;
+  vid: number;
+  pid: number;
+  vendor: string;
+  product: string;
+  is_flight_controller: boolean;
+  is_identified: boolean;
+}
+
+/**
+ * UART connected event payload
+ */
+export interface UARTConnectedPayload {
+  interface: string;
+  baudrate: number;
+  mavlink_detected: boolean;
+}
+
+/**
+ * UART disconnected event payload
+ */
+export interface UARTDisconnectedPayload {
+  interface: string;
+}
+
+/**
+ * Interface switched event payload
+ */
+export interface InterfaceSwitchedPayload {
+  from: string;
+  to: string;
+  reason: string;
+}
+
+/**
+ * MAVLink message event payload
+ */
+export interface MAVLinkMessagePayload {
+  messageId: number;
+  systemId: number;
+  componentId: number;
+  length: number;
+  data: string; // Base64 encoded
+}
+
+/**
+ * Communication statistics event payload
+ */
+export interface CommunicationStatsPayload {
+  interface: string;
+  upstreamRate: number;
+  downstreamRate: number;
+  packetsReceived: number;
+  packetsSent: number;
+  bytesReceived: number;
+  bytesSent: number;
+}
+
+/**
  * Event handler function type
  */
 export type EventHandler<T = Record<string, unknown>> = (payload: T) => void;
@@ -150,4 +234,11 @@ export interface EventHandlers {
   [EventType.WIFI_AP_MODE_STARTED]?: EventHandler<WiFiAPModeStartedPayload>;
   [EventType.WIFI_AP_MODE_STOPPED]?: EventHandler;
   [EventType.WIFI_SCAN_COMPLETED]?: EventHandler<WiFiScanCompletedPayload>;
+  [EventType.USB_CONNECTED]?: EventHandler<USBConnectedPayload>;
+  [EventType.USB_DISCONNECTED]?: EventHandler<USBDisconnectedPayload>;
+  [EventType.UART_CONNECTED]?: EventHandler<UARTConnectedPayload>;
+  [EventType.UART_DISCONNECTED]?: EventHandler<UARTDisconnectedPayload>;
+  [EventType.INTERFACE_SWITCHED]?: EventHandler<InterfaceSwitchedPayload>;
+  [EventType.MAVLINK_MESSAGE]?: EventHandler<MAVLinkMessagePayload>;
+  [EventType.COMMUNICATION_STATS]?: EventHandler<CommunicationStatsPayload>;
 }
