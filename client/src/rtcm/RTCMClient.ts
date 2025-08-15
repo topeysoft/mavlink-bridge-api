@@ -7,7 +7,10 @@ import {
   RTCMResponse,
   RTCMDataEvent,
   RTCMStateChangeEvent,
-  RTCMState
+  RTCMState,
+  NTRIPSource,
+  TCPSource,
+  UDPSource
 } from './RTCMTypes';
 
 export class RTCMClient {
@@ -24,7 +27,7 @@ export class RTCMClient {
   /**
    * Start RTCM client with the given configuration
    */
-  async start(config: Partial<RTCMConfig>): Promise<RTCMResponse> {
+  async start (config: Partial<RTCMConfig>): Promise<RTCMResponse> {
     const response = await this.httpClient.post<RTCMResponse>('/rtcm/start', config);
     return response;
   }
@@ -32,7 +35,7 @@ export class RTCMClient {
   /**
    * Stop the RTCM client
    */
-  async stop(): Promise<RTCMResponse> {
+  async stop (): Promise<RTCMResponse> {
     const response = await this.httpClient.post<RTCMResponse>('/rtcm/stop');
     return response;
   }
@@ -40,7 +43,7 @@ export class RTCMClient {
   /**
    * Get current RTCM client status
    */
-  async getStatus(): Promise<RTCMStatus> {
+  async getStatus (): Promise<RTCMStatus> {
     const response = await this.httpClient.get<RTCMStatus>('/rtcm/status');
     return response;
   }
@@ -48,7 +51,7 @@ export class RTCMClient {
   /**
    * Get current RTCM configuration
    */
-  async getConfig(): Promise<RTCMConfig> {
+  async getConfig (): Promise<RTCMConfig> {
     const response = await this.httpClient.get<RTCMConfig>('/rtcm/config');
     return response;
   }
@@ -56,9 +59,9 @@ export class RTCMClient {
   /**
    * Register callback for RTCM data events
    */
-  onDataReceived(callback: (data: RTCMDataEvent) => void): () => void {
+  onDataReceived (callback: (data: RTCMDataEvent) => void): () => void {
     this.dataCallbacks.push(callback);
-    
+
     // Return unsubscribe function
     return () => {
       const index = this.dataCallbacks.indexOf(callback);
@@ -71,9 +74,9 @@ export class RTCMClient {
   /**
    * Register callback for state change events
    */
-  onStateChange(callback: (state: RTCMState) => void): () => void {
+  onStateChange (callback: (state: RTCMState) => void): () => void {
     this.stateChangeCallbacks.push(callback);
-    
+
     // Return unsubscribe function
     return () => {
       const index = this.stateChangeCallbacks.indexOf(callback);
@@ -86,7 +89,7 @@ export class RTCMClient {
   /**
    * Start NTRIP client with common configuration
    */
-  async startNTRIP(config: {
+  async startNTRIP (config: {
     host: string;
     port: number;
     mountpoint: string;
@@ -104,12 +107,8 @@ export class RTCMClient {
       source: {
         type: 'ntrip',
         ...config,
-        position: config.position ? {
-          latitude: config.position.latitude,
-          longitude: config.position.longitude,
-          altitude: config.position.altitude || 0
-        } : undefined
-      },
+        position: config.position || undefined
+      } as NTRIPSource,
       outputFormat: 'raw'
     };
 
@@ -119,7 +118,7 @@ export class RTCMClient {
   /**
    * Start TCP RTCM client
    */
-  async startTCP(host: string, port: number): Promise<RTCMResponse> {
+  async startTCP (host: string, port: number): Promise<RTCMResponse> {
     const rtcmConfig: Partial<RTCMConfig> = {
       enabled: true,
       source: {
@@ -136,35 +135,35 @@ export class RTCMClient {
   /**
    * Start UDP RTCM client
    */
-  async startUDP(port: number, remoteHost?: string, remotePort?: number): Promise<RTCMResponse> {
+  async startUDP (port: number, remoteHost?: string, remotePort?: number): Promise<RTCMResponse> {
     const rtcmConfig: Partial<RTCMConfig> = {
       enabled: true,
       source: {
         type: 'udp',
         port,
-        remoteHost,
-        remotePort
-      },
+        ...(remoteHost && { remoteHost }),
+        ...(remotePort && { remotePort })
+      } as UDPSource,
       outputFormat: 'raw'
     };
 
     return this.start(rtcmConfig);
   }
 
-  private setupEventListeners() {
+  private setupEventListeners () {
     // Listen for RTCM data events
-    this.wsClient.on(EventType.RTCM_DATA_RECEIVED, (data: RTCMDataEvent) => {
+    this.wsClient.on(EventType.RTCM_DATA_RECEIVED, ((data: RTCMDataEvent) => {
       this.dataCallbacks.forEach(callback => callback(data));
-    });
+    }) as any);
 
     // Listen for state change events
-    this.wsClient.on(EventType.RTCM_STATE_CHANGE, (data: RTCMStateChangeEvent) => {
+    this.wsClient.on(EventType.RTCM_STATE_CHANGE, ((data: RTCMStateChangeEvent) => {
       const state = this.mapStateNumberToEnum(data.state);
       this.stateChangeCallbacks.forEach(callback => callback(state));
-    });
+    }) as any);
   }
 
-  private mapStateNumberToEnum(stateNum: number): RTCMState {
+  private mapStateNumberToEnum (stateNum: number): RTCMState {
     switch (stateNum) {
       case 0: return RTCMState.DISCONNECTED;
       case 1: return RTCMState.CONNECTING;

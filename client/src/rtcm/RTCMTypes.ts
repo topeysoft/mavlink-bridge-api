@@ -46,6 +46,10 @@ export interface RTCMStatistics {
   dataRate: number;
   lastMessageTime: number;
   messageTypes: { [key: string]: number };
+  messagesSent?: number;
+  bytesSent?: number;
+  errors?: number;
+  connectionTime?: number;
 }
 
 export interface RTCMStatus {
@@ -54,6 +58,7 @@ export interface RTCMStatus {
   statistics?: RTCMStatistics;
   uptime?: number;
   clientType?: string;
+  connected?: boolean;
 }
 
 export interface RTCMDataEvent {

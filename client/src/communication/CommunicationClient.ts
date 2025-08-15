@@ -37,7 +37,7 @@ export class CommunicationClient {
   /**
    * Set up WebSocket event listeners
    */
-  private setupEventListeners(): void {
+  private setupEventListeners (): void {
     // Interface events
     this.wsClient.on(EventType.USB_CONNECTED, (payload) => {
       this.triggerCallbacks('interfaceChange', {
@@ -75,7 +75,7 @@ export class CommunicationClient {
       });
     });
 
-    this.wsClient.on(EventType.INTERFACE_SWITCHED, (payload) => {
+    this.wsClient.on(EventType.INTERFACE_SWITCHED, (payload: any) => {
       const event: InterfaceChangeEvent = {
         from: payload.from as Interface,
         to: payload.to as Interface,
@@ -86,7 +86,7 @@ export class CommunicationClient {
     });
 
     // MAVLink events
-    this.wsClient.on(EventType.MAVLINK_MESSAGE, (payload) => {
+    this.wsClient.on(EventType.MAVLINK_MESSAGE, (payload: any) => {
       const message: MAVLinkMessage = {
         messageId: payload.messageId as number,
         systemId: payload.systemId as number,
@@ -101,7 +101,7 @@ export class CommunicationClient {
     });
 
     // Statistics events
-    this.wsClient.on(EventType.COMMUNICATION_STATS, (payload) => {
+    this.wsClient.on(EventType.COMMUNICATION_STATS, (payload: any) => {
       const stats: DataFlowStats = {
         interface: payload.interface as Interface,
         upstreamRate: payload.upstreamRate as number,
@@ -117,13 +117,13 @@ export class CommunicationClient {
     });
 
     // Error events
-    this.wsClient.on(EventType.ERROR, (payload) => {
+    this.wsClient.on(EventType.ERROR, (payload: any) => {
       if (payload.component === 'communication') {
         const error: CommunicationError = {
           type: CommunicationErrorType.INTERFACE_ERROR,
           message: payload.message as string,
           timestamp: payload.timestamp as number,
-          details: payload
+          details: payload as Record<string, unknown>
         };
         this.triggerCallbacks('error', error);
       }
@@ -133,7 +133,7 @@ export class CommunicationClient {
   /**
    * Trigger callbacks for a specific event type
    */
-  private triggerCallbacks(eventType: string, data: unknown): void {
+  private triggerCallbacks (eventType: string, data: unknown): void {
     const callbacks = this.callbacks.get(eventType) || [];
     callbacks.forEach(callback => {
       try {
@@ -147,7 +147,7 @@ export class CommunicationClient {
   /**
    * Add a callback for a specific event type
    */
-  private addCallback(eventType: string, callback: Function): void {
+  private addCallback (eventType: string, callback: Function): void {
     if (!this.callbacks.has(eventType)) {
       this.callbacks.set(eventType, []);
     }
@@ -157,7 +157,7 @@ export class CommunicationClient {
   /**
    * Remove a callback for a specific event type
    */
-  private removeCallback(eventType: string, callback: Function): void {
+  private removeCallback (eventType: string, callback: Function): void {
     const callbacks = this.callbacks.get(eventType);
     if (callbacks) {
       const index = callbacks.indexOf(callback);
@@ -172,7 +172,7 @@ export class CommunicationClient {
   /**
    * Subscribe to interface change events
    */
-  onInterfaceChange(callback: InterfaceChangeCallback): () => void {
+  onInterfaceChange (callback: InterfaceChangeCallback): () => void {
     this.addCallback('interfaceChange', callback);
     return () => this.removeCallback('interfaceChange', callback);
   }
@@ -180,7 +180,7 @@ export class CommunicationClient {
   /**
    * Subscribe to data flow statistics
    */
-  onDataFlow(callback: DataFlowCallback): () => void {
+  onDataFlow (callback: DataFlowCallback): () => void {
     this.addCallback('dataFlow', callback);
     return () => this.removeCallback('dataFlow', callback);
   }
@@ -188,7 +188,7 @@ export class CommunicationClient {
   /**
    * Subscribe to MAVLink messages
    */
-  onMAVLinkMessage(callback: MAVLinkMessageCallback): () => void {
+  onMAVLinkMessage (callback: MAVLinkMessageCallback): () => void {
     this.addCallback('mavlinkMessage', callback);
     return () => this.removeCallback('mavlinkMessage', callback);
   }
@@ -196,7 +196,7 @@ export class CommunicationClient {
   /**
    * Subscribe to communication errors
    */
-  onError(callback: CommunicationErrorCallback): () => void {
+  onError (callback: CommunicationErrorCallback): () => void {
     this.addCallback('error', callback);
     return () => this.removeCallback('error', callback);
   }
@@ -204,7 +204,7 @@ export class CommunicationClient {
   /**
    * Subscribe to statistics updates
    */
-  onStatistics(callback: StatisticsCallback): () => void {
+  onStatistics (callback: StatisticsCallback): () => void {
     this.addCallback('statistics', callback);
     return () => this.removeCallback('statistics', callback);
   }
@@ -214,23 +214,23 @@ export class CommunicationClient {
   /**
    * Get current communication status
    */
-  async getStatus(): Promise<CommunicationStatus> {
-    const response = await this.httpClient.get('/api/communication/status');
+  async getStatus (): Promise<CommunicationStatus> {
+    const response: any = await this.httpClient.get('/api/communication/status');
     return response.data as CommunicationStatus;
   }
 
   /**
    * Get current communication statistics
    */
-  async getStatistics(): Promise<CommunicationStats> {
-    const response = await this.httpClient.get('/api/communication/statistics');
+  async getStatistics (): Promise<CommunicationStats> {
+    const response: any = await this.httpClient.get('/api/communication/statistics');
     return response.data as CommunicationStats;
   }
 
   /**
    * Get current active interface
    */
-  async getActiveInterface(): Promise<Interface> {
+  async getActiveInterface (): Promise<Interface> {
     const status = await this.getStatus();
     return status.activeInterface;
   }
@@ -238,7 +238,7 @@ export class CommunicationClient {
   /**
    * Get current routing mode
    */
-  async getRoutingMode(): Promise<RoutingMode> {
+  async getRoutingMode (): Promise<RoutingMode> {
     const status = await this.getStatus();
     return status.routingMode;
   }
@@ -246,111 +246,111 @@ export class CommunicationClient {
   /**
    * Set routing mode
    */
-  async setRoutingMode(mode: RoutingMode): Promise<void> {
+  async setRoutingMode (mode: RoutingMode): Promise<void> {
     await this.httpClient.post('/api/communication/routing-mode', { mode });
   }
 
   /**
    * Switch to a specific interface
    */
-  async switchInterface(interface: Interface): Promise<void> {
-    await this.httpClient.post('/api/communication/interface', { interface });
+  async switchInterface (targetInterface: Interface): Promise<void> {
+    await this.httpClient.post('/api/communication/interface', { interface: targetInterface });
   }
 
   /**
    * Get communication configuration
    */
-  async getConfiguration(): Promise<CommunicationConfig> {
-    const response = await this.httpClient.get('/api/communication/config');
+  async getConfiguration (): Promise<CommunicationConfig> {
+    const response: any = await this.httpClient.get('/api/communication/config');
     return response.data as CommunicationConfig;
   }
 
   /**
    * Update communication configuration
    */
-  async updateConfiguration(config: Partial<CommunicationConfig>): Promise<void> {
+  async updateConfiguration (config: Partial<CommunicationConfig>): Promise<void> {
     await this.httpClient.patch('/api/communication/config', config);
   }
 
   /**
    * Enable/disable MAVLink processing
    */
-  async setMAVLinkProcessing(enabled: boolean): Promise<void> {
+  async setMAVLinkProcessing (enabled: boolean): Promise<void> {
     await this.httpClient.post('/api/communication/mavlink/processing', { enabled });
   }
 
   /**
    * Set MAVLink message filter
    */
-  async setMAVLinkFilter(filter: MAVLinkFilter): Promise<void> {
+  async setMAVLinkFilter (filter: MAVLinkFilter): Promise<void> {
     await this.httpClient.post('/api/communication/mavlink/filter', filter);
   }
 
   /**
    * Get MAVLink message filter
    */
-  async getMAVLinkFilter(): Promise<MAVLinkFilter> {
-    const response = await this.httpClient.get('/api/communication/mavlink/filter');
+  async getMAVLinkFilter (): Promise<MAVLinkFilter> {
+    const response: any = await this.httpClient.get('/api/communication/mavlink/filter');
     return response.data as MAVLinkFilter;
   }
 
   /**
    * Clear MAVLink message filter
    */
-  async clearMAVLinkFilter(): Promise<void> {
+  async clearMAVLinkFilter (): Promise<void> {
     await this.httpClient.delete('/api/communication/mavlink/filter');
   }
 
   /**
    * Send data to the active interface
    */
-  async sendData(data: string): Promise<void> {
+  async sendData (data: string): Promise<void> {
     await this.httpClient.post('/api/communication/send', { data });
   }
 
   /**
    * Reset communication statistics
    */
-  async resetStatistics(): Promise<void> {
+  async resetStatistics (): Promise<void> {
     await this.httpClient.post('/api/communication/statistics/reset');
   }
 
   /**
    * Test interface connectivity
    */
-  async testInterface(interface: Interface): Promise<boolean> {
-    const response = await this.httpClient.post('/api/communication/test', { interface });
+  async testInterface (targetInterface: Interface): Promise<boolean> {
+    const response: any = await this.httpClient.post('/api/communication/test', { interface: targetInterface });
     return response.data.success as boolean;
   }
 
   /**
    * Get available interfaces
    */
-  async getAvailableInterfaces(): Promise<Interface[]> {
-    const response = await this.httpClient.get('/api/communication/interfaces');
+  async getAvailableInterfaces (): Promise<Interface[]> {
+    const response: any = await this.httpClient.get('/api/communication/interfaces');
     return response.data.interfaces as Interface[];
   }
 
   /**
    * Force interface detection
    */
-  async detectInterfaces(): Promise<Interface[]> {
-    const response = await this.httpClient.post('/api/communication/detect');
+  async detectInterfaces (): Promise<Interface[]> {
+    const response: any = await this.httpClient.post('/api/communication/detect');
     return response.data.interfaces as Interface[];
   }
 
   /**
    * Get interface health status
    */
-  async getInterfaceHealth(): Promise<Record<Interface, boolean>> {
-    const response = await this.httpClient.get('/api/communication/health');
+  async getInterfaceHealth (): Promise<Record<Interface, boolean>> {
+    const response: any = await this.httpClient.get('/api/communication/health');
     return response.data as Record<Interface, boolean>;
   }
 
   /**
    * Restart communication system
    */
-  async restart(): Promise<void> {
+  async restart (): Promise<void> {
     await this.httpClient.post('/api/communication/restart');
   }
 }

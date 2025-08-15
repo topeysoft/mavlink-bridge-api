@@ -11,7 +11,7 @@ export type { MAVLinkBridgeClientOptions } from './MAVLinkBridgeClient';
 // Core exports
 export { HttpClient, HttpError } from './core/HttpClient';
 export { WebSocketClient } from './core/WebSocketClient';
-export { 
+export {
   EventType,
   WebSocketMessage,
   StatusPayload,
@@ -74,7 +74,6 @@ export {
 // RTCM exports
 export { RTCMClient } from './rtcm/RTCMClient';
 export {
-  RTCMConfig,
   NTRIPSource,
   TCPSource,
   UDPSource,
@@ -85,6 +84,27 @@ export {
   RTCMStateChangeEvent,
   RTCMResponse
 } from './rtcm/RTCMTypes';
+
+// Health monitoring exports
+export { HealthClient } from './health/HealthClient';
+export {
+  TaskInfo,
+  ComponentHealth,
+  MemoryStats,
+  TaskStats,
+  SystemHealth,
+  ErrorInfo,
+  SystemMetrics,
+  HealthThresholds,
+  HealthEventPayload,
+  MemoryEventPayload,
+  TaskEventPayload,
+  ErrorEventPayload
+} from './health/HealthTypes';
+
+// Communication exports
+export { CommunicationClient } from './communication/CommunicationClient';
+export * from './communication/CommunicationTypes';
 
 // Version info
 export const VERSION = '1.0.0';
@@ -125,8 +145,8 @@ export const DEFAULT_CONFIG = {
 import { MAVLinkBridgeClient } from './MAVLinkBridgeClient';
 import type { MAVLinkBridgeClientOptions } from './MAVLinkBridgeClient';
 
-export function createClient(
-  deviceUrl: string, 
+export function createClient (
+  deviceUrl: string,
   options?: MAVLinkBridgeClientOptions
 ): MAVLinkBridgeClient {
   return new MAVLinkBridgeClient(deviceUrl, options || {});
@@ -142,13 +162,13 @@ export function createClient(
  * @param timeout Discovery timeout in milliseconds
  * @returns Promise that resolves to array of discovered device URLs
  */
-export async function discoverDevices(timeout: number = 5000): Promise<string[]> {
+export async function discoverDevices (timeout: number = 5000): Promise<string[]> {
   // Placeholder implementation
   // In a real implementation, this would:
   // 1. Use mDNS to discover _http._tcp services
   // 2. Or scan common IP ranges for MAVLinkBridge devices
   // 3. Or use broadcast discovery
-  
+
   console.warn('Device discovery not yet implemented');
   return [];
 }

@@ -25,7 +25,11 @@ export enum EventType {
   UART_DISCONNECTED = 'uart_disconnected',
   INTERFACE_SWITCHED = 'interface_switched',
   MAVLINK_MESSAGE = 'mavlink_message',
-  COMMUNICATION_STATS = 'communication_stats'
+  COMMUNICATION_STATS = 'communication_stats',
+  // Health events
+  HEALTH_UPDATE = 'health_update',
+  MEMORY_EVENT = 'memory_event',
+  TASK_EVENT = 'task_event'
 }
 
 /**

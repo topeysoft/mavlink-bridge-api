@@ -3,9 +3,12 @@ import { WebSocketClient } from './core/WebSocketClient';
 import { ConfigClient } from './config/ConfigClient';
 import { WiFiClient } from './wifi/WiFiClient';
 import { RTCMClient } from './rtcm/RTCMClient';
+import { HealthClient } from './health/HealthClient';
+import { CommunicationClient } from './communication/CommunicationClient';
 import { EventType, EventHandler, StatusPayload, ConfigChangedPayload, RTCMDataPayload, ErrorPayload, LogPayload, WiFiConnectedPayload, WiFiDisconnectedPayload, WiFiSignalUpdatePayload } from './core/EventTypes';
 import { Configuration, HealthResponse, WiFiCredentials } from './config/ConfigTypes';
 import { WiFiState, WiFiStatus, WiFiNetwork, SignalQuality } from './wifi/WiFiTypes';
+import { SystemHealth, SystemMetrics, HealthThresholds } from './health/HealthTypes';
 
 /**
  * Configuration options for the MAVLinkBridge client
@@ -30,6 +33,8 @@ export class MAVLinkBridgeClient {
   private readonly configClient: ConfigClient;
   private readonly wifiClient: WiFiClient;
   private readonly rtcmClient: RTCMClient;
+  private readonly healthClient: HealthClient;
+  private readonly commClient: CommunicationClient;
   private readonly options: Required<MAVLinkBridgeClientOptions>;
 
   /**
@@ -62,6 +67,12 @@ export class MAVLinkBridgeClient {
 
     // Initialize RTCM client
     this.rtcmClient = new RTCMClient(this.httpClient, this.wsClient);
+    
+    // Initialize health client
+    this.healthClient = new HealthClient(this.httpClient, this.wsClient);
+    
+    // Initialize communication client
+    this.commClient = new CommunicationClient(this.httpClient, this.wsClient);
   }
 
   /**
@@ -154,6 +165,20 @@ export class MAVLinkBridgeClient {
    */
   get rtcm(): RTCMClient {
     return this.rtcmClient;
+  }
+
+  /**
+   * Get health client for system monitoring
+   */
+  get health(): HealthClient {
+    return this.healthClient;
+  }
+
+  /**
+   * Get communication client for USB/UART operations
+   */
+  get communication(): CommunicationClient {
+    return this.commClient;
   }
 
   /**
@@ -251,6 +276,78 @@ export class MAVLinkBridgeClient {
     }
   ): Promise<void> {
     await this.configClient.updateRTCMSource(type, host, port, options);
+  }
+
+  // Health Monitoring
+
+  /**
+   * Get comprehensive system health information
+   */
+  async getSystemHealth(): Promise<SystemHealth> {
+    return this.healthClient.getSystemHealth();
+  }
+
+  /**
+   * Get system metrics with caching
+   */
+  async getSystemMetrics(useCache: boolean = true): Promise<SystemMetrics> {
+    return this.healthClient.getSystemMetrics(useCache);
+  }
+
+  /**
+   * Check if system is healthy
+   */
+  async isSystemHealthy(): Promise<boolean> {
+    return this.healthClient.isSystemHealthy();
+  }
+
+  /**
+   * Get memory usage percentage
+   */
+  async getMemoryUsage(): Promise<number> {
+    return this.healthClient.getMemoryUsage();
+  }
+
+  /**
+   * Get CPU usage percentage
+   */
+  async getCPUUsage(): Promise<number> {
+    return this.healthClient.getCPUUsage();
+  }
+
+  /**
+   * Set health monitoring thresholds
+   */
+  async setHealthThresholds(thresholds: HealthThresholds): Promise<void> {
+    return this.healthClient.setThresholds(thresholds);
+  }
+
+  /**
+   * Trigger emergency memory cleanup
+   */
+  async emergencyCleanup(): Promise<void> {
+    await this.healthClient.emergencyMemoryCleanup();
+  }
+
+  /**
+   * Listen for system health updates
+   */
+  onHealthUpdate(handler: (health: any) => void): () => void {
+    return this.healthClient.onHealthUpdate(handler);
+  }
+
+  /**
+   * Listen for low memory warnings
+   */
+  onLowMemoryWarning(handler: (freeHeap: number) => void): () => void {
+    return this.healthClient.onLowMemoryWarning(handler);
+  }
+
+  /**
+   * Listen for critical errors
+   */
+  onCriticalError(handler: (error: any) => void): () => void {
+    return this.healthClient.onCriticalError(handler);
   }
 
   // Event Handling

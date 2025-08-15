@@ -1,6 +1,6 @@
 import { HttpClient, HttpError } from '../core/HttpClient';
-import { 
-  Configuration, 
+import {
+  Configuration,
   ConfigPatchOperation,
   ConfigUpdateOptions,
   HealthResponse,
@@ -9,7 +9,9 @@ import {
   ConfigValidationError,
   StorageError
 } from './ConfigTypes';
-import { applyPatch, Operation } from 'fast-json-patch';
+import * as jsonpatch from 'fast-json-patch';
+
+type Operation = jsonpatch.Operation;
 
 /**
  * Client for configuration management operations
@@ -24,14 +26,14 @@ export class ConfigClient {
   /**
    * Get the current device configuration
    */
-  async getConfiguration(): Promise<Configuration> {
+  async getConfiguration (): Promise<Configuration> {
     return this.httpClient.get<Configuration>('/api/config');
   }
 
   /**
    * Replace the entire configuration
    */
-  async setConfiguration(config: Configuration, options?: ConfigUpdateOptions): Promise<void> {
+  async setConfiguration (config: Configuration, options?: ConfigUpdateOptions): Promise<void> {
     if (options?.validate !== false) {
       const validationErrors = ConfigValidator.validateConfiguration(config);
       if (validationErrors.length > 0) {
@@ -49,7 +51,7 @@ export class ConfigClient {
       if (options?.timeout !== undefined) {
         requestOptions.timeout = options.timeout;
       }
-      
+
       await this.httpClient.post<void>('/api/config', config, requestOptions);
     } catch (error: any) {
       this.handleConfigError(error);
@@ -59,7 +61,7 @@ export class ConfigClient {
   /**
    * Apply a JSON patch to the configuration
    */
-  async patchConfiguration(operations: ConfigPatchOperation[], options?: ConfigUpdateOptions): Promise<void> {
+  async patchConfiguration (operations: ConfigPatchOperation[], options?: ConfigUpdateOptions): Promise<void> {
     if (operations.length === 0) {
       return;
     }
@@ -86,7 +88,7 @@ export class ConfigClient {
       if (options?.timeout !== undefined) {
         requestOptions.timeout = options.timeout;
       }
-      
+
       await this.httpClient.patch<void>('/api/config', patches, requestOptions);
     } catch (error: any) {
       this.handleConfigError(error);
@@ -96,7 +98,7 @@ export class ConfigClient {
   /**
    * Update a specific configuration value using JSON patch
    */
-  async updateConfigValue(path: string, value: unknown): Promise<void> {
+  async updateConfigValue (path: string, value: unknown): Promise<void> {
     const patch: ConfigPatchOperation[] = [{
       op: 'replace',
       path,
@@ -109,14 +111,14 @@ export class ConfigClient {
   /**
    * Get device health status
    */
-  async getHealth(): Promise<HealthResponse> {
+  async getHealth (): Promise<HealthResponse> {
     return this.httpClient.get<HealthResponse>('/api/health');
   }
 
   /**
    * Apply local patch to configuration object (for preview purposes)
    */
-  previewPatch(config: Configuration, operations: ConfigPatchOperation[]): Configuration {
+  previewPatch (config: Configuration, operations: ConfigPatchOperation[]): Configuration {
     const patches: Operation[] = operations.map(op => ({
       op: op.op,
       path: op.path,
@@ -126,10 +128,10 @@ export class ConfigClient {
 
     // Create a deep copy and apply patch
     const configCopy = JSON.parse(JSON.stringify(config));
-    const result = applyPatch(configCopy, patches, false, false);
-    
-    // Check if any operations failed
-    const hasErrors = result.some(r => r && typeof r === 'object' && 'error' in r);
+    const result = jsonpatch.applyPatch(configCopy, patches, false, false);
+
+    // Check if any patches failed
+    const hasErrors = result.some((r: any) => r && typeof r === 'object' && 'error' in r);
     if (hasErrors) {
       throw new Error('Patch preview failed: some operations were rejected');
     }
@@ -144,7 +146,7 @@ export class ConfigClient {
   /**
    * Update device name
    */
-  async updateDeviceName(name: string): Promise<void> {
+  async updateDeviceName (name: string): Promise<void> {
     if (!name || name.length === 0 || name.length > 32) {
       throw new Error('Device name must be between 1 and 32 characters');
     }
@@ -155,14 +157,14 @@ export class ConfigClient {
   /**
    * Update device mode
    */
-  async updateDeviceMode(mode: 'usb_otg' | 'uart'): Promise<void> {
+  async updateDeviceMode (mode: 'usb_otg' | 'uart'): Promise<void> {
     await this.updateConfigValue('/device/mode', mode);
   }
 
   /**
    * Update WiFi SSID
    */
-  async updateWiFiSSID(ssid: string): Promise<void> {
+  async updateWiFiSSID (ssid: string): Promise<void> {
     if (ssid.length > 32) {
       throw new Error('WiFi SSID must be 32 characters or less');
     }
@@ -173,21 +175,21 @@ export class ConfigClient {
   /**
    * Enable or disable WiFi auto-connect
    */
-  async updateWiFiAutoConnect(autoConnect: boolean): Promise<void> {
+  async updateWiFiAutoConnect (autoConnect: boolean): Promise<void> {
     await this.updateConfigValue('/connection/wifi/autoConnect', autoConnect);
   }
 
   /**
    * Enable or disable RTCM
    */
-  async updateRTCMEnabled(enabled: boolean): Promise<void> {
+  async updateRTCMEnabled (enabled: boolean): Promise<void> {
     await this.updateConfigValue('/rtcm/enabled', enabled);
   }
 
   /**
    * Update RTCM source configuration
    */
-  async updateRTCMSource(
+  async updateRTCMSource (
     type: 'ntrip' | 'tcp' | 'udp',
     host: string,
     port: number,
@@ -221,7 +223,7 @@ export class ConfigClient {
   /**
    * Reset configuration to defaults
    */
-  async resetToDefaults(): Promise<void> {
+  async resetToDefaults (): Promise<void> {
     const defaultConfig: Configuration = {
       version: 1,
       device: {
@@ -251,14 +253,14 @@ export class ConfigClient {
   /**
    * Validate configuration without applying it
    */
-  validateConfiguration(config: Partial<Configuration>): string[] {
+  validateConfiguration (config: Partial<Configuration>): string[] {
     return ConfigValidator.validateConfiguration(config);
   }
 
   /**
    * Get configuration with optimistic locking support
    */
-  async getConfigurationWithVersion(): Promise<{config: Configuration, version: number}> {
+  async getConfigurationWithVersion (): Promise<{ config: Configuration, version: number }> {
     const config = await this.getConfiguration();
     return { config, version: config.version };
   }
@@ -266,17 +268,17 @@ export class ConfigClient {
   /**
    * Update configuration with automatic retry on version conflict
    */
-  async updateConfigurationWithRetry(
+  async updateConfigurationWithRetry (
     updateFn: (config: Configuration) => Configuration,
     maxRetries: number = 3
   ): Promise<void> {
     let attempts = 0;
-    
+
     while (attempts < maxRetries) {
       try {
         const { config: currentConfig, version } = await this.getConfigurationWithVersion();
         const updatedConfig = updateFn(currentConfig);
-        
+
         await this.setConfiguration(updatedConfig, { expectedVersion: version });
         return; // Success
       } catch (error) {
@@ -294,7 +296,7 @@ export class ConfigClient {
   /**
    * Batch multiple configuration operations
    */
-  async batchUpdate(operations: ConfigPatchOperation[], options?: ConfigUpdateOptions): Promise<void> {
+  async batchUpdate (operations: ConfigPatchOperation[], options?: ConfigUpdateOptions): Promise<void> {
     if (operations.length > 10) {
       // Split into chunks if too many operations
       const chunks = [];
@@ -318,53 +320,53 @@ export class ConfigClient {
   /**
    * Create a patch from configuration differences
    */
-  createConfigurationPatch(oldConfig: Configuration, newConfig: Configuration): ConfigPatchOperation[] {
+  createConfigurationPatch (oldConfig: Configuration, newConfig: Configuration): ConfigPatchOperation[] {
     const patches: ConfigPatchOperation[] = [];
-    
+
     // Simple implementation - in practice you might want to use a more sophisticated diffing library
     if (oldConfig.device.name !== newConfig.device.name) {
       patches.push({ op: 'replace', path: '/device/name', value: newConfig.device.name });
     }
-    
+
     if (oldConfig.device.mode !== newConfig.device.mode) {
       patches.push({ op: 'replace', path: '/device/mode', value: newConfig.device.mode });
     }
-    
+
     if (oldConfig.connection.type !== newConfig.connection.type) {
       patches.push({ op: 'replace', path: '/connection/type', value: newConfig.connection.type });
     }
-    
+
     if (oldConfig.connection.wifi.ssid !== newConfig.connection.wifi.ssid) {
       patches.push({ op: 'replace', path: '/connection/wifi/ssid', value: newConfig.connection.wifi.ssid });
     }
-    
+
     if (oldConfig.connection.wifi.autoConnect !== newConfig.connection.wifi.autoConnect) {
       patches.push({ op: 'replace', path: '/connection/wifi/autoConnect', value: newConfig.connection.wifi.autoConnect });
     }
-    
+
     if (oldConfig.rtcm.enabled !== newConfig.rtcm.enabled) {
       patches.push({ op: 'replace', path: '/rtcm/enabled', value: newConfig.rtcm.enabled });
     }
-    
+
     if (oldConfig.rtcm.source.type !== newConfig.rtcm.source.type) {
       patches.push({ op: 'replace', path: '/rtcm/source/type', value: newConfig.rtcm.source.type });
     }
-    
+
     if (oldConfig.rtcm.source.host !== newConfig.rtcm.source.host) {
       patches.push({ op: 'replace', path: '/rtcm/source/host', value: newConfig.rtcm.source.host });
     }
-    
+
     if (oldConfig.rtcm.source.port !== newConfig.rtcm.source.port) {
       patches.push({ op: 'replace', path: '/rtcm/source/port', value: newConfig.rtcm.source.port });
     }
-    
+
     return patches;
   }
 
   /**
    * Handle configuration-specific errors
    */
-  private handleConfigError(error: any): never {
+  private handleConfigError (error: any): never {
     if (error instanceof HttpError) {
       if (error.status === 409) {
         throw new VersionConflictError(0, 0, 'Configuration was modified by another client');
@@ -374,7 +376,7 @@ export class ConfigClient {
         throw new ConfigValidationError([error.message]);
       }
     }
-    
+
     throw error; // Re-throw if not a known configuration error
   }
 }
