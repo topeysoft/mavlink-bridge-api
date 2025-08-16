@@ -9,7 +9,6 @@
 #include <ConfigEndpoints/ConfigEndpoints.h>
 #include <WiFiManager/WiFiManager.h>
 #include <WiFiEndpoints/WiFiEndpoints.h>
-#include <CaptivePortal/CaptivePortal.h>
 #include <Storage/Storage.h>
 #include <HealthMonitor/HealthMonitor.h>
 #include <TaskManager/TaskManager.h>
@@ -158,8 +157,6 @@ void setup()
         
         serializeJson(doc, res.body); });
 
-    // Register captive portal routes
-    CaptivePortal::registerRoutes(httpServer);
 
     // Register health monitoring endpoints
     setupHealthEndpoints();
@@ -191,14 +188,13 @@ void setup()
     setupCommunicationRoutes();
 #endif
 
-    // Setup captive portal if in AP mode
+    // Setup WiFi Access Point mode if active
     if (wifiManager->getState() == WiFiManager::AP_MODE)
     {
-        CaptivePortal::startDNSServer();
         IPAddress apIP = WiFi.softAPIP();
-        Serial.printf("✓ WiFi Access Point active with captive portal\n");
+        Serial.printf("✓ WiFi Access Point active\n");
         Serial.printf("   IP: %s\n", apIP.toString().c_str());
-        Serial.printf("   Portal: http://%s/\n", apIP.toString().c_str());
+        Serial.printf("   API: http://%s/api/health\n", apIP.toString().c_str());
     }
 
     // Create tasks for server operations
@@ -267,8 +263,6 @@ void loop()
     static unsigned long lastHealthReport = 0;
     unsigned long now = millis();
 
-    // Process captive portal DNS requests
-    CaptivePortal::loop();
 
     // Update mDNS manager
     if (mdnsManager)
@@ -560,7 +554,6 @@ void handleHealthCheck(const HttpRequest &req, HttpResponse &res)
     if (!isHealthy)
     {
         doc["status"] = "degraded";
-        res.statusCode = 503;
 
         // Add reasons for degraded status
         JsonArray issues = doc["issues"].to<JsonArray>();
@@ -573,9 +566,11 @@ void handleHealthCheck(const HttpRequest &req, HttpResponse &res)
     }
     else
     {
-        res.statusCode = 200;
+        doc["status"] = "healthy";
     }
 
+    // Always return 200 for health checks - degraded is still a valid response
+    res.statusCode = 200;
     serializeJson(doc, res.body);
 }
 
@@ -740,7 +735,7 @@ void setupCommunicationEventHandlers()
         payload["messageId"] = e.payload["messageId"];
         payload["systemId"] = e.payload["systemId"];
         payload["componentId"] = e.payload["componentId"];
-        wsServer->broadcast(WebSocketEventType::STATUS, payload.as<JsonObjectConst>()); });
+        wsServer->broadcast(WebSocketEventType::MAVLINK_MESSAGE, payload.as<JsonObjectConst>()); });
 
     // Subscribe to communication statistics events
     eventManager->subscribe(EventType::COMMUNICATION_STATS, [](const Event &e)

@@ -234,6 +234,7 @@ WebSocketEventType WebSocketServer::stringToEventType(const String& typeStr) {
     if (typeStr == "rtcm_data") return WebSocketEventType::RTCM_DATA;
     if (typeStr == "error") return WebSocketEventType::ERROR_EVENT;
     if (typeStr == "log") return WebSocketEventType::LOG;
+    if (typeStr == "mavlink_message") return WebSocketEventType::MAVLINK_MESSAGE;
     return WebSocketEventType::STATUS;
 }
 
@@ -244,6 +245,7 @@ String WebSocketServer::eventTypeToString(WebSocketEventType type) {
         case WebSocketEventType::RTCM_DATA: return "rtcm_data";
         case WebSocketEventType::ERROR_EVENT: return "error";
         case WebSocketEventType::LOG: return "log";
+        case WebSocketEventType::MAVLINK_MESSAGE: return "mavlink_message";
         default: return "status";
     }
 }

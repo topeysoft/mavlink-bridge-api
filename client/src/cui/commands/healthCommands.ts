@@ -19,8 +19,8 @@ export function registerHealthCommands (registry: CommandRegistry): void {
       try {
         const [basicHealth, systemHealth, metrics] = await Promise.all([
           client.getHealth(),
-          client.getSystemHealth().catch(() => null),
-          client.getSystemMetrics().catch(() => null)
+          client.getSystemHealth(),
+          client.getSystemMetrics()
         ]);
 
         CUIHelpers.stopSpinner(true, 'System health retrieved');

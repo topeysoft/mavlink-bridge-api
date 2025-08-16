@@ -99,9 +99,44 @@ export function registerUtilityCommands(registry: CommandRegistry): void {
         context.monitoring = false;
         CUIHelpers.printSuccess('Event monitoring disabled');
       } else {
+        // Enhanced WebSocket state checking with immediate return for responsiveness
+        if (!context.client) {
+          CUIHelpers.printError('No client connection available');
+          return;
+        }
+        
+        const wsState = context.client.getConnectionState();
+        console.log(chalk.gray(`WebSocket state: ${wsState}`));
+        
+        if (wsState !== 'open') {
+          CUIHelpers.printWarning(`WebSocket is ${wsState}. Monitoring may not work properly.`);
+          
+          if (wsState === 'connecting') {
+            CUIHelpers.printInfo('WebSocket is still connecting. Please wait a moment and try again.');
+          } else if (wsState === 'closed') {
+            CUIHelpers.printInfo('WebSocket is closed. Try disconnecting and reconnecting.');
+          } else if (wsState === 'closing') {
+            CUIHelpers.printInfo('WebSocket is closing. Please reconnect before enabling monitoring.');
+          }
+          
+          // Don't enable monitoring if WebSocket isn't properly connected
+          CUIHelpers.printInfo('Monitoring not enabled due to WebSocket state.');
+          return;
+        }
+        
+        // Quick responsiveness test - return immediately without blocking
         context.monitoring = true;
         CUIHelpers.printSuccess('Event monitoring enabled');
         console.log(chalk.gray('Real-time events will be displayed. Use "monitor off" to disable.'));
+        
+        // Non-blocking status check
+        const activeRequests = context.client.getActiveRequestCount();
+        if (activeRequests > 0) {
+          console.log(chalk.yellow(`Note: ${activeRequests} HTTP requests are still active`));
+        }
+        
+        // Quick test to ensure events flow properly
+        console.log(chalk.gray('Listening for device events...'));
       }
     }
   };
@@ -198,6 +233,89 @@ export function registerUtilityCommands(registry: CommandRegistry): void {
     }
   };
 
+  // Abort command
+  const abortCommand: Command = {
+    name: 'abort',
+    description: 'Abort current command execution and cancel pending requests',
+    category: 'Utility',
+    aliases: ['stop', 'cancel'],
+    usage: 'abort',
+    examples: ['abort'],
+    execute: async (context: CommandContext, args: CommandArgs) => {
+      if (context.client) {
+        const activeRequests = context.client.getActiveRequestCount();
+        context.client.abortAllRequests();
+        
+        if (activeRequests > 0) {
+          CUIHelpers.printSuccess(`Aborted ${activeRequests} active request(s)`);
+        } else {
+          CUIHelpers.printInfo('No active requests to abort');
+        }
+      } else {
+        CUIHelpers.printInfo('No active connection to abort requests for');
+      }
+    }
+  };
+
+  // Debug command
+  const debugCommand: Command = {
+    name: 'debug',
+    description: 'Show CLI debug information and current state',
+    category: 'Utility',
+    usage: 'debug',
+    examples: ['debug'],
+    execute: async (context: CommandContext, args: CommandArgs) => {
+      console.log();
+      console.log(chalk.bold.cyan('CLI Debug Information'));
+      console.log(chalk.gray('='.repeat(40)));
+      
+      // Connection state
+      console.log(`Connected: ${context.isConnected ? chalk.green('✓') : chalk.red('✗')}`);
+      console.log(`Device URL: ${context.deviceUrl}`);
+      console.log(`Monitoring: ${context.monitoring ? chalk.yellow('ON') : chalk.gray('OFF')}`);
+      console.log(`Verbose: ${context.verbose ? chalk.yellow('ON') : chalk.gray('OFF')}`);
+      
+      // Client state
+      if (context.client) {
+        console.log(`WebSocket State: ${context.client.getConnectionState()}`);
+        console.log(`Active HTTP Requests: ${context.client.getActiveRequestCount()}`);
+        
+        // Get quick diagnostics
+        try {
+          const httpClient = (context.client as any).httpClient;
+          const diagnostics = await httpClient.getDiagnostics();
+          console.log(`Device Reachable: ${diagnostics.reachable ? chalk.green('✓') : chalk.red('✗')}`);
+          if (diagnostics.responseTime) {
+            console.log(`Response Time: ${diagnostics.responseTime}ms`);
+          }
+        } catch (error) {
+          console.log(`Device Status: ${chalk.red('Error checking')}`);
+        }
+      } else {
+        console.log('Client: Not initialized');
+      }
+      
+      console.log();
+    }
+  };
+
+  // Test command for debugging
+  const testCommand: Command = {
+    name: 'test',
+    description: 'Test command execution',
+    category: 'Utility',
+    usage: 'test',
+    execute: async (context: CommandContext, args: CommandArgs) => {
+      CUIHelpers.printSuccess('Test command executed successfully!');
+      console.log('Command context:', {
+        isConnected: context.isConnected,
+        deviceUrl: context.deviceUrl,
+        monitoring: context.monitoring,
+        verbose: context.verbose
+      });
+    }
+  };
+
   // Register commands
   registry.register(helpCommand);
   registry.register(exitCommand);
@@ -205,6 +323,9 @@ export function registerUtilityCommands(registry: CommandRegistry): void {
   registry.register(monitorCommand);
   registry.register(versionCommand);
   registry.register(logsCommand);
+  registry.register(abortCommand);
+  registry.register(debugCommand);
   registry.register(aboutCommand);
   registry.register(verboseCommand);
+  registry.register(testCommand);
 }

@@ -29,7 +29,24 @@ export enum EventType {
   // Health events
   HEALTH_UPDATE = 'health_update',
   MEMORY_EVENT = 'memory_event',
-  TASK_EVENT = 'task_event'
+  TASK_EVENT = 'task_event',
+  // Mission events
+  MISSION_CURRENT = 'mission_current',
+  MISSION_ITEM_REACHED = 'mission_item_reached',
+  MISSION_ACK = 'mission_ack',
+  MISSION_COUNT = 'mission_count',
+  MISSION_PROGRESS = 'mission_progress',
+  // Task events
+  TASK_CREATED = 'task_created',
+  TASK_UPDATED = 'task_updated',
+  TASK_DELETED = 'task_deleted',
+  TASK_EXECUTION_STARTED = 'task_execution_started',
+  TASK_EXECUTION_PROGRESS = 'task_execution_progress',
+  TASK_EXECUTION_PAUSED = 'task_execution_paused',
+  TASK_EXECUTION_RESUMED = 'task_execution_resumed',
+  TASK_EXECUTION_COMPLETED = 'task_execution_completed',
+  TASK_EXECUTION_FAILED = 'task_execution_failed',
+  TASK_EXECUTION_CANCELLED = 'task_execution_cancelled'
 }
 
 /**
@@ -245,4 +262,54 @@ export interface EventHandlers {
   [EventType.INTERFACE_SWITCHED]?: EventHandler<InterfaceSwitchedPayload>;
   [EventType.MAVLINK_MESSAGE]?: EventHandler<MAVLinkMessagePayload>;
   [EventType.COMMUNICATION_STATS]?: EventHandler<CommunicationStatsPayload>;
+  [EventType.MISSION_CURRENT]?: EventHandler<MissionCurrentPayload>;
+  [EventType.MISSION_ITEM_REACHED]?: EventHandler<MissionItemReachedPayload>;
+  [EventType.MISSION_ACK]?: EventHandler<MissionAckPayload>;
+  [EventType.MISSION_COUNT]?: EventHandler<MissionCountPayload>;
+  [EventType.MISSION_PROGRESS]?: EventHandler<MissionProgressPayload>;
+}
+
+/**
+ * Mission current event payload
+ */
+export interface MissionCurrentPayload {
+  seq: number;
+}
+
+/**
+ * Mission item reached event payload
+ */
+export interface MissionItemReachedPayload {
+  seq: number;
+}
+
+/**
+ * Mission acknowledgment event payload
+ */
+export interface MissionAckPayload {
+  targetSystem: number;
+  targetComponent: number;
+  type: number;
+  result: number;
+}
+
+/**
+ * Mission count event payload
+ */
+export interface MissionCountPayload {
+  targetSystem: number;
+  targetComponent: number;
+  count: number;
+  missionType: number;
+}
+
+/**
+ * Mission progress event payload
+ */
+export interface MissionProgressPayload {
+  totalItems: number;
+  currentItem: number;
+  itemsReached: number;
+  distanceToWaypoint?: number;
+  estimatedTimeToWaypoint?: number;
 }

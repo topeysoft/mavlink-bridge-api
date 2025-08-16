@@ -106,6 +106,16 @@ export {
 export { CommunicationClient } from './communication/CommunicationClient';
 export * from './communication/CommunicationTypes';
 
+// MAVLink exports
+export { MAVLinkCommandClient } from './mavlink/MAVLinkCommandClient';
+export { MAVLinkMissionClient } from './mavlink/MAVLinkMissionClient';
+export * from './mavlink/MAVLinkTypes';
+export * from './mavlink/MAVLinkMissionTypes';
+
+// Task management exports
+export { TaskClient } from './tasks/TaskClient';
+export * from './tasks/TaskTypes';
+
 // Version info
 export const VERSION = '1.0.0';
 
@@ -134,6 +144,22 @@ export const DEFAULT_CONFIG = {
  * // Get device configuration
  * const config = await client.getConfiguration();
  * console.log('Device name:', config.device.name);
+ * 
+ * // Send MAVLink commands to flight controller
+ * await client.mavlink.arm();
+ * await client.mavlink.setMode(4); // Guided mode
+ * 
+ * // Create and execute a mowing task
+ * const mowingTask = client.tasks.createMowingTask('Front Yard Mowing', {
+ *   centerLat: 40.7128,
+ *   centerLng: -74.0060,
+ *   width: 50,
+ *   height: 30,
+ *   spacing: 2,
+ *   altitude: 5
+ * });
+ * const task = await client.tasks.createTask(mowingTask);
+ * await client.tasks.executeTask(task.metadata.id);
  * 
  * // Listen for status updates
  * client.onStatus((status) => {

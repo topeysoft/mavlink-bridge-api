@@ -517,3 +517,117 @@ void MAVLinkProcessor::logStatistics()
     ESP_LOGI(TAG, "Active for: %lus", currentMs / 1000);
     ESP_LOGI(TAG, "==============================");
 }
+
+mavlink_message_t MAVLinkProcessor::buildArmDisarmCommand(uint8_t targetSystem, uint8_t targetComponent, bool arm)
+{
+    mavlink_message_t msg;
+    mavlink_command_long_t cmd = {};
+    
+    cmd.target_system = targetSystem;
+    cmd.target_component = targetComponent;
+    cmd.command = MAV_CMD_COMPONENT_ARM_DISARM;
+    cmd.param1 = arm ? 1.0f : 0.0f;
+    cmd.param2 = 0.0f;
+    cmd.param3 = 0.0f;
+    cmd.param4 = 0.0f;
+    cmd.param5 = 0.0f;
+    cmd.param6 = 0.0f;
+    cmd.param7 = 0.0f;
+    cmd.confirmation = 0;
+    
+    mavlink_msg_command_long_encode(1, 200, &msg, &cmd);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildSetModeCommand(uint8_t targetSystem, uint8_t targetComponent, uint32_t customMode, uint8_t baseMode)
+{
+    mavlink_message_t msg;
+    mavlink_set_mode_t mode = {};
+    
+    mode.target_system = targetSystem;
+    mode.base_mode = baseMode;
+    mode.custom_mode = customMode;
+    
+    mavlink_msg_set_mode_encode(1, 200, &msg, &mode);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildCommandLong(uint8_t targetSystem, uint8_t targetComponent, uint16_t command,
+                                                   float param1, float param2, float param3, float param4,
+                                                   float param5, float param6, float param7)
+{
+    mavlink_message_t msg;
+    mavlink_command_long_t cmd = {};
+    
+    cmd.target_system = targetSystem;
+    cmd.target_component = targetComponent;
+    cmd.command = command;
+    cmd.param1 = param1;
+    cmd.param2 = param2;
+    cmd.param3 = param3;
+    cmd.param4 = param4;
+    cmd.param5 = param5;
+    cmd.param6 = param6;
+    cmd.param7 = param7;
+    cmd.confirmation = 0;
+    
+    mavlink_msg_command_long_encode(1, 200, &msg, &cmd);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildCommandInt(uint8_t targetSystem, uint8_t targetComponent, uint16_t command,
+                                                  uint8_t frame, uint8_t current, uint8_t autocontinue,
+                                                  float param1, float param2, float param3, float param4,
+                                                  int32_t x, int32_t y, float z)
+{
+    mavlink_message_t msg;
+    mavlink_command_int_t cmd = {};
+    
+    cmd.target_system = targetSystem;
+    cmd.target_component = targetComponent;
+    cmd.command = command;
+    cmd.frame = frame;
+    cmd.current = current;
+    cmd.autocontinue = autocontinue;
+    cmd.param1 = param1;
+    cmd.param2 = param2;
+    cmd.param3 = param3;
+    cmd.param4 = param4;
+    cmd.x = x;
+    cmd.y = y;
+    cmd.z = z;
+    
+    mavlink_msg_command_int_encode(1, 200, &msg, &cmd);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildSetPositionTargetLocalNed(uint8_t targetSystem, uint8_t targetComponent,
+                                                                 uint32_t timeBootMs, uint8_t coordinateFrame,
+                                                                 uint16_t typeMask, float x, float y, float z,
+                                                                 float vx, float vy, float vz,
+                                                                 float afx, float afy, float afz,
+                                                                 float yaw, float yawRate)
+{
+    mavlink_message_t msg;
+    mavlink_set_position_target_local_ned_t pos = {};
+    
+    pos.target_system = targetSystem;
+    pos.target_component = targetComponent;
+    pos.time_boot_ms = timeBootMs;
+    pos.coordinate_frame = coordinateFrame;
+    pos.type_mask = typeMask;
+    pos.x = x;
+    pos.y = y;
+    pos.z = z;
+    pos.vx = vx;
+    pos.vy = vy;
+    pos.vz = vz;
+    pos.afx = afx;
+    pos.afy = afy;
+    pos.afz = afz;
+    pos.yaw = yaw;
+    pos.yaw_rate = yawRate;
+    
+    mavlink_msg_set_position_target_local_ned_encode(1, 200, &msg, &pos);
+    return msg;
+}

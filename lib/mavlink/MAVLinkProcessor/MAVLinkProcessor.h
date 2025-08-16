@@ -98,6 +98,23 @@ public:
     FirmwareType getFirmwareType() const { return firmwareType; }
     const char* getFirmwareTypeString() const;
     
+    // Command building
+    static mavlink_message_t buildArmDisarmCommand(uint8_t targetSystem, uint8_t targetComponent, bool arm);
+    static mavlink_message_t buildSetModeCommand(uint8_t targetSystem, uint8_t targetComponent, uint32_t customMode, uint8_t baseMode = 0);
+    static mavlink_message_t buildCommandLong(uint8_t targetSystem, uint8_t targetComponent, uint16_t command, 
+                                            float param1 = 0, float param2 = 0, float param3 = 0, 
+                                            float param4 = 0, float param5 = 0, float param6 = 0, float param7 = 0);
+    static mavlink_message_t buildCommandInt(uint8_t targetSystem, uint8_t targetComponent, uint16_t command,
+                                           uint8_t frame, uint8_t current, uint8_t autocontinue,
+                                           float param1, float param2, float param3, float param4,
+                                           int32_t x, int32_t y, float z);
+    static mavlink_message_t buildSetPositionTargetLocalNed(uint8_t targetSystem, uint8_t targetComponent,
+                                                          uint32_t timeBootMs, uint8_t coordinateFrame,
+                                                          uint16_t typeMask, float x, float y, float z,
+                                                          float vx, float vy, float vz,
+                                                          float afx, float afy, float afz,
+                                                          float yaw, float yawRate);
+    
 private:
     MAVLinkProcessor();
     ~MAVLinkProcessor();

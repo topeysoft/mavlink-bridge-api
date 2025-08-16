@@ -29,6 +29,7 @@ private:
     static void handleGetMAVLinkFilter(AsyncWebServerRequest* request);
     static void handleSetMAVLinkFilter(AsyncWebServerRequest* request);
     static void handleClearMAVLinkFilter(AsyncWebServerRequest* request);
+    static void handleSendMAVLinkCommand(AsyncWebServerRequest* request);
     
     static void handleSendData(AsyncWebServerRequest* request);
     static void handleResetStatistics(AsyncWebServerRequest* request);

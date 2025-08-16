@@ -33,10 +33,19 @@ export class WebSocketClient {
    */
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Set a connection timeout to prevent indefinite hanging
+      const connectionTimeout = setTimeout(() => {
+        if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+          this.ws.terminate(); // Force close the connection
+          reject(new Error('WebSocket connection timeout'));
+        }
+      }, 10000); // 10 second timeout
+
       try {
         this.ws = new WebSocket(this.url);
 
         this.ws.on('open', () => {
+          clearTimeout(connectionTimeout);
           this.reconnectAttempts = 0;
           this.isReconnecting = false;
           resolve();
@@ -47,10 +56,12 @@ export class WebSocketClient {
         });
 
         this.ws.on('close', (code: number, reason: Buffer) => {
+          clearTimeout(connectionTimeout);
           this.handleClose(code, reason.toString());
         });
 
         this.ws.on('error', (error: Error) => {
+          clearTimeout(connectionTimeout);
           this.handleError(error);
           if (!this.isConnected()) {
             reject(error);
@@ -58,6 +69,7 @@ export class WebSocketClient {
         });
 
       } catch (error) {
+        clearTimeout(connectionTimeout);
         reject(error);
       }
     });
@@ -200,7 +212,14 @@ export class WebSocketClient {
    * Handle WebSocket error event
    */
   private handleError(error: Error): void {
-    console.error('WebSocket error:', error);
+    if (this.isConnected()) {
+      console.error('WebSocket error while connected:', error.message);
+    } else {
+      // Only log detailed errors if verbose logging is enabled or during initial connection
+      if (process.env.NODE_ENV === 'development') {
+        console.error('WebSocket connection error:', error.message);
+      }
+    }
   }
 
   /**

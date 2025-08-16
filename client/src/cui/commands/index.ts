@@ -5,6 +5,7 @@ import { registerWiFiCommands } from './wifiCommands';
 import { registerRTCMCommands } from './rtcmCommands';
 import { registerHealthCommands } from './healthCommands';
 import { registerUtilityCommands } from './utilityCommands';
+import { registerMissionCommands } from './missionCommands';
 
 /**
  * Register all available commands
@@ -16,4 +17,5 @@ export function registerCommands(registry: CommandRegistry): void {
   registerRTCMCommands(registry);
   registerHealthCommands(registry);
   registerUtilityCommands(registry);
+  registerMissionCommands(registry);
 }

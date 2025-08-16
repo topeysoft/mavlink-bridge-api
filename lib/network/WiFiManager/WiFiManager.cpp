@@ -1,6 +1,5 @@
 #include "WiFiManager.h"
 #include <esp_wifi.h>
-#include <DNSServer.h>
 
 WiFiManager* WiFiManager::instance = nullptr;
 

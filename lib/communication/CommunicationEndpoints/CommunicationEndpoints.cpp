@@ -55,6 +55,7 @@ void CommunicationEndpoints::setupEndpoints(AsyncWebServer& server) {
     server.on("/api/communication/mavlink/filter", HTTP_GET, handleGetMAVLinkFilter);
     server.on("/api/communication/mavlink/filter", HTTP_POST, handleSetMAVLinkFilter);
     server.on("/api/communication/mavlink/filter", HTTP_DELETE, handleClearMAVLinkFilter);
+    server.on("/api/mavlink/command", HTTP_POST, handleSendMAVLinkCommand);
     
     // Data and control endpoints
     if (ESP.getFreeHeap() < 1024) {
@@ -645,4 +646,128 @@ void CommunicationEndpoints::sendErrorResponse(AsyncWebServerRequest* request, c
     doc["error"] = message;
     doc["success"] = false;
     sendJsonResponse(request, doc, statusCode);
+}
+
+void CommunicationEndpoints::handleSendMAVLinkCommand(AsyncWebServerRequest* request) {
+    DynamicJsonDocument doc(1024);
+    if (!validateJsonRequest(request, doc)) {
+        sendErrorResponse(request, "Invalid JSON in request body");
+        return;
+    }
+    
+    if (!doc.containsKey("commandType")) {
+        sendErrorResponse(request, "Missing 'commandType' parameter");
+        return;
+    }
+    
+    String commandType = doc["commandType"];
+    uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;
+    uint8_t targetComponent = doc.containsKey("targetComponent") ? doc["targetComponent"].as<uint8_t>() : 1;
+    
+    mavlink_message_t message;
+    bool validCommand = false;
+    
+    if (commandType == "arm") {
+        message = MAVLinkProcessor::buildArmDisarmCommand(targetSystem, targetComponent, true);
+        validCommand = true;
+    }
+    else if (commandType == "disarm") {
+        message = MAVLinkProcessor::buildArmDisarmCommand(targetSystem, targetComponent, false);
+        validCommand = true;
+    }
+    else if (commandType == "setMode") {
+        if (!doc.containsKey("customMode")) {
+            sendErrorResponse(request, "Missing 'customMode' parameter for setMode command");
+            return;
+        }
+        uint32_t customMode = doc["customMode"];
+        uint8_t baseMode = doc.containsKey("baseMode") ? doc["baseMode"].as<uint8_t>() : 0;
+        message = MAVLinkProcessor::buildSetModeCommand(targetSystem, targetComponent, customMode, baseMode);
+        validCommand = true;
+    }
+    else if (commandType == "commandLong") {
+        if (!doc.containsKey("command")) {
+            sendErrorResponse(request, "Missing 'command' parameter for commandLong");
+            return;
+        }
+        uint16_t command = doc["command"];
+        float param1 = doc.containsKey("param1") ? doc["param1"].as<float>() : 0.0f;
+        float param2 = doc.containsKey("param2") ? doc["param2"].as<float>() : 0.0f;
+        float param3 = doc.containsKey("param3") ? doc["param3"].as<float>() : 0.0f;
+        float param4 = doc.containsKey("param4") ? doc["param4"].as<float>() : 0.0f;
+        float param5 = doc.containsKey("param5") ? doc["param5"].as<float>() : 0.0f;
+        float param6 = doc.containsKey("param6") ? doc["param6"].as<float>() : 0.0f;
+        float param7 = doc.containsKey("param7") ? doc["param7"].as<float>() : 0.0f;
+        
+        message = MAVLinkProcessor::buildCommandLong(targetSystem, targetComponent, command,
+                                                   param1, param2, param3, param4, param5, param6, param7);
+        validCommand = true;
+    }
+    else if (commandType == "commandInt") {
+        if (!doc.containsKey("command")) {
+            sendErrorResponse(request, "Missing 'command' parameter for commandInt");
+            return;
+        }
+        uint16_t command = doc["command"];
+        uint8_t frame = doc.containsKey("frame") ? doc["frame"].as<uint8_t>() : 0;
+        uint8_t current = doc.containsKey("current") ? doc["current"].as<uint8_t>() : 0;
+        uint8_t autocontinue = doc.containsKey("autocontinue") ? doc["autocontinue"].as<uint8_t>() : 0;
+        float param1 = doc.containsKey("param1") ? doc["param1"].as<float>() : 0.0f;
+        float param2 = doc.containsKey("param2") ? doc["param2"].as<float>() : 0.0f;
+        float param3 = doc.containsKey("param3") ? doc["param3"].as<float>() : 0.0f;
+        float param4 = doc.containsKey("param4") ? doc["param4"].as<float>() : 0.0f;
+        int32_t x = doc.containsKey("x") ? doc["x"].as<int32_t>() : 0;
+        int32_t y = doc.containsKey("y") ? doc["y"].as<int32_t>() : 0;
+        float z = doc.containsKey("z") ? doc["z"].as<float>() : 0.0f;
+        
+        message = MAVLinkProcessor::buildCommandInt(targetSystem, targetComponent, command, frame, current, autocontinue,
+                                                  param1, param2, param3, param4, x, y, z);
+        validCommand = true;
+    }
+    else if (commandType == "setPositionTarget") {
+        uint32_t timeBootMs = doc.containsKey("timeBootMs") ? doc["timeBootMs"].as<uint32_t>() : millis();
+        uint8_t coordinateFrame = doc.containsKey("coordinateFrame") ? doc["coordinateFrame"].as<uint8_t>() : 1;
+        uint16_t typeMask = doc.containsKey("typeMask") ? doc["typeMask"].as<uint16_t>() : 0x0FF8;
+        float x = doc.containsKey("x") ? doc["x"].as<float>() : 0.0f;
+        float y = doc.containsKey("y") ? doc["y"].as<float>() : 0.0f;
+        float z = doc.containsKey("z") ? doc["z"].as<float>() : 0.0f;
+        float vx = doc.containsKey("vx") ? doc["vx"].as<float>() : 0.0f;
+        float vy = doc.containsKey("vy") ? doc["vy"].as<float>() : 0.0f;
+        float vz = doc.containsKey("vz") ? doc["vz"].as<float>() : 0.0f;
+        float afx = doc.containsKey("afx") ? doc["afx"].as<float>() : 0.0f;
+        float afy = doc.containsKey("afy") ? doc["afy"].as<float>() : 0.0f;
+        float afz = doc.containsKey("afz") ? doc["afz"].as<float>() : 0.0f;
+        float yaw = doc.containsKey("yaw") ? doc["yaw"].as<float>() : 0.0f;
+        float yawRate = doc.containsKey("yawRate") ? doc["yawRate"].as<float>() : 0.0f;
+        
+        message = MAVLinkProcessor::buildSetPositionTargetLocalNed(targetSystem, targetComponent, timeBootMs, 
+                                                                 coordinateFrame, typeMask, x, y, z, 
+                                                                 vx, vy, vz, afx, afy, afz, yaw, yawRate);
+        validCommand = true;
+    }
+    
+    if (!validCommand) {
+        sendErrorResponse(request, "Unknown command type: " + commandType);
+        return;
+    }
+    
+    uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
+    size_t messageLength = MAVLinkProcessor::serializeMessage(message, buffer, sizeof(buffer));
+    
+    if (messageLength == 0) {
+        sendErrorResponse(request, "Failed to serialize MAVLink message");
+        return;
+    }
+    
+    DataRouter* router = DataRouter::getInstance();
+    router->routeDownstream(buffer, messageLength);
+    
+    DynamicJsonDocument responseDoc(512);
+    responseDoc["success"] = true;
+    responseDoc["commandType"] = commandType;
+    responseDoc["targetSystem"] = targetSystem;
+    responseDoc["targetComponent"] = targetComponent;
+    responseDoc["messageId"] = (int)message.msgid;
+    responseDoc["bytesSent"] = messageLength;
+    sendJsonResponse(request, responseDoc);
 }

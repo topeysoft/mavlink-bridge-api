@@ -1,0 +1,393 @@
+/**
+ * MAVLink command and status types
+ */
+
+export interface MAVLinkCommandOptions {
+  targetSystem?: number;
+  targetComponent?: number;
+}
+
+export interface MAVLinkCommandResponse {
+  success: boolean;
+  commandType: string;
+  targetSystem: number;
+  targetComponent: number;
+  messageId: number;
+  bytesSent: number;
+}
+
+export interface MAVLinkRawMessage {
+  messageId: number;
+  systemId: number;
+  componentId: number;
+  timestamp: number;
+  payload: any;
+}
+
+export enum MAVLinkMessageType {
+  HEARTBEAT = 0,
+  SYS_STATUS = 1,
+  SYSTEM_TIME = 2,
+  PING = 4,
+  CHANGE_OPERATOR_CONTROL = 5,
+  CHANGE_OPERATOR_CONTROL_ACK = 6,
+  AUTH_KEY = 7,
+  SET_MODE = 11,
+  PARAM_REQUEST_READ = 20,
+  PARAM_REQUEST_LIST = 21,
+  PARAM_VALUE = 22,
+  PARAM_SET = 23,
+  GPS_RAW_INT = 24,
+  GPS_STATUS = 25,
+  SCALED_IMU = 26,
+  RAW_IMU = 27,
+  RAW_PRESSURE = 28,
+  SCALED_PRESSURE = 29,
+  ATTITUDE = 30,
+  ATTITUDE_QUATERNION = 31,
+  LOCAL_POSITION_NED = 32,
+  GLOBAL_POSITION_INT = 33,
+  RC_CHANNELS_SCALED = 34,
+  RC_CHANNELS_RAW = 35,
+  SERVO_OUTPUT_RAW = 36,
+  MISSION_REQUEST_PARTIAL_LIST = 37,
+  MISSION_WRITE_PARTIAL_LIST = 38,
+  MISSION_ITEM = 39,
+  MISSION_REQUEST = 40,
+  MISSION_SET_CURRENT = 41,
+  MISSION_CURRENT = 42,
+  MISSION_REQUEST_LIST = 43,
+  MISSION_COUNT = 44,
+  MISSION_CLEAR_ALL = 45,
+  MISSION_ITEM_REACHED = 46,
+  MISSION_ACK = 47,
+  SET_GPS_GLOBAL_ORIGIN = 48,
+  GPS_GLOBAL_ORIGIN = 49,
+  PARAM_MAP_RC = 50,
+  MISSION_REQUEST_INT = 51,
+  SAFETY_SET_ALLOWED_AREA = 54,
+  SAFETY_ALLOWED_AREA = 55,
+  ATTITUDE_QUATERNION_COV = 61,
+  NAV_CONTROLLER_OUTPUT = 62,
+  GLOBAL_POSITION_INT_COV = 63,
+  LOCAL_POSITION_NED_COV = 64,
+  RC_CHANNELS = 65,
+  REQUEST_DATA_STREAM = 66,
+  DATA_STREAM = 67,
+  MANUAL_CONTROL = 69,
+  RC_CHANNELS_OVERRIDE = 70,
+  MISSION_ITEM_INT = 73,
+  VFR_HUD = 74,
+  COMMAND_INT = 75,
+  COMMAND_LONG = 76,
+  COMMAND_ACK = 77,
+  MANUAL_SETPOINT = 81,
+  SET_ATTITUDE_TARGET = 82,
+  ATTITUDE_TARGET = 83,
+  SET_POSITION_TARGET_LOCAL_NED = 84,
+  POSITION_TARGET_LOCAL_NED = 85,
+  SET_POSITION_TARGET_GLOBAL_INT = 86,
+  POSITION_TARGET_GLOBAL_INT = 87,
+  LOCAL_POSITION_NED_SYSTEM_GLOBAL_OFFSET = 89,
+  HIL_STATE = 90,
+  HIL_CONTROLS = 91,
+  HIL_RC_INPUTS_RAW = 92,
+  HIL_ACTUATOR_CONTROLS = 93,
+  OPTICAL_FLOW = 100,
+  GLOBAL_VISION_POSITION_ESTIMATE = 101,
+  VISION_POSITION_ESTIMATE = 102,
+  VISION_SPEED_ESTIMATE = 103,
+  VICON_POSITION_ESTIMATE = 104,
+  HIGHRES_IMU = 105,
+  OPTICAL_FLOW_RAD = 106,
+  HIL_SENSOR = 107,
+  SIM_STATE = 108,
+  RADIO_STATUS = 109,
+  FILE_TRANSFER_PROTOCOL = 110,
+  TIMESYNC = 111,
+  CAMERA_TRIGGER = 112,
+  HIL_GPS = 113,
+  HIL_OPTICAL_FLOW = 114,
+  HIL_STATE_QUATERNION = 115,
+  SCALED_IMU2 = 116,
+  LOG_REQUEST_LIST = 117,
+  LOG_ENTRY = 118,
+  LOG_REQUEST_DATA = 119,
+  LOG_DATA = 120,
+  LOG_ERASE = 121,
+  LOG_REQUEST_END = 122,
+  GPS_INJECT_DATA = 123,
+  GPS2_RAW = 124,
+  POWER_STATUS = 125,
+  SERIAL_CONTROL = 126,
+  GPS_RTK = 127,
+  GPS2_RTK = 128,
+  SCALED_IMU3 = 129,
+  DATA_TRANSMISSION_HANDSHAKE = 130,
+  ENCAPSULATED_DATA = 131,
+  DISTANCE_SENSOR = 132,
+  TERRAIN_REQUEST = 133,
+  TERRAIN_DATA = 134,
+  TERRAIN_CHECK = 135,
+  TERRAIN_REPORT = 136,
+  SCALED_PRESSURE2 = 137,
+  ATT_POS_MOCAP = 138,
+  SET_ACTUATOR_CONTROL_TARGET = 139,
+  ACTUATOR_CONTROL_TARGET = 140,
+  ALTITUDE = 141,
+  RESOURCE_REQUEST = 142,
+  SCALED_PRESSURE3 = 143,
+  FOLLOW_TARGET = 144,
+  CONTROL_SYSTEM_STATE = 146,
+  BATTERY_STATUS = 147,
+  AUTOPILOT_VERSION = 148,
+  LANDING_TARGET = 149,
+  FENCE_STATUS = 162,
+  MAG_CAL_REPORT = 192,
+  EKF_STATUS_REPORT = 193,
+  PID_TUNING = 194,
+  DEEPSTALL = 195,
+  GIMBAL_REPORT = 200,
+  GIMBAL_CONTROL = 201,
+  GIMBAL_TORQUE_CMD_REPORT = 214,
+  GOPRO_HEARTBEAT = 215,
+  GOPRO_GET_REQUEST = 216,
+  GOPRO_GET_RESPONSE = 217,
+  GOPRO_SET_REQUEST = 218,
+  GOPRO_SET_RESPONSE = 219,
+  EFI_STATUS = 225,
+  ESTIMATOR_STATUS = 230,
+  WIND_COV = 231,
+  GPS_INPUT = 232,
+  GPS_RTCM_DATA = 233,
+  HIGH_LATENCY = 234,
+  HIGH_LATENCY2 = 235,
+  VIBRATION = 241,
+  HOME_POSITION = 242,
+  SET_HOME_POSITION = 243,
+  MESSAGE_INTERVAL = 244,
+  EXTENDED_SYS_STATE = 245,
+  ADSB_VEHICLE = 246,
+  COLLISION = 247,
+  V2_EXTENSION = 248,
+  MEMORY_VECT = 249,
+  DEBUG_VECT = 250,
+  NAMED_VALUE_FLOAT = 251,
+  NAMED_VALUE_INT = 252,
+  STATUSTEXT = 253,
+  DEBUG = 254,
+  SETUP_SIGNING = 256
+}
+
+export enum MAVCommand {
+  COMPONENT_ARM_DISARM = 400,
+  DO_SET_MODE = 176,
+  DO_FLIGHTTERMINATION = 185,
+  DO_SET_HOME = 179,
+  DO_SET_SERVO = 183,
+  DO_REPEAT_SERVO = 184,
+  DO_SET_RELAY = 181,
+  DO_REPEAT_RELAY = 182,
+  REQUEST_AUTOPILOT_CAPABILITIES = 520,
+  PREFLIGHT_CALIBRATION = 241,
+  PREFLIGHT_SET_SENSOR_OFFSETS = 242,
+  MISSION_START = 300,
+  MISSION_CLEAR_ALL = 45,
+  REQUEST_MESSAGE = 512,
+  DO_SET_PARAMETER = 180,
+  PREFLIGHT_STORAGE = 245,
+  PREFLIGHT_REBOOT_SHUTDOWN = 246,
+  OVERRIDE_GOTO = 252,
+  MISSION_SET_CURRENT = 41,
+  COMPONENT_ARM_DISARM_FORCE = 21196,
+  DO_GRIPPER = 211,
+  DO_AUTOTUNE_ENABLE = 212,
+  NAV_TAKEOFF = 22,
+  NAV_LAND = 21,
+  NAV_RETURN_TO_LAUNCH = 20,
+  NAV_LAND_LOCAL = 23,
+  NAV_TAKEOFF_LOCAL = 24,
+  NAV_FOLLOW = 25,
+  NAV_CONTINUE_AND_CHANGE_ALT = 30,
+  NAV_LOITER_UNLIM = 17,
+  NAV_LOITER_TURNS = 18,
+  NAV_LOITER_TIME = 19,
+  NAV_GUIDED_ENABLE = 92,
+  NAV_DELAY = 93,
+  NAV_PAYLOAD_PLACE = 94,
+  NAV_LAST = 95,
+  CONDITION_DELAY = 112,
+  CONDITION_CHANGE_ALT = 113,
+  CONDITION_DISTANCE = 114,
+  CONDITION_YAW = 115,
+  CONDITION_LAST = 159,
+  DO_SET_CAM_TRIGG_DIST = 206,
+  DO_FENCE_ENABLE = 207,
+  DO_PARACHUTE = 208,
+  DO_MOTOR_TEST = 209,
+  DO_INVERTED_FLIGHT = 210,
+  DO_MOUNT_CONTROL = 205,
+  DO_SET_CAM_TRIGG_INTERVAL = 214,
+  DO_MOUNT_CONFIGURE = 204,
+  DO_MOUNT_CONTROL_QUAT = 220,
+  DO_GUIDED_MASTER = 221,
+  DO_GUIDED_LIMITS = 222,
+  DO_ENGINE_CONTROL = 223,
+  DO_SET_MISSION_CURRENT = 224,
+  DO_LAST = 240,
+  PREFLIGHT_UAVCAN = 243,
+  PANORAMA_CREATE = 2800,
+  DO_VTOL_TRANSITION = 3000,
+  ARM_AUTHORIZATION_REQUEST = 3001,
+  SET_GUIDED_SUBMODE_STANDARD = 4000,
+  SET_GUIDED_SUBMODE_CIRCLE = 4001,
+  CONDITION_GATE = 4501,
+  NAV_FENCE_RETURN_POINT = 5000,
+  NAV_FENCE_POLYGON_VERTEX_INCLUSION = 5001,
+  NAV_FENCE_POLYGON_VERTEX_EXCLUSION = 5002,
+  NAV_FENCE_CIRCLE_INCLUSION = 5003,
+  NAV_FENCE_CIRCLE_EXCLUSION = 5004,
+  NAV_RALLY_POINT = 5100,
+  UAVCAN_GET_NODE_INFO = 5200,
+  PAYLOAD_PREPARE_DEPLOY = 30001,
+  PAYLOAD_CONTROL_DEPLOY = 30002,
+  WAYPOINT_USER_1 = 31000,
+  WAYPOINT_USER_2 = 31001,
+  WAYPOINT_USER_3 = 31002,
+  WAYPOINT_USER_4 = 31003,
+  WAYPOINT_USER_5 = 31004,
+  SPATIAL_USER_1 = 31005,
+  SPATIAL_USER_2 = 31006,
+  SPATIAL_USER_3 = 31007,
+  SPATIAL_USER_4 = 31008,
+  SPATIAL_USER_5 = 31009,
+  USER_1 = 31010,
+  USER_2 = 31011,
+  USER_3 = 31012,
+  USER_4 = 31013,
+  USER_5 = 31014
+}
+
+export enum ArduPilotMode {
+  STABILIZE = 0,
+  ACRO = 1,
+  ALT_HOLD = 2,
+  AUTO = 3,
+  GUIDED = 4,
+  LOITER = 5,
+  RTL = 6,
+  CIRCLE = 7,
+  LAND = 9,
+  DRIFT = 11,
+  SPORT = 13,
+  FLIP = 14,
+  AUTOTUNE = 15,
+  POSHOLD = 16,
+  BRAKE = 17,
+  THROW = 18,
+  AVOID_ADSB = 19,
+  GUIDED_NOGPS = 20,
+  SMART_RTL = 21,
+  FLOWHOLD = 22,
+  FOLLOW = 23,
+  ZIGZAG = 24,
+  SYSTEMID = 25,
+  AUTOROTATE = 26,
+  AUTO_RTL = 27
+}
+
+export enum MAVState {
+  UNINIT = 0,
+  BOOT = 1,
+  CALIBRATING = 2,
+  STANDBY = 3,
+  ACTIVE = 4,
+  CRITICAL = 5,
+  EMERGENCY = 6,
+  POWEROFF = 7,
+  FLIGHT_TERMINATION = 8
+}
+
+export enum MAVModeFlag {
+  CUSTOM_MODE_ENABLED = 1,
+  TEST_ENABLED = 2,
+  AUTO_ENABLED = 4,
+  GUIDED_ENABLED = 8,
+  STABILIZE_ENABLED = 16,
+  HIL_ENABLED = 32,
+  MANUAL_INPUT_ENABLED = 64,
+  SAFETY_ARMED = 128
+}
+
+export interface HeartbeatMessage {
+  type: number;
+  autopilot: number;
+  baseMode: number;
+  customMode: number;
+  systemStatus: number;
+  mavlinkVersion: number;
+}
+
+export interface AttitudeMessage {
+  timeBootMs: number;
+  roll: number;
+  pitch: number;
+  yaw: number;
+  rollspeed: number;
+  pitchspeed: number;
+  yawspeed: number;
+}
+
+export interface GlobalPositionIntMessage {
+  timeBootMs: number;
+  lat: number;
+  lon: number;
+  alt: number;
+  relativeAlt: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  hdg: number;
+}
+
+export interface LocalPositionNedMessage {
+  timeBootMs: number;
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+}
+
+export interface VfrHudMessage {
+  airspeed: number;
+  groundspeed: number;
+  heading: number;
+  throttle: number;
+  alt: number;
+  climb: number;
+}
+
+export interface BatteryStatusMessage {
+  id: number;
+  batteryFunction: number;
+  type: number;
+  temperature: number;
+  voltages: number[];
+  currentBattery: number;
+  currentConsumed: number;
+  energyConsumed: number;
+  batteryRemaining: number;
+  timeRemaining: number;
+  chargeState: number;
+}
+
+export interface CommandAckMessage {
+  command: number;
+  result: number;
+  progress: number;
+  resultParam2: number;
+  targetSystem: number;
+  targetComponent: number;
+}

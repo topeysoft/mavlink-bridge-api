@@ -18,7 +18,7 @@ paths:
       description: Returns comprehensive system health information including device details, network status, and system metrics
       responses:
         '200':
-          description: System is healthy
+          description: System health status (healthy or degraded)
           content:
             application/json:
               schema:
@@ -73,26 +73,6 @@ paths:
                   totalBytes: 512000
                   usedBytes: 256000
                   healthy: true
-        '503':
-          description: System is degraded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HealthResponse'
-              example:
-                status: "degraded"
-                uptime: 12345
-                freeHeap: 3000
-                issues: ["low_memory"]
-                device:
-                  hostname: "yardrover-esp32"
-                  name: "YardRover Device"
-                  chipModel: "ESP32-S3"
-                  chipRevision: 1
-                  flashSize: 8388608
-                  sdkVersion: "4.4.0"
-                  coreCount: 2
-
   /api/config:
     get:
       summary: Get complete configuration
@@ -176,12 +156,528 @@ paths:
         '200':
           description: RTCM client stopped
 
+  /api/mavlink/command:
+    post:
+      summary: Send MAVLink command to flight controller
+      description: Send a MAVLink command through the bridge to the connected flight controller
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MAVLinkCommand'
+            examples:
+              arm:
+                summary: Arm the vehicle
+                value:
+                  commandType: "arm"
+                  targetSystem: 1
+                  targetComponent: 1
+              disarm:
+                summary: Disarm the vehicle
+                value:
+                  commandType: "disarm"
+                  targetSystem: 1
+                  targetComponent: 1
+              setMode:
+                summary: Set flight mode
+                value:
+                  commandType: "setMode"
+                  targetSystem: 1
+                  targetComponent: 1
+                  customMode: 4
+                  baseMode: 1
+              commandLong:
+                summary: Send generic command_long
+                value:
+                  commandType: "commandLong"
+                  targetSystem: 1
+                  targetComponent: 1
+                  command: 400
+                  param1: 1.0
+      responses:
+        '200':
+          description: Command sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAVLinkCommandResponse'
+        '400':
+          description: Invalid command parameters
+
+  /api/mavlink/mission/upload:
+    post:
+      summary: Upload mission plan to flight controller
+      description: Upload a complete mission plan with waypoints to the flight controller
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MissionUploadRequest'
+      responses:
+        '200':
+          description: Mission upload result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionOperationResult'
+        '400':
+          description: Invalid mission data
+
+  /api/mavlink/mission/download:
+    post:
+      summary: Download mission plan from flight controller
+      description: Download the current mission plan from the flight controller
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MissionDownloadRequest'
+      responses:
+        '200':
+          description: Mission download result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionPlan'
+
+  /api/mavlink/mission/clear:
+    post:
+      summary: Clear all mission items from flight controller
+      description: Remove all mission items from the flight controller
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MissionClearRequest'
+      responses:
+        '200':
+          description: Mission clear result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionOperationResult'
+
+  /api/mavlink/mission/set_current:
+    post:
+      summary: Set current mission item
+      description: Set the current mission item sequence number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MissionSetCurrentRequest'
+      responses:
+        '200':
+          description: Set current item result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionOperationResult'
+
+  /api/mavlink/mission/status:
+    post:
+      summary: Get mission status
+      description: Get current mission status and progress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MissionStatusRequest'
+      responses:
+        '200':
+          description: Mission status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionStatus'
+
+  /api/tasks:
+    get:
+      summary: List all tasks
+      description: Retrieve a list of all tasks with optional filtering
+      parameters:
+        - name: type
+          in: query
+          description: Filter tasks by type
+          schema:
+            type: string
+            enum: [waypoint_mission, mowing, spraying, leaf_blowing, towing, snow_removal, patrolling, surveying, custom]
+        - name: status
+          in: query
+          description: Filter tasks by status
+          schema:
+            type: string
+            enum: [created, ready, executing, paused, completed, failed, cancelled]
+        - name: priority
+          in: query
+          description: Filter tasks by priority
+          schema:
+            type: string
+            enum: [low, normal, high, critical]
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+        '500':
+          description: Internal server error
+
+    post:
+      summary: Create a new task
+      description: Create a new task with the specified parameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreateRequest'
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          description: Invalid task data
+        '500':
+          description: Internal server error
+
+  /api/tasks/{taskId}:
+    get:
+      summary: Get task details
+      description: Retrieve detailed information about a specific task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: Unique task identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '404':
+          description: Task not found
+        '500':
+          description: Internal server error
+
+    put:
+      summary: Update task
+      description: Update an existing task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: Unique task identifier
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdateRequest'
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          description: Invalid task data
+        '404':
+          description: Task not found
+        '409':
+          description: Task is currently executing
+        '500':
+          description: Internal server error
+
+    delete:
+      summary: Delete task
+      description: Delete a task (will cancel execution if running)
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: Unique task identifier
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Task deleted successfully
+        '404':
+          description: Task not found
+        '500':
+          description: Internal server error
+
+  /api/tasks/{taskId}/execute:
+    post:
+      summary: Execute task
+      description: Start execution of a task, converting it to a MAVLink mission
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: Unique task identifier
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskExecutionRequest'
+      responses:
+        '200':
+          description: Task execution started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExecutionResponse'
+        '400':
+          description: Invalid execution parameters
+        '404':
+          description: Task not found
+        '409':
+          description: Task already executing or system busy
+        '500':
+          description: Internal server error
+
+  /api/tasks/{taskId}/status:
+    get:
+      summary: Get task execution status
+      description: Get real-time execution status of a task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: Unique task identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task execution status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExecutionStatus'
+        '404':
+          description: Task not found or not executing
+        '500':
+          description: Internal server error
+
+  /api/tasks/{taskId}/cancel:
+    post:
+      summary: Cancel task execution
+      description: Cancel the execution of a running task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: Unique task identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task execution cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExecutionResponse'
+        '404':
+          description: Task not found
+        '409':
+          description: Task is not executing
+        '500':
+          description: Internal server error
+
+  /api/tasks/{taskId}/pause:
+    post:
+      summary: Pause task execution
+      description: Pause the execution of a running task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: Unique task identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task execution paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExecutionResponse'
+        '404':
+          description: Task not found
+        '409':
+          description: Task is not executing
+        '500':
+          description: Internal server error
+
+  /api/tasks/{taskId}/resume:
+    post:
+      summary: Resume task execution
+      description: Resume the execution of a paused task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          description: Unique task identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task execution resumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExecutionResponse'
+        '404':
+          description: Task not found
+        '409':
+          description: Task is not paused
+        '500':
+          description: Internal server error
+
+  /api/tasks/import:
+    post:
+      summary: Import tasks
+      description: Import tasks from JSON or backup format
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskImportRequest'
+      responses:
+        '200':
+          description: Tasks imported successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskImportResponse'
+        '400':
+          description: Invalid import data
+        '500':
+          description: Internal server error
+
+  /api/tasks/export:
+    get:
+      summary: Export all tasks
+      description: Export all tasks in specified format
+      parameters:
+        - name: format
+          in: query
+          description: Export format
+          schema:
+            type: string
+            enum: [json, compressed_json, binary]
+            default: json
+        - name: includeWaypoints
+          in: query
+          description: Include waypoint data
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Tasks exported successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExportResponse'
+        '500':
+          description: Internal server error
+
+    post:
+      summary: Export specific tasks
+      description: Export selected tasks in specified format
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskExportRequest'
+      responses:
+        '200':
+          description: Tasks exported successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskExportResponse'
+        '400':
+          description: Invalid export parameters
+        '500':
+          description: Internal server error
+
+  /api/tasks/templates:
+    get:
+      summary: List task templates
+      description: Get available task templates
+      responses:
+        '200':
+          description: Task templates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskTemplateListResponse'
+        '500':
+          description: Internal server error
+
+    post:
+      summary: Create task from template
+      description: Create a new task using a predefined template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskFromTemplateRequest'
+      responses:
+        '201':
+          description: Task created from template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          description: Invalid template or parameters
+        '500':
+          description: Internal server error
+
   /ws:
     get:
       summary: WebSocket endpoint for real-time communication
       description: |
         WebSocket connection for real-time events and data streaming.
         Message format: JSON with 'type' and 'payload' fields.
+        
+        Task-related events:
+        - task_created: Task was created
+        - task_updated: Task was modified
+        - task_deleted: Task was deleted
+        - task_execution_started: Task execution began
+        - task_execution_progress: Task execution progress update
+        - task_execution_paused: Task execution was paused
+        - task_execution_resumed: Task execution was resumed
+        - task_execution_completed: Task execution finished
+        - task_execution_failed: Task execution failed
+        - task_execution_cancelled: Task execution was cancelled
       responses:
         '101':
           description: Switching Protocols
@@ -533,7 +1029,878 @@ components:
       properties:
         type:
           type: string
-          enum: [status, config_changed, rtcm_data, error, log]
+          enum: [status, config_changed, rtcm_data, error, log, mavlink_message]
         payload:
           type: object
           description: Event-specific payload
+
+    MAVLinkCommand:
+      type: object
+      required:
+        - commandType
+      properties:
+        commandType:
+          type: string
+          enum: [arm, disarm, setMode, commandLong, commandInt, setPositionTarget]
+          description: Type of MAVLink command to send
+        targetSystem:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target system ID
+        targetComponent:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target component ID
+        customMode:
+          type: integer
+          description: Custom mode for setMode command
+        baseMode:
+          type: integer
+          description: Base mode for setMode command
+        command:
+          type: integer
+          description: MAVLink command ID for commandLong/commandInt
+        frame:
+          type: integer
+          description: Coordinate frame for commandInt
+        current:
+          type: integer
+          description: Current waypoint for commandInt
+        autocontinue:
+          type: integer
+          description: Autocontinue flag for commandInt
+        param1:
+          type: number
+          description: Command parameter 1
+        param2:
+          type: number
+          description: Command parameter 2
+        param3:
+          type: number
+          description: Command parameter 3
+        param4:
+          type: number
+          description: Command parameter 4
+        param5:
+          type: number
+          description: Command parameter 5
+        param6:
+          type: number
+          description: Command parameter 6
+        param7:
+          type: number
+          description: Command parameter 7
+        x:
+          type: integer
+          description: X coordinate for commandInt
+        y:
+          type: integer
+          description: Y coordinate for commandInt
+        z:
+          type: number
+          description: Z coordinate
+        timeBootMs:
+          type: integer
+          description: Timestamp for position target commands
+        coordinateFrame:
+          type: integer
+          description: Coordinate frame for position commands
+        typeMask:
+          type: integer
+          description: Type mask for position commands
+        vx:
+          type: number
+          description: X velocity
+        vy:
+          type: number
+          description: Y velocity
+        vz:
+          type: number
+          description: Z velocity
+        afx:
+          type: number
+          description: X acceleration
+        afy:
+          type: number
+          description: Y acceleration
+        afz:
+          type: number
+          description: Z acceleration
+        yaw:
+          type: number
+          description: Yaw angle
+        yawRate:
+          type: number
+          description: Yaw rate
+
+    MAVLinkCommandResponse:
+      type: object
+      required:
+        - success
+        - commandType
+        - messageId
+        - bytesSent
+      properties:
+        success:
+          type: boolean
+          description: Whether the command was sent successfully
+        commandType:
+          type: string
+          description: Type of command that was sent
+        targetSystem:
+          type: integer
+          description: Target system ID
+        targetComponent:
+          type: integer
+          description: Target component ID
+        messageId:
+          type: integer
+          description: MAVLink message ID that was sent
+        bytesSent:
+          type: integer
+          description: Number of bytes sent
+
+    MissionItem:
+      type: object
+      required:
+        - seq
+        - frame
+        - command
+        - current
+        - autocontinue
+        - param1
+        - param2
+        - param3
+        - param4
+        - x
+        - y
+        - z
+      properties:
+        seq:
+          type: integer
+          description: Sequence number of the mission item
+        frame:
+          type: integer
+          description: Coordinate frame (MAVFrame enum)
+        command:
+          type: integer
+          description: MAVLink command ID
+        current:
+          type: integer
+          description: Whether this is the current mission item (0 or 1)
+        autocontinue:
+          type: integer
+          description: Whether to continue to next item automatically (0 or 1)
+        param1:
+          type: number
+          description: Command parameter 1
+        param2:
+          type: number
+          description: Command parameter 2
+        param3:
+          type: number
+          description: Command parameter 3
+        param4:
+          type: number
+          description: Command parameter 4
+        x:
+          type: integer
+          description: X coordinate (latitude * 1e7 for global coordinates)
+        y:
+          type: integer
+          description: Y coordinate (longitude * 1e7 for global coordinates)
+        z:
+          type: number
+          description: Z coordinate (altitude)
+        missionType:
+          type: integer
+          description: Mission type (MAVMissionType enum)
+
+    MissionUploadRequest:
+      type: object
+      required:
+        - items
+      properties:
+        targetSystem:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target system ID
+        targetComponent:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target component ID
+        missionType:
+          type: integer
+          default: 0
+          description: Mission type (0=mission, 1=fence, 2=rally)
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MissionItem'
+          description: Array of mission items to upload
+
+    MissionDownloadRequest:
+      type: object
+      properties:
+        targetSystem:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target system ID
+        targetComponent:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target component ID
+        missionType:
+          type: integer
+          default: 0
+          description: Mission type (0=mission, 1=fence, 2=rally)
+
+    MissionClearRequest:
+      type: object
+      properties:
+        targetSystem:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target system ID
+        targetComponent:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target component ID
+        missionType:
+          type: integer
+          default: 0
+          description: Mission type (0=mission, 1=fence, 2=rally)
+
+    MissionSetCurrentRequest:
+      type: object
+      required:
+        - seq
+      properties:
+        targetSystem:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target system ID
+        targetComponent:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target component ID
+        seq:
+          type: integer
+          minimum: 0
+          description: Sequence number of mission item to set as current
+
+    MissionStatusRequest:
+      type: object
+      properties:
+        targetSystem:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target system ID
+        targetComponent:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target component ID
+
+    MissionPlan:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MissionItem'
+          description: Array of mission items
+        targetSystem:
+          type: integer
+          description: Target system ID
+        targetComponent:
+          type: integer
+          description: Target component ID
+
+    MissionOperationResult:
+      type: object
+      required:
+        - success
+        - operation
+        - targetSystem
+        - targetComponent
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+        operation:
+          type: string
+          description: Type of operation performed
+        itemsProcessed:
+          type: integer
+          description: Number of items processed
+        totalItems:
+          type: integer
+          description: Total number of items
+        errorMessage:
+          type: string
+          description: Error message if operation failed
+        targetSystem:
+          type: integer
+          description: Target system ID
+        targetComponent:
+          type: integer
+          description: Target component ID
+
+    MissionStatus:
+      type: object
+      required:
+        - count
+        - current
+        - reached
+        - state
+      properties:
+        count:
+          type: integer
+          description: Total number of mission items
+        current:
+          type: integer
+          description: Current mission item sequence number
+        reached:
+          type: integer
+          description: Last reached mission item sequence number
+        state:
+          type: integer
+          description: Mission state (MissionState enum)
+
+    # Task Management Schemas
+    TaskWaypoint:
+      type: object
+      required:
+        - latitude
+        - longitude
+        - altitude
+      properties:
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          description: Latitude in degrees
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          description: Longitude in degrees
+        altitude:
+          type: number
+          description: Altitude in meters
+        speed:
+          type: number
+          description: Target speed in m/s (0 = use default)
+        yaw:
+          type: number
+          description: Target yaw in radians (NaN = auto)
+        acceptanceRadius:
+          type: number
+          description: Acceptance radius in meters (0 = use default)
+        command:
+          type: integer
+          description: MAVLink command ID
+          default: 16
+        param1:
+          type: number
+          description: Command parameter 1
+        param2:
+          type: number
+          description: Command parameter 2
+        param3:
+          type: number
+          description: Command parameter 3
+        param4:
+          type: number
+          description: Command parameter 4
+        dwellTime:
+          type: integer
+          description: Time to wait at waypoint in milliseconds
+
+    TaskParameters:
+      type: object
+      properties:
+        speed:
+          type: number
+          description: Default speed in m/s
+          default: 2.0
+        altitude:
+          type: number
+          description: Default altitude in meters
+          default: 10.0
+        acceptanceRadius:
+          type: number
+          description: Default acceptance radius in meters
+          default: 2.0
+        loiterTime:
+          type: number
+          description: Default loiter time in seconds
+          default: 0
+        returnToLaunch:
+          type: boolean
+          description: Return to launch when complete
+          default: true
+        maxExecutionTime:
+          type: integer
+          description: Maximum execution time in seconds
+          default: 3600
+        customParameters:
+          type: string
+          description: JSON string of custom parameters
+
+    TaskMetadata:
+      type: object
+      required:
+        - id
+        - name
+        - type
+        - status
+        - priority
+        - createdTime
+        - modifiedTime
+        - version
+      properties:
+        id:
+          type: string
+          description: Unique task identifier (UUID)
+        name:
+          type: string
+          description: Human-readable task name
+        description:
+          type: string
+          description: Task description
+        type:
+          type: string
+          enum: [waypoint_mission, mowing, spraying, leaf_blowing, towing, snow_removal, patrolling, surveying, custom]
+          description: Task type
+        status:
+          type: string
+          enum: [created, ready, executing, paused, completed, failed, cancelled]
+          description: Current task status
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
+          description: Task priority
+        createdTime:
+          type: integer
+          format: int64
+          description: Creation timestamp (milliseconds)
+        modifiedTime:
+          type: integer
+          format: int64
+          description: Last modification timestamp (milliseconds)
+        executionStartTime:
+          type: integer
+          format: int64
+          description: Execution start timestamp (milliseconds)
+        executionEndTime:
+          type: integer
+          format: int64
+          description: Execution end timestamp (milliseconds)
+        createdBy:
+          type: string
+          description: User or system that created the task
+        version:
+          type: integer
+          description: Task version number
+        estimatedDuration:
+          type: integer
+          description: Estimated duration in seconds
+
+    TaskResponse:
+      type: object
+      required:
+        - metadata
+        - parameters
+        - waypoints
+      properties:
+        metadata:
+          $ref: '#/components/schemas/TaskMetadata'
+        parameters:
+          $ref: '#/components/schemas/TaskParameters'
+        waypoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskWaypoint'
+          description: Array of task waypoints
+        compressionRatio:
+          type: number
+          description: Storage compression ratio (0.0-1.0)
+        totalDistance:
+          type: number
+          description: Total distance in meters
+        estimatedTime:
+          type: integer
+          description: Estimated execution time in seconds
+
+    TaskCreateRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: Task name
+        description:
+          type: string
+          description: Task description
+        type:
+          type: string
+          enum: [waypoint_mission, mowing, spraying, leaf_blowing, towing, snow_removal, patrolling, surveying, custom]
+          description: Task type
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
+          default: normal
+          description: Task priority
+        parameters:
+          $ref: '#/components/schemas/TaskParameters'
+        waypoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskWaypoint'
+          description: Array of task waypoints
+
+    TaskUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Task name
+        description:
+          type: string
+          description: Task description
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
+          description: Task priority
+        parameters:
+          $ref: '#/components/schemas/TaskParameters'
+        waypoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskWaypoint'
+          description: Array of task waypoints
+
+    TaskListResponse:
+      type: object
+      required:
+        - tasks
+        - totalCount
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskResponse'
+          description: Array of tasks
+        totalCount:
+          type: integer
+          description: Total number of tasks
+        filteredCount:
+          type: integer
+          description: Number of tasks after filtering
+
+    TaskExecutionRequest:
+      type: object
+      properties:
+        validateBeforeExecution:
+          type: boolean
+          default: true
+          description: Validate task before execution
+        autoRetryOnFailure:
+          type: boolean
+          default: false
+          description: Automatically retry on failure
+        maxRetries:
+          type: integer
+          default: 3
+          description: Maximum number of retries
+        timeoutSeconds:
+          type: integer
+          default: 3600
+          description: Execution timeout in seconds
+        targetSystem:
+          type: integer
+          default: 1
+          description: MAVLink target system ID
+        targetComponent:
+          type: integer
+          default: 1
+          description: MAVLink target component ID
+
+    TaskExecutionResponse:
+      type: object
+      required:
+        - success
+        - taskId
+        - operation
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+        taskId:
+          type: string
+          description: Task identifier
+        operation:
+          type: string
+          description: Operation performed (execute, cancel, pause, resume)
+        executionId:
+          type: string
+          description: Unique execution identifier
+        message:
+          type: string
+          description: Human-readable status message
+        errorCode:
+          type: string
+          description: Error code if operation failed
+
+    TaskExecutionStatus:
+      type: object
+      required:
+        - taskId
+        - status
+        - progress
+      properties:
+        taskId:
+          type: string
+          description: Task identifier
+        status:
+          type: string
+          enum: [created, ready, executing, paused, completed, failed, cancelled]
+          description: Current execution status
+        startTime:
+          type: integer
+          format: int64
+          description: Execution start timestamp (milliseconds)
+        lastUpdateTime:
+          type: integer
+          format: int64
+          description: Last update timestamp (milliseconds)
+        currentWaypointIndex:
+          type: integer
+          description: Current waypoint being executed
+        totalWaypoints:
+          type: integer
+          description: Total number of waypoints
+        progress:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Execution progress (0.0 to 1.0)
+        distanceRemaining:
+          type: number
+          description: Remaining distance in meters
+        estimatedTimeRemaining:
+          type: integer
+          description: Estimated time remaining in seconds
+        lastError:
+          type: string
+          description: Last error message if any
+
+    TaskImportRequest:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: string
+          description: JSON data or base64-encoded backup data
+        format:
+          type: string
+          enum: [json, compressed_json, binary]
+          default: json
+          description: Data format
+        overwriteExisting:
+          type: boolean
+          default: false
+          description: Overwrite existing tasks with same ID
+        validateBeforeImport:
+          type: boolean
+          default: true
+          description: Validate tasks before importing
+        createBackupBeforeImport:
+          type: boolean
+          default: true
+          description: Create backup before importing
+
+    TaskImportResponse:
+      type: object
+      required:
+        - success
+        - tasksImported
+        - totalTasks
+      properties:
+        success:
+          type: boolean
+          description: Whether import was successful
+        tasksImported:
+          type: integer
+          description: Number of tasks successfully imported
+        totalTasks:
+          type: integer
+          description: Total number of tasks in import data
+        skippedTasks:
+          type: integer
+          description: Number of tasks skipped
+        errors:
+          type: array
+          items:
+            type: string
+          description: Array of error messages
+        processingTime:
+          type: integer
+          description: Processing time in milliseconds
+
+    TaskExportRequest:
+      type: object
+      properties:
+        taskIds:
+          type: array
+          items:
+            type: string
+          description: Specific task IDs to export (empty = all tasks)
+        format:
+          type: string
+          enum: [json, compressed_json, binary]
+          default: json
+          description: Export format
+        includeMetadata:
+          type: boolean
+          default: true
+          description: Include task metadata
+        includeWaypoints:
+          type: boolean
+          default: true
+          description: Include waypoint data
+        compressData:
+          type: boolean
+          default: false
+          description: Compress export data
+        description:
+          type: string
+          description: Export description
+
+    TaskExportResponse:
+      type: object
+      required:
+        - success
+        - data
+        - tasksExported
+      properties:
+        success:
+          type: boolean
+          description: Whether export was successful
+        data:
+          type: string
+          description: Exported data (JSON string or base64 for binary)
+        tasksExported:
+          type: integer
+          description: Number of tasks exported
+        totalSize:
+          type: integer
+          description: Size of exported data in bytes
+        compressionRatio:
+          type: integer
+          description: Compression ratio percentage if compression used
+        processingTime:
+          type: integer
+          description: Processing time in milliseconds
+        format:
+          type: string
+          description: Actual format used
+
+    TaskTemplate:
+      type: object
+      required:
+        - id
+        - name
+        - type
+      properties:
+        id:
+          type: string
+          description: Template identifier
+        name:
+          type: string
+          description: Template name
+        description:
+          type: string
+          description: Template description
+        type:
+          type: string
+          enum: [waypoint_mission, mowing, spraying, leaf_blowing, towing, snow_removal, patrolling, surveying, custom]
+          description: Task type this template creates
+        parameters:
+          $ref: '#/components/schemas/TaskParameters'
+        waypointPattern:
+          type: object
+          description: Pattern for generating waypoints
+        previewImage:
+          type: string
+          description: Base64-encoded preview image
+        estimatedDuration:
+          type: integer
+          description: Estimated duration in seconds
+
+    TaskTemplateListResponse:
+      type: object
+      required:
+        - templates
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskTemplate'
+          description: Available task templates
+        totalCount:
+          type: integer
+          description: Total number of templates
+
+    TaskFromTemplateRequest:
+      type: object
+      required:
+        - templateId
+        - name
+      properties:
+        templateId:
+          type: string
+          description: Template identifier
+        name:
+          type: string
+          description: Name for the new task
+        description:
+          type: string
+          description: Description for the new task
+        parameters:
+          $ref: '#/components/schemas/TaskParameters'
+        templateParameters:
+          type: object
+          description: Template-specific parameters (e.g., area dimensions, pattern spacing)

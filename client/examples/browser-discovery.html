@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAVLink Bridge Discovery</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        input[type="text"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .device-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            background: #fafafa;
+        }
+        
+        .device-card.healthy {
+            border-left: 4px solid #28a745;
+        }
+        
+        .device-card.degraded {
+            border-left: 4px solid #ffc107;
+        }
+        
+        .device-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .device-ip {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .device-details {
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .device-details div {
+            margin-bottom: 3px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .badge.provisioned {
+            background: #28a745;
+            color: white;
+        }
+        
+        .badge.unprovisioned {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .logs {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+        
+        .log-timestamp {
+            color: #6c757d;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MAVLink Bridge Device Discovery</h1>
+        <p>Discover MAVLink Bridge devices on your network using the browser-compatible discovery library.</p>
+        
+        <div class="controls">
+            <input type="text" id="subnets" placeholder="Subnets (e.g., 192.168.1.0/24, 10.0.0.0/24)" 
+                   value="192.168.1.0/24">
+            <input type="number" id="timeout" placeholder="Timeout (ms)" value="5000" min="1000" max="30000">
+            <input type="number" id="concurrent" placeholder="Concurrent" value="20" min="1" max="100">
+            <button id="discover-btn" onclick="startDiscovery()">Discover Devices</button>
+            <button id="discover-unprovisioned-btn" onclick="findUnprovisioned()">Find Unprovisioned</button>
+            <button id="continuous-btn" onclick="toggleContinuous()">Start Continuous</button>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div id="results">
+            <h2>Discovered Devices (<span id="device-count">0</span>)</h2>
+            <div id="devices" class="device-grid"></div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>Discovery Logs</h2>
+        <div id="logs" class="logs"></div>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <script type="module">
+        // Import the discovery library
+        // Note: In a real application, you would import from npm package
+        import { 
+            discoverMAVLinkBridgeDevices, 
+            findUnprovisionedDevices,
+            startContinuousDiscovery 
+        } from '../src/discovery/index.js';
+
+        let continuousDiscovery = null;
+        let discoveredDevices = new Map();
+
+        function log(message) {
+            const logsDiv = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="log-timestamp">${timestamp}</span>${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function updateDeviceDisplay() {
+            const devicesDiv = document.getElementById('devices');
+            const deviceCountSpan = document.getElementById('device-count');
+            
+            deviceCountSpan.textContent = discoveredDevices.size;
+            
+            if (discoveredDevices.size === 0) {
+                devicesDiv.innerHTML = '<p>No devices found</p>';
+                return;
+            }
+            
+            devicesDiv.innerHTML = Array.from(discoveredDevices.values()).map(device => `
+                <div class="device-card ${device.status}">
+                    <div class="device-name">${device.name}</div>
+                    <div class="device-ip">${device.ip}</div>
+                    <div class="device-details">
+                        <div><strong>Status:</strong> ${device.status}</div>
+                        <div><strong>MAC:</strong> ${device.id}</div>
+                        <div><strong>Hostname:</strong> ${device.hostname}</div>
+                        <div><strong>Provisioned:</strong> 
+                            <span class="badge ${device.isProvisioned ? 'provisioned' : 'unprovisioned'}">
+                                ${device.isProvisioned ? 'Yes' : 'No'}
+                            </span>
+                        </div>
+                        <div><strong>Chip:</strong> ${device.capabilities.chipModel} rev ${device.capabilities.chipRevision}</div>
+                        <div><strong>Flash:</strong> ${(device.capabilities.flashSize / 1024 / 1024).toFixed(1)}MB</div>
+                        ${device.network.wifi.ssid ? `<div><strong>WiFi:</strong> ${device.network.wifi.ssid} (${device.network.wifi.rssi}dBm)</div>` : ''}
+                        ${device.network.ap.enabled ? `<div><strong>AP Mode:</strong> Active${device.network.ap.clients !== undefined ? ` (${device.network.ap.clients} clients)` : ''}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.startDiscovery = async function() {
+            const discoverBtn = document.getElementById('discover-btn');
+            const subnetsInput = document.getElementById('subnets');
+            const timeoutInput = document.getElementById('timeout');
+            const concurrentInput = document.getElementById('concurrent');
+            
+            discoverBtn.disabled = true;
+            discoverBtn.innerHTML = '<span class="spinner"></span> Discovering...';
+            
+            showStatus('Starting device discovery...', 'info');
+            log('Starting device discovery...');
+            
+            try {
+                const subnets = subnetsInput.value.split(',').map(s => s.trim()).filter(s => s);
+                const timeout = parseInt(timeoutInput.value) || 5000;
+                const concurrent = parseInt(concurrentInput.value) || 20;
+                
+                const options = {
+                    subnets: subnets,
+                    timeout: timeout,
+                    concurrent: concurrent
+                };
+                
+                log(`Discovery options: ${JSON.stringify(options)}`);
+                
+                const result = await discoverMAVLinkBridgeDevices(options);
+                
+                // Update device map
+                discoveredDevices.clear();
+                result.devices.forEach(device => {
+                    discoveredDevices.set(device.id, device);
+                });
+                
+                updateDeviceDisplay();
+                
+                showStatus(
+                    `Discovery completed in ${result.duration}ms. ` +
+                    `Found ${result.devices.length} devices out of ${result.hostsScanned} hosts scanned.`,
+                    'success'
+                );
+                
+                log(`Discovery completed: ${result.devices.length} devices found in ${result.duration}ms`);
+                result.devices.forEach(device => {
+                    log(`  - ${device.name} @ ${device.ip} (${device.status})`);
+                });
+                
+            } catch (error) {
+                showStatus(`Discovery failed: ${error.message}`, 'error');
+                log(`Discovery error: ${error.message}`);
+            } finally {
+                discoverBtn.disabled = false;
+                discoverBtn.textContent = 'Discover Devices';
+            }
+        };
+
+        window.findUnprovisioned = async function() {
+            const btn = document.getElementById('discover-unprovisioned-btn');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Finding...';
+            
+            showStatus('Looking for unprovisioned devices...', 'info');
+            log('Searching for unprovisioned devices...');
+            
+            try {
+                const devices = await findUnprovisionedDevices();
+                
+                // Update device map with unprovisioned devices
+                devices.forEach(device => {
+                    discoveredDevices.set(device.id, device);
+                });
+                
+                updateDeviceDisplay();
+                
+                if (devices.length === 0) {
+                    showStatus('No unprovisioned devices found', 'info');
+                    log('No unprovisioned devices found');
+                } else {
+                    showStatus(`Found ${devices.length} unprovisioned device(s)`, 'success');
+                    log(`Found ${devices.length} unprovisioned devices:`);
+                    devices.forEach(device => {
+                        log(`  - ${device.name} @ ${device.ip}`);
+                    });
+                }
+                
+            } catch (error) {
+                showStatus(`Search failed: ${error.message}`, 'error');
+                log(`Unprovisioned search error: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Find Unprovisioned';
+            }
+        };
+
+        window.toggleContinuous = function() {
+            const btn = document.getElementById('continuous-btn');
+            
+            if (continuousDiscovery) {
+                // Stop continuous discovery
+                continuousDiscovery();
+                continuousDiscovery = null;
+                btn.textContent = 'Start Continuous';
+                showStatus('Continuous discovery stopped', 'info');
+                log('Continuous discovery stopped');
+            } else {
+                // Start continuous discovery
+                const subnetsInput = document.getElementById('subnets');
+                const subnets = subnetsInput.value.split(',').map(s => s.trim()).filter(s => s);
+                
+                continuousDiscovery = startContinuousDiscovery(
+                    (device) => {
+                        discoveredDevices.set(device.id, device);
+                        updateDeviceDisplay();
+                        log(`Device found: ${device.name} @ ${device.ip}`);
+                    },
+                    (deviceId) => {
+                        const device = discoveredDevices.get(deviceId);
+                        if (device) {
+                            discoveredDevices.delete(deviceId);
+                            updateDeviceDisplay();
+                            log(`Device lost: ${device.name} (${deviceId})`);
+                        }
+                    },
+                    {
+                        interval: 15000, // 15 seconds
+                        subnets: subnets,
+                        timeout: 3000
+                    }
+                );
+                
+                btn.textContent = 'Stop Continuous';
+                showStatus('Continuous discovery started (15s interval)', 'success');
+                log('Continuous discovery started with 15s interval');
+            }
+        };
+
+        // Initialize
+        log('MAVLink Bridge Discovery interface loaded');
+        showStatus('Ready to discover devices. Enter subnet(s) and click "Discover Devices".', 'info');
+    </script>
+</body>
+</html>

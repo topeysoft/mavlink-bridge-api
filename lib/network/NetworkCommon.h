@@ -27,7 +27,8 @@ enum class WebSocketEventType {
     CONFIG_CHANGED,
     RTCM_DATA,
     ERROR_EVENT,
-    LOG
+    LOG,
+    MAVLINK_MESSAGE
 };
 
 
