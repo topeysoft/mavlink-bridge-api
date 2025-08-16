@@ -130,3 +130,75 @@ export interface ErrorEventPayload {
   code: number;
   timestamp: number;
 }
+
+// Enhanced health check response types
+export interface DeviceInfo {
+  hostname: string;
+  name: string;
+  chipModel: string;
+  chipRevision: number;
+  flashSize: number;
+  sdkVersion: string;
+  coreCount: number;
+}
+
+export interface WiFiInfo {
+  status: 'disconnected' | 'connecting' | 'connected' | 'ap_mode' | 'error';
+  ssid?: string;
+  ip?: string;
+  gateway?: string;
+  subnet?: string;
+  rssi?: number;
+  bssid?: string;
+  channel?: number;
+}
+
+export interface AccessPointInfo {
+  enabled: boolean;
+  ip?: string;
+  ssid?: string;
+  clients?: number;
+}
+
+export interface NetworkInfo {
+  macAddress: string;
+  apMacAddress: string;
+  wifi: WiFiInfo;
+  ap: AccessPointInfo;
+}
+
+export interface ConfigHealth {
+  version: number;
+  isDirty: boolean;
+}
+
+export interface StorageHealth {
+  freeBytes: number;
+  totalBytes: number;
+  usedBytes: number;
+  healthy: boolean;
+}
+
+export interface EnhancedSystemHealth {
+  systemHealthy: boolean;
+  cpuUsage: number;
+  temperature: number;
+  lowMemoryWarning: boolean;
+  minFreeHeap: number;
+  largestFreeBlock: number;
+  taskCount: number;
+  componentCount: number;
+  components: ComponentHealth[];
+}
+
+export interface HealthCheckResponse {
+  status: 'healthy' | 'degraded';
+  uptime: number;
+  freeHeap: number;
+  device: DeviceInfo;
+  network: NetworkInfo;
+  system?: EnhancedSystemHealth;
+  config: ConfigHealth;
+  storage: StorageHealth;
+  issues?: Array<'system_unhealthy' | 'low_storage' | 'low_memory'>;
+}

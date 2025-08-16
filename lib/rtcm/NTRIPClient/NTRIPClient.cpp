@@ -1,7 +1,8 @@
 #include "NTRIPClient.h"
+#include <WiFi.h>
 #include <esp_log.h>
 #include <cstring>
-#include <base64.h>
+#include "mbedtls/base64.h"
 
 static const char* TAG = "NTRIPClient";
 
@@ -99,8 +100,10 @@ bool NTRIPClient::sendRequest() {
         char auth[128];
         snprintf(auth, sizeof(auth), "%s:%s", config.username, config.password);
         
-        char encoded[256];
-        base64_encode((uint8_t*)auth, strlen(auth), encoded);
+        unsigned char encoded[256];
+        size_t encodedLen;
+        mbedtls_base64_encode(encoded, sizeof(encoded), &encodedLen, 
+                              (unsigned char*)auth, strlen(auth));
         
         len += snprintf(request + len, sizeof(request) - len,
                        "Authorization: Basic %s\r\n", encoded);

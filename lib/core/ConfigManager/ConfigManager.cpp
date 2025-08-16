@@ -148,6 +148,22 @@ bool ConfigManager::updateRTCMConfig(const RTCMConfig& config) {
     return true;
 }
 
+bool ConfigManager::updateMDNSConfig(const MDNSConfig& config) {
+    if (!validateMDNSConfig(config)) {
+        return false;
+    }
+    
+    Configuration oldConfig = currentConfig;
+    currentConfig.mdns = config;
+    isDirty = true;
+    
+    if (changeHandler != nullptr) {
+        changeHandler(oldConfig, currentConfig);
+    }
+    
+    return true;
+}
+
 ConfigValidationResult ConfigManager::validateConfiguration(const Configuration& config) const {
     if (!validateDeviceConfig(config.device)) {
         if (config.device.name.length() == 0 || config.device.name.length() > 32) {
@@ -236,6 +252,28 @@ bool ConfigManager::validateRTCMConfig(const RTCMConfig& config) const {
     }
     
     return isValidPort(config.source.port);
+}
+
+bool ConfigManager::validateMDNSConfig(const MDNSConfig& config) const {
+    // Validate hostname
+    if (config.hostname.length() == 0 || config.hostname.length() > 63) {
+        return false;
+    }
+    
+    // Check for valid hostname characters (alphanumeric and hyphens)
+    for (int i = 0; i < config.hostname.length(); i++) {
+        char c = config.hostname.charAt(i);
+        if (!isalnum(c) && c != '-' && c != '_') {
+            return false;
+        }
+    }
+    
+    // Hostname cannot start or end with hyphen
+    if (config.hostname.startsWith("-") || config.hostname.endsWith("-")) {
+        return false;
+    }
+    
+    return true;
 }
 
 bool ConfigManager::isValidDeviceMode(const String& mode) const {
@@ -343,6 +381,12 @@ void ConfigManager::serializeRTCMConfig(const RTCMConfig& config, JsonObject& ob
     }
 }
 
+void ConfigManager::serializeMDNSConfig(const MDNSConfig& config, JsonObject& obj) const {
+    obj["enabled"] = config.enabled;
+    obj["hostname"] = config.hostname;
+    obj["discoveryEnabled"] = config.discoveryEnabled;
+}
+
 bool ConfigManager::deserializeDeviceConfig(const JsonObject& obj, DeviceConfig& config) const {
     if (obj.containsKey("name")) {
         config.name = obj["name"].as<String>();
@@ -434,6 +478,22 @@ bool ConfigManager::deserializeRTCMConfig(const JsonObject& obj, RTCMConfig& con
     return validateRTCMConfig(config);
 }
 
+bool ConfigManager::deserializeMDNSConfig(const JsonObject& obj, MDNSConfig& config) const {
+    if (obj.containsKey("enabled")) {
+        config.enabled = obj["enabled"];
+    }
+    
+    if (obj.containsKey("hostname")) {
+        config.hostname = obj["hostname"].as<String>();
+    }
+    
+    if (obj.containsKey("discoveryEnabled")) {
+        config.discoveryEnabled = obj["discoveryEnabled"];
+    }
+    
+    return validateMDNSConfig(config);
+}
+
 void ConfigManager::resetToDefaults() {
     Configuration oldConfig = currentConfig;
     currentConfig = defaultConfig;
@@ -523,6 +583,9 @@ void ConfigManager::serializeConfiguration(const Configuration& config, JsonObje
     
     JsonObject rtcmObj = obj.createNestedObject("rtcm");
     serializeRTCMConfig(config.rtcm, rtcmObj);
+    
+    JsonObject mdnsObj = obj.createNestedObject("mdns");
+    serializeMDNSConfig(config.mdns, mdnsObj);
 }
 
 bool ConfigManager::deserializeConfiguration(const JsonObject& obj, Configuration& config) const {
@@ -546,6 +609,12 @@ bool ConfigManager::deserializeConfiguration(const JsonObject& obj, Configuratio
     
     if (obj.containsKey("rtcm")) {
         if (!deserializeRTCMConfig(obj["rtcm"], config.rtcm)) {
+            return false;
+        }
+    }
+    
+    if (obj.containsKey("mdns")) {
+        if (!deserializeMDNSConfig(obj["mdns"], config.mdns)) {
             return false;
         }
     }

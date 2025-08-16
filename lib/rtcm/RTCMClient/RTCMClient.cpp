@@ -55,7 +55,8 @@ RTCMClient::RTCMClient()
 }
 
 RTCMClient::~RTCMClient() {
-    disconnect();
+    // Don't call pure virtual disconnect() from destructor
+    // Derived classes should handle cleanup in their own destructors
 }
 
 void RTCMClient::resetStatistics() {

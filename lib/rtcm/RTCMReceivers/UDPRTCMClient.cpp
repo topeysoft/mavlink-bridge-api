@@ -1,4 +1,5 @@
 #include "UDPRTCMClient.h"
+#include <WiFi.h>
 #include <esp_log.h>
 
 static const char* TAG = "UDPRTCMClient";
@@ -73,7 +74,7 @@ void UDPRTCMClient::runReceiveTask() {
                 if (udp.remoteIP() != remoteIP || udp.remotePort() != remotePort) {
                     ESP_LOGW(TAG, "Ignoring packet from %s:%d", 
                             udp.remoteIP().toString().c_str(), udp.remotePort());
-                    udp.flush();
+                    udp.clear();
                     continue;
                 }
             }

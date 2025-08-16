@@ -1,0 +1,14 @@
+{
+    "name": "rtcm",
+    "version": "1.0.0",
+    "description": "RTCM library for NTRIP and other RTCM protocols",
+    "dependencies": {
+        "WiFi": "*",
+        "network": "*",
+        "ArduinoJson": "*",
+        "mavlink": "*",
+        "core": "*"
+    },
+    "frameworks": ["arduino"],
+    "platforms": ["espressif32"]
+}

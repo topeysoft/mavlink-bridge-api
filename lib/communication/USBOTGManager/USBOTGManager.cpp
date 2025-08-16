@@ -379,7 +379,7 @@ void USBOTGManager::processIncomingData() {
         // Check for available data from USB host implementation
         size_t available = usbHostImpl->available();
         if (available > 0) {
-            ESP_LOGI(TAG, "📥 USB OTG: %d bytes available for reading", available);
+            ESP_LOGD(TAG, "📥 USB OTG: %d bytes available for reading", available);
             
             if (dataCallback) {
                 uint8_t tempBuffer[512];
@@ -387,15 +387,22 @@ void USBOTGManager::processIncomingData() {
                 size_t bytesRead = usbHostImpl->read(tempBuffer, readSize);
                 
                 if (bytesRead > 0) {
-                    ESP_LOGI(TAG, "📨 USB OTG: Read %d bytes, calling data callback", bytesRead);
-                    Serial.printf("📨 USB OTG: Read %d bytes, forwarding to DataRouter\n", bytesRead);
+                    ESP_LOGD(TAG, "📨 USB OTG: Read %d bytes, calling data callback", bytesRead);
+                    // Log data forwarding at debug level
+                    ESP_LOGD(TAG, "📨 USB OTG: Read %d bytes, forwarding to DataRouter", bytesRead);
                     
-                    // Log first few bytes for debugging
-                    Serial.printf("   Data: ");
-                    for (int i = 0; i < min(8, (int)bytesRead); i++) {
-                        Serial.printf("0x%02X ", tempBuffer[i]);
+                    // Log first few bytes for debugging (verbose level only)
+                    if (esp_log_level_get(TAG) >= ESP_LOG_VERBOSE) {
+                        ESP_LOGV(TAG, "Data: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
+                                 bytesRead > 0 ? tempBuffer[0] : 0,
+                                 bytesRead > 1 ? tempBuffer[1] : 0,
+                                 bytesRead > 2 ? tempBuffer[2] : 0,
+                                 bytesRead > 3 ? tempBuffer[3] : 0,
+                                 bytesRead > 4 ? tempBuffer[4] : 0,
+                                 bytesRead > 5 ? tempBuffer[5] : 0,
+                                 bytesRead > 6 ? tempBuffer[6] : 0,
+                                 bytesRead > 7 ? tempBuffer[7] : 0);
                     }
-                    Serial.printf("\n");
                     
                     // Update statistics
                     if (xSemaphoreTake(rxMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
@@ -406,14 +413,14 @@ void USBOTGManager::processIncomingData() {
                     
                     // Call data callback to forward to DataRouter
                     dataCallback(tempBuffer, bytesRead);
-                    ESP_LOGI(TAG, "✅ USB OTG: Data callback completed");
+                    ESP_LOGD(TAG, "✅ USB OTG: Data callback completed");
                 } else {
                     ESP_LOGW(TAG, "⚠️ USB OTG: Available data but read returned 0 bytes");
-                    Serial.printf("⚠️ USB OTG: Available data but read returned 0\n");
+                    ESP_LOGD(TAG, "⚠️ USB OTG: Available data but read returned 0");
                 }
             } else {
                 ESP_LOGW(TAG, "⚠️ USB OTG: Data available but no callback registered!");
-                Serial.printf("⚠️ USB OTG: Data available but no callback registered!\n");
+                ESP_LOGD(TAG, "⚠️ USB OTG: Data available but no callback registered!");
             }
         }
     }

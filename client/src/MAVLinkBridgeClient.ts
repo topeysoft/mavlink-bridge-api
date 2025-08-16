@@ -8,7 +8,7 @@ import { CommunicationClient } from './communication/CommunicationClient';
 import { EventType, EventHandler, StatusPayload, ConfigChangedPayload, RTCMDataPayload, ErrorPayload, LogPayload, WiFiConnectedPayload, WiFiDisconnectedPayload, WiFiSignalUpdatePayload } from './core/EventTypes';
 import { Configuration, HealthResponse, WiFiCredentials } from './config/ConfigTypes';
 import { WiFiState, WiFiStatus, WiFiNetwork, SignalQuality } from './wifi/WiFiTypes';
-import { SystemHealth, SystemMetrics, HealthThresholds } from './health/HealthTypes';
+import { SystemHealth, SystemMetrics, HealthThresholds, HealthCheckResponse } from './health/HealthTypes';
 
 /**
  * Configuration options for the MAVLinkBridge client
@@ -147,8 +147,8 @@ export class MAVLinkBridgeClient {
   /**
    * Get device health status
    */
-  async getHealth(): Promise<HealthResponse> {
-    return this.configClient.getHealth();
+  async getHealth(): Promise<HealthCheckResponse> {
+    return this.healthClient.getHealthCheck();
   }
 
   // WiFi Management

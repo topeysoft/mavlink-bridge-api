@@ -532,18 +532,23 @@ void USBHostImpl::handleEvents()
             Serial.printf("💔 USB Host: Processing device disconnected event\n");
             break;
         case USB_HOST_DATA_RECEIVED:
-            ESP_LOGI(TAG, "📥 DATA RECEIVED: %d bytes (buffer count: %d)", eventMsg.data_len, rxBufferCount);
-            Serial.printf("📥 USB Host: Received %d bytes, buffer count: %d\n", eventMsg.data_len, rxBufferCount);
-            
-            // Log first few bytes in hex for debugging
-            if (eventMsg.data_len > 0) {
-                Serial.printf("   First bytes: ");
-                for (int i = 0; i < min(8, (int)eventMsg.data_len); i++) {
-                    Serial.printf("0x%02X ", eventMsg.data[i]);
-                }
-                Serial.printf("\n");
+            ESP_LOGD(TAG, "📥 DATA RECEIVED: %d bytes (buffer count: %d)", eventMsg.data_len, rxBufferCount);
+            ESP_LOGD(TAG, "📥 USB Host: Received %d bytes, buffer count: %d", eventMsg.data_len, rxBufferCount);
+
+            // Log first few bytes for debugging (verbose level only)
+            if (esp_log_level_get(TAG) >= ESP_LOG_VERBOSE && eventMsg.data_len > 0)
+            {
+                ESP_LOGV(TAG, "First bytes: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
+                         eventMsg.data_len > 0 ? eventMsg.data[0] : 0,
+                         eventMsg.data_len > 1 ? eventMsg.data[1] : 0,
+                         eventMsg.data_len > 2 ? eventMsg.data[2] : 0,
+                         eventMsg.data_len > 3 ? eventMsg.data[3] : 0,
+                         eventMsg.data_len > 4 ? eventMsg.data[4] : 0,
+                         eventMsg.data_len > 5 ? eventMsg.data[5] : 0,
+                         eventMsg.data_len > 6 ? eventMsg.data[6] : 0,
+                         eventMsg.data_len > 7 ? eventMsg.data[7] : 0);
             }
-            
+
             // Process received data
             if (eventMsg.data_len > 0 && eventMsg.data_len <= USB_OTG_BUFFER_SIZE)
             {
@@ -557,10 +562,12 @@ void USBHostImpl::handleEvents()
                 stats.bytesReceived += eventMsg.data_len;
                 stats.messagesReceived++;
                 stats.lastActivity = millis();
-                
-                ESP_LOGI(TAG, "✅ Data copied to rx buffer. Total received: %lu bytes", stats.bytesReceived);
-                Serial.printf("✅ USB Host: Data copied to buffer. Total: %lu bytes\n", stats.bytesReceived);
-            } else {
+
+                ESP_LOGD(TAG, "✅ Data copied to rx buffer. Total received: %lu bytes", stats.bytesReceived);
+                ESP_LOGD(TAG, "✅ USB Host: Data copied to buffer. Total: %lu bytes", stats.bytesReceived);
+            }
+            else
+            {
                 ESP_LOGW(TAG, "⚠️ Invalid data length: %d", eventMsg.data_len);
                 Serial.printf("⚠️ USB Host: Invalid data length: %d\n", eventMsg.data_len);
             }
@@ -699,25 +706,33 @@ void USBHostImpl::bulkInTransferCallback(usb_transfer_t *transfer)
 {
     USBHostImpl *host = static_cast<USBHostImpl *>(transfer->context);
 
-    ESP_LOGI(TAG, "🔄 Bulk IN transfer callback - Status: %d, Bytes: %d", 
+    ESP_LOGD(TAG, "🔄 Bulk IN transfer callback - Status: %d, Bytes: %d",
              transfer->status, transfer->actual_num_bytes);
-    Serial.printf("🔄 USB Transfer IN: Status=%d, Bytes=%d\n", 
-                  transfer->status, transfer->actual_num_bytes);
+    ESP_LOGD(TAG, "🔄 USB Transfer IN: Status=%d, Bytes=%d",
+             transfer->status, transfer->actual_num_bytes);
 
     if (transfer->status == USB_TRANSFER_STATUS_COMPLETED)
     {
         // Process received data
         if (transfer->actual_num_bytes > 0)
         {
-            ESP_LOGI(TAG, "📨 Bulk IN received %d bytes", transfer->actual_num_bytes);
-            Serial.printf("📨 USB: Received %d bytes from FC\n", transfer->actual_num_bytes);
-            
-            // Log first few bytes for debugging
-            Serial.printf("   Data: ");
-            for (int i = 0; i < min(8, (int)transfer->actual_num_bytes); i++) {
-                Serial.printf("0x%02X ", ((uint8_t*)transfer->data_buffer)[i]);
+            ESP_LOGD(TAG, "📨 Bulk IN received %d bytes", transfer->actual_num_bytes);
+            ESP_LOGD(TAG, "📨 USB: Received %d bytes from FC", transfer->actual_num_bytes);
+
+            // Log first few bytes for debugging (verbose level only)
+            if (esp_log_level_get(TAG) >= ESP_LOG_VERBOSE)
+            {
+                uint8_t *buffer = (uint8_t *)transfer->data_buffer;
+                ESP_LOGV(TAG, "Data: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
+                         transfer->actual_num_bytes > 0 ? buffer[0] : 0,
+                         transfer->actual_num_bytes > 1 ? buffer[1] : 0,
+                         transfer->actual_num_bytes > 2 ? buffer[2] : 0,
+                         transfer->actual_num_bytes > 3 ? buffer[3] : 0,
+                         transfer->actual_num_bytes > 4 ? buffer[4] : 0,
+                         transfer->actual_num_bytes > 5 ? buffer[5] : 0,
+                         transfer->actual_num_bytes > 6 ? buffer[6] : 0,
+                         transfer->actual_num_bytes > 7 ? buffer[7] : 0);
             }
-            Serial.printf("\n");
 
             USBHostEventMessage eventMsg;
             eventMsg.event = USB_HOST_DATA_RECEIVED;
@@ -727,16 +742,19 @@ void USBHostImpl::bulkInTransferCallback(usb_transfer_t *transfer)
 
             // Send event to queue
             BaseType_t queueResult = xQueueSend(host->eventQueue, &eventMsg, 0);
-            if (queueResult == pdTRUE) {
-                ESP_LOGI(TAG, "✅ Data event queued successfully");
-                Serial.printf("✅ USB: Data event queued successfully\n");
+            if (queueResult == pdTRUE)
+            {
+                ESP_LOGD(TAG, "✅ USB: Data event queued successfully");
                 // Reset failure counter on successful data reception
                 host->consecutiveTransferFailures = 0;
-            } else {
-                ESP_LOGW(TAG, "⚠️ Failed to queue data event - queue full");
-                Serial.printf("⚠️ USB: Event queue full!\n");
             }
-        } else {
+            else
+            {
+                ESP_LOGW(TAG, "⚠️ Failed to queue data event - queue full");
+            }
+        }
+        else
+        {
             ESP_LOGD(TAG, "🔄 Bulk IN transfer completed with 0 bytes");
         }
 
@@ -749,12 +767,16 @@ void USBHostImpl::bulkInTransferCallback(usb_transfer_t *transfer)
                 ESP_LOGE(TAG, "❌ Failed to resubmit bulk in transfer: %s", esp_err_to_name(err));
                 Serial.printf("❌ USB: Failed to resubmit transfer: %s\n", esp_err_to_name(err));
                 host->stats.errors++;
-            } else {
+            }
+            else
+            {
                 ESP_LOGD(TAG, "🔄 Bulk IN transfer resubmitted successfully");
                 // Reset failure counter on successful resubmission
                 host->consecutiveTransferFailures = 0;
             }
-        } else {
+        }
+        else
+        {
             ESP_LOGW(TAG, "⚠️ Transfers not active - not resubmitting");
             Serial.printf("⚠️ USB: Transfers not active - stopping reception\n");
         }
@@ -764,18 +786,20 @@ void USBHostImpl::bulkInTransferCallback(usb_transfer_t *transfer)
         ESP_LOGW(TAG, "❌ Bulk in transfer failed with status: %d", transfer->status);
         Serial.printf("❌ USB: Transfer failed with status: %d\n", transfer->status);
         host->stats.errors++;
-        
+
         // Handle transfer failure and possibly trigger recovery
         host->handleTransferFailure();
-        
+
         // Try to resubmit on certain errors if not attempting recovery
         if (host->transfersActive && !host->shouldAttemptRecovery() &&
-            (transfer->status == USB_TRANSFER_STATUS_TIMED_OUT || 
-             transfer->status == USB_TRANSFER_STATUS_STALL)) {
+            (transfer->status == USB_TRANSFER_STATUS_TIMED_OUT ||
+             transfer->status == USB_TRANSFER_STATUS_STALL))
+        {
             ESP_LOGI(TAG, "🔄 Attempting to resubmit after error");
             Serial.printf("🔄 USB: Attempting to resubmit after error\n");
             esp_err_t err = usb_host_transfer_submit(transfer);
-            if (err != ESP_OK) {
+            if (err != ESP_OK)
+            {
                 ESP_LOGE(TAG, "❌ Failed to resubmit after error: %s", esp_err_to_name(err));
             }
         }
@@ -894,23 +918,38 @@ bool USBHostImpl::classDriverActionOpenDev(uint8_t dev_addr)
     Serial.printf("   Vendor: %s\n", deviceInfo.vendor.c_str());
     Serial.printf("   Product: %s\n", deviceInfo.product.c_str());
     Serial.printf("   Flight Controller: %s\n", deviceInfo.isFlightController ? "YES" : "NO");
-    
+
     // Add specific FC detection info
-    if (deviceInfo.vid == 0x0483 && deviceInfo.pid == 0x5740) {
+    if (deviceInfo.vid == 0x0483 && deviceInfo.pid == 0x5740)
+    {
         Serial.printf("   🎯 Detected: STM32 DFU Mode\n");
-    } else if (deviceInfo.vid == 0x0483 && deviceInfo.pid == 0xa0da) {
+    }
+    else if (deviceInfo.vid == 0x0483 && deviceInfo.pid == 0xa0da)
+    {
         Serial.printf("   🎯 Detected: STM32 Virtual COM Port\n");
-    } else if (deviceInfo.vid == 0x1209 && deviceInfo.pid == 0x53c0) {
+    }
+    else if (deviceInfo.vid == 0x1209 && deviceInfo.pid == 0x53c0)
+    {
         Serial.printf("   🎯 Detected: Betaflight/iNav STM32\n");
-    } else if (deviceInfo.vid == 0x1209 && deviceInfo.pid == 0x53c1) {
+    }
+    else if (deviceInfo.vid == 0x1209 && deviceInfo.pid == 0x53c1)
+    {
         Serial.printf("   🎯 Detected: Betaflight/iNav STM32 (Bootloader)\n");
-    } else if (deviceInfo.vid == 0x0403) {
+    }
+    else if (deviceInfo.vid == 0x0403)
+    {
         Serial.printf("   🎯 Detected: FTDI USB-Serial adapter\n");
-    } else if (deviceInfo.vid == 0x10c4) {
+    }
+    else if (deviceInfo.vid == 0x10c4)
+    {
         Serial.printf("   🎯 Detected: Silicon Labs CP210x\n");
-    } else if (deviceInfo.vid == 0x1a86) {
+    }
+    else if (deviceInfo.vid == 0x1a86)
+    {
         Serial.printf("   🎯 Detected: WCH CH340/CH341\n");
-    } else {
+    }
+    else
+    {
         Serial.printf("   ⚠️ Unknown flight controller type\n");
     }
     Serial.printf("\n");
@@ -1048,7 +1087,7 @@ void USBHostImpl::startCDCTransfers()
 {
     ESP_LOGI(TAG, "🚀 Attempting to start CDC transfers");
     Serial.printf("🚀 USB: Starting CDC transfers...\n");
-    
+
     if (!transfersActive && bulkInTransfer && bulkOutTransfer)
     {
         ESP_LOGI(TAG, "✅ Prerequisites met - starting transfers");
@@ -1062,18 +1101,22 @@ void USBHostImpl::startCDCTransfers()
         // Submit bulk in transfer for receiving data
         ESP_LOGI(TAG, "📥 Submitting bulk IN transfer for data reception");
         Serial.printf("📥 USB: Submitting bulk IN transfer (endpoint: 0x%02X)\n", bulkInEpAddr);
-        
+
         esp_err_t err = usb_host_transfer_submit(bulkInTransfer);
         if (err != ESP_OK)
         {
             ESP_LOGE(TAG, "❌ Failed to submit bulk in transfer: %s", esp_err_to_name(err));
             Serial.printf("❌ USB: Failed to submit bulk IN transfer: %s\n", esp_err_to_name(err));
             transfersActive = false;
-        } else {
+        }
+        else
+        {
             ESP_LOGI(TAG, "✅ Bulk IN transfer submitted successfully");
             Serial.printf("✅ USB: Bulk IN transfer submitted - ready to receive data!\n");
         }
-    } else {
+    }
+    else
+    {
         ESP_LOGW(TAG, "⚠️ Cannot start CDC transfers - prerequisites not met");
         Serial.printf("⚠️ USB: Cannot start transfers:\n");
         Serial.printf("   - transfersActive: %s\n", transfersActive ? "true" : "false");
@@ -1113,149 +1156,189 @@ bool USBHostImpl::findUSBEndpoints()
     bool endpointsFound = false;
     bulkInEpAddr = 0;
     bulkOutEpAddr = 0;
-    
+
     const uint8_t *desc_ptr = (const uint8_t *)configDesc;
     const uint8_t *desc_end = desc_ptr + configDesc->wTotalLength;
-    
+
     Serial.printf("🔍 USB: Parsing %d byte configuration descriptor...\n", configDesc->wTotalLength);
     Serial.printf("📋 USB: Detailed descriptor analysis:\n");
-    
+
     int interfaceCount = 0;
     int endpointCount = 0;
     int currentInterface = -1;
-    
-    while (desc_ptr < desc_end) {
+
+    while (desc_ptr < desc_end)
+    {
         const usb_standard_desc_t *desc = (const usb_standard_desc_t *)desc_ptr;
-        
-        if (desc->bLength == 0) {
+
+        if (desc->bLength == 0)
+        {
             Serial.printf("⚠️ USB: Zero-length descriptor encountered, stopping parse\n");
             break;
         }
-        
+
         Serial.printf("   📄 Descriptor: Type=0x%02X, Length=%d\n", desc->bDescriptorType, desc->bLength);
-        
-        switch (desc->bDescriptorType) {
-            case USB_B_DESCRIPTOR_TYPE_INTERFACE: {
-                const usb_intf_desc_t *intf_desc = (const usb_intf_desc_t *)desc;
-                currentInterface = intf_desc->bInterfaceNumber;
-                interfaceCount++;
-                
-                Serial.printf("   🔌 Interface %d:\n", currentInterface);
-                Serial.printf("      - Class: 0x%02X\n", intf_desc->bInterfaceClass);
-                Serial.printf("      - SubClass: 0x%02X\n", intf_desc->bInterfaceSubClass);
-                Serial.printf("      - Protocol: 0x%02X\n", intf_desc->bInterfaceProtocol);
-                Serial.printf("      - Endpoints: %d\n", intf_desc->bNumEndpoints);
-                
-                // Check for CDC-ACM class
-                if (intf_desc->bInterfaceClass == 0x02) { // CDC Communication
-                    Serial.printf("      ✅ CDC Communication Interface\n");
-                } else if (intf_desc->bInterfaceClass == 0x0A) { // CDC Data
-                    Serial.printf("      ✅ CDC Data Interface\n");
-                }
+
+        switch (desc->bDescriptorType)
+        {
+        case USB_B_DESCRIPTOR_TYPE_INTERFACE:
+        {
+            const usb_intf_desc_t *intf_desc = (const usb_intf_desc_t *)desc;
+            currentInterface = intf_desc->bInterfaceNumber;
+            interfaceCount++;
+
+            Serial.printf("   🔌 Interface %d:\n", currentInterface);
+            Serial.printf("      - Class: 0x%02X\n", intf_desc->bInterfaceClass);
+            Serial.printf("      - SubClass: 0x%02X\n", intf_desc->bInterfaceSubClass);
+            Serial.printf("      - Protocol: 0x%02X\n", intf_desc->bInterfaceProtocol);
+            Serial.printf("      - Endpoints: %d\n", intf_desc->bNumEndpoints);
+
+            // Check for CDC-ACM class
+            if (intf_desc->bInterfaceClass == 0x02)
+            { // CDC Communication
+                Serial.printf("      ✅ CDC Communication Interface\n");
+            }
+            else if (intf_desc->bInterfaceClass == 0x0A)
+            { // CDC Data
+                Serial.printf("      ✅ CDC Data Interface\n");
+            }
+            break;
+        }
+
+        case USB_B_DESCRIPTOR_TYPE_ENDPOINT:
+        {
+            const usb_ep_desc_t *ep_desc = (const usb_ep_desc_t *)desc;
+            endpointCount++;
+
+            Serial.printf("   📍 Endpoint %d (Interface %d): 0x%02X\n",
+                          endpointCount, currentInterface, ep_desc->bEndpointAddress);
+            Serial.printf("      - Type: 0x%02X (", ep_desc->bmAttributes & 0x03);
+
+            switch (ep_desc->bmAttributes & 0x03)
+            {
+            case 0x00:
+                Serial.printf("Control");
+                break;
+            case 0x01:
+                Serial.printf("Isochronous");
+                break;
+            case 0x02:
+                Serial.printf("Bulk");
+                break;
+            case 0x03:
+                Serial.printf("Interrupt");
                 break;
             }
-            
-            case USB_B_DESCRIPTOR_TYPE_ENDPOINT: {
-                const usb_ep_desc_t *ep_desc = (const usb_ep_desc_t *)desc;
-                endpointCount++;
-                
-                Serial.printf("   📍 Endpoint %d (Interface %d): 0x%02X\n", 
-                              endpointCount, currentInterface, ep_desc->bEndpointAddress);
-                Serial.printf("      - Type: 0x%02X (", ep_desc->bmAttributes & 0x03);
-                
-                switch (ep_desc->bmAttributes & 0x03) {
-                    case 0x00: Serial.printf("Control"); break;
-                    case 0x01: Serial.printf("Isochronous"); break;
-                    case 0x02: Serial.printf("Bulk"); break;
-                    case 0x03: Serial.printf("Interrupt"); break;
-                }
-                Serial.printf(")\n");
-                
-                Serial.printf("      - Direction: %s\n", (ep_desc->bEndpointAddress & 0x80) ? "IN" : "OUT");
-                Serial.printf("      - Max packet: %d bytes\n", ep_desc->wMaxPacketSize);
-                Serial.printf("      - Interval: %d\n", ep_desc->bInterval);
-                
-                // Look for bulk endpoints
-                if ((ep_desc->bmAttributes & 0x03) == 0x02) { // Bulk transfer
-                    Serial.printf("      🚀 BULK ENDPOINT FOUND!\n");
-                    if (ep_desc->bEndpointAddress & 0x80) { // IN endpoint
-                        if (bulkInEpAddr == 0) {
-                            bulkInEpAddr = ep_desc->bEndpointAddress;
-                            ESP_LOGI(TAG, "✅ Selected bulk IN endpoint: 0x%02X (Interface %d)", 
-                                     bulkInEpAddr, currentInterface);
-                            Serial.printf("      ✅ SELECTED as bulk IN endpoint!\n");
-                        } else {
-                            Serial.printf("      ⚠️ Additional bulk IN found but already have one\n");
-                        }
-                    } else { // OUT endpoint
-                        if (bulkOutEpAddr == 0) {
-                            bulkOutEpAddr = ep_desc->bEndpointAddress;
-                            ESP_LOGI(TAG, "✅ Selected bulk OUT endpoint: 0x%02X (Interface %d)", 
-                                     bulkOutEpAddr, currentInterface);
-                            Serial.printf("      ✅ SELECTED as bulk OUT endpoint!\n");
-                        } else {
-                            Serial.printf("      ⚠️ Additional bulk OUT found but already have one\n");
-                        }
+            Serial.printf(")\n");
+
+            Serial.printf("      - Direction: %s\n", (ep_desc->bEndpointAddress & 0x80) ? "IN" : "OUT");
+            Serial.printf("      - Max packet: %d bytes\n", ep_desc->wMaxPacketSize);
+            Serial.printf("      - Interval: %d\n", ep_desc->bInterval);
+
+            // Look for bulk endpoints
+            if ((ep_desc->bmAttributes & 0x03) == 0x02)
+            { // Bulk transfer
+                Serial.printf("      🚀 BULK ENDPOINT FOUND!\n");
+                if (ep_desc->bEndpointAddress & 0x80)
+                { // IN endpoint
+                    if (bulkInEpAddr == 0)
+                    {
+                        bulkInEpAddr = ep_desc->bEndpointAddress;
+                        ESP_LOGI(TAG, "✅ Selected bulk IN endpoint: 0x%02X (Interface %d)",
+                                 bulkInEpAddr, currentInterface);
+                        Serial.printf("      ✅ SELECTED as bulk IN endpoint!\n");
+                    }
+                    else
+                    {
+                        Serial.printf("      ⚠️ Additional bulk IN found but already have one\n");
                     }
                 }
-                break;
+                else
+                { // OUT endpoint
+                    if (bulkOutEpAddr == 0)
+                    {
+                        bulkOutEpAddr = ep_desc->bEndpointAddress;
+                        ESP_LOGI(TAG, "✅ Selected bulk OUT endpoint: 0x%02X (Interface %d)",
+                                 bulkOutEpAddr, currentInterface);
+                        Serial.printf("      ✅ SELECTED as bulk OUT endpoint!\n");
+                    }
+                    else
+                    {
+                        Serial.printf("      ⚠️ Additional bulk OUT found but already have one\n");
+                    }
+                }
             }
-            
-            default:
-                Serial.printf("   📄 Other descriptor (Type 0x%02X)\n", desc->bDescriptorType);
-                break;
+            break;
         }
-        
+
+        default:
+            Serial.printf("   📄 Other descriptor (Type 0x%02X)\n", desc->bDescriptorType);
+            break;
+        }
+
         desc_ptr += desc->bLength;
     }
-    
+
     Serial.printf("📊 USB Descriptor Summary:\n");
     Serial.printf("   - Interfaces found: %d\n", interfaceCount);
     Serial.printf("   - Endpoints found: %d\n", endpointCount);
     Serial.printf("   - Bulk IN selected: 0x%02X\n", bulkInEpAddr);
     Serial.printf("   - Bulk OUT selected: 0x%02X\n", bulkOutEpAddr);
-    
+
     // Check if we found both endpoints
-    if (bulkInEpAddr != 0 && bulkOutEpAddr != 0) {
+    if (bulkInEpAddr != 0 && bulkOutEpAddr != 0)
+    {
         endpointsFound = true;
         ESP_LOGI(TAG, "✅ Found both bulk endpoints via descriptor parsing");
         Serial.printf("✅ USB: Found both endpoints via parsing!\n");
-    } else {
+    }
+    else
+    {
         ESP_LOGW(TAG, "⚠️ Could not find both endpoints, falling back to defaults");
         Serial.printf("⚠️ USB: Could not find both endpoints, using defaults\n");
         Serial.printf("   Found: IN=0x%02X, OUT=0x%02X\n", bulkInEpAddr, bulkOutEpAddr);
-        
+
         // Fallback to common defaults
-        if (bulkInEpAddr == 0) bulkInEpAddr = 0x81;
-        if (bulkOutEpAddr == 0) bulkOutEpAddr = 0x02;
-        
+        if (bulkInEpAddr == 0)
+            bulkInEpAddr = 0x81;
+        if (bulkOutEpAddr == 0)
+            bulkOutEpAddr = 0x02;
+
         Serial.printf("   Using: IN=0x%02X, OUT=0x%02X\n", bulkInEpAddr, bulkOutEpAddr);
     }
 
     // Strategy: Try to claim the interface that contains our bulk endpoints
     ESP_LOGI(TAG, "🤝 Attempting to claim interface");
     Serial.printf("🤝 USB: Claiming interface...\n");
-    
+
     // If we found endpoints, try to find which interface they belong to
     int targetInterface = -1;
-    if (bulkInEpAddr != 0 || bulkOutEpAddr != 0) {
+    if (bulkInEpAddr != 0 || bulkOutEpAddr != 0)
+    {
         // Re-parse to find which interface contains our endpoints
         const uint8_t *desc_ptr2 = (const uint8_t *)configDesc;
         const uint8_t *desc_end2 = desc_ptr2 + configDesc->wTotalLength;
         int currentIntf = -1;
-        
-        while (desc_ptr2 < desc_end2) {
+
+        while (desc_ptr2 < desc_end2)
+        {
             const usb_standard_desc_t *desc2 = (const usb_standard_desc_t *)desc_ptr2;
-            if (desc2->bLength == 0) break;
-            
-            if (desc2->bDescriptorType == USB_B_DESCRIPTOR_TYPE_INTERFACE) {
+            if (desc2->bLength == 0)
+                break;
+
+            if (desc2->bDescriptorType == USB_B_DESCRIPTOR_TYPE_INTERFACE)
+            {
                 const usb_intf_desc_t *intf_desc2 = (const usb_intf_desc_t *)desc2;
                 currentIntf = intf_desc2->bInterfaceNumber;
-            } else if (desc2->bDescriptorType == USB_B_DESCRIPTOR_TYPE_ENDPOINT) {
+            }
+            else if (desc2->bDescriptorType == USB_B_DESCRIPTOR_TYPE_ENDPOINT)
+            {
                 const usb_ep_desc_t *ep_desc2 = (const usb_ep_desc_t *)desc2;
-                if (ep_desc2->bEndpointAddress == bulkInEpAddr || 
-                    ep_desc2->bEndpointAddress == bulkOutEpAddr) {
-                    if (targetInterface == -1) {
+                if (ep_desc2->bEndpointAddress == bulkInEpAddr ||
+                    ep_desc2->bEndpointAddress == bulkOutEpAddr)
+                {
+                    if (targetInterface == -1)
+                    {
                         targetInterface = currentIntf;
                         Serial.printf("🎯 USB: Found endpoints in interface %d\n", targetInterface);
                     }
@@ -1264,42 +1347,50 @@ bool USBHostImpl::findUSBEndpoints()
             desc_ptr2 += desc2->bLength;
         }
     }
-    
+
     // Try to claim the target interface first, then fall back to trying all
     std::vector<int> interfacesToTry;
-    if (targetInterface >= 0) {
+    if (targetInterface >= 0)
+    {
         interfacesToTry.push_back(targetInterface);
     }
-    
+
     // Add all other interfaces as fallbacks
-    for (int i = 0; i < configDesc->bNumInterfaces; i++) {
-        if (i != targetInterface) {
+    for (int i = 0; i < configDesc->bNumInterfaces; i++)
+    {
+        if (i != targetInterface)
+        {
             interfacesToTry.push_back(i);
         }
     }
-    
-    for (int interface_num : interfacesToTry) {
+
+    for (int interface_num : interfacesToTry)
+    {
         Serial.printf("🔄 USB: Trying to claim interface %d...\n", interface_num);
         err = usb_host_interface_claim(clientHandle, deviceHandle, interface_num, 0);
-        if (err == ESP_OK) {
+        if (err == ESP_OK)
+        {
             ESP_LOGI(TAG, "✅ Claimed interface %d successfully", interface_num);
             Serial.printf("✅ USB: Interface %d claimed successfully\n", interface_num);
             deviceInfo.interfaceNumber = interface_num;
-            
+
             // If this is not our target interface, we may need to re-scan for endpoints
-            if (interface_num != targetInterface && (bulkInEpAddr == 0 || bulkOutEpAddr == 0)) {
+            if (interface_num != targetInterface && (bulkInEpAddr == 0 || bulkOutEpAddr == 0))
+            {
                 Serial.printf("⚠️ USB: Claimed different interface, may need to rescan endpoints\n");
             }
-            
+
             ESP_LOGI(TAG, "📍 Using endpoints - IN: 0x%02X, OUT: 0x%02X", bulkInEpAddr, bulkOutEpAddr);
             Serial.printf("📍 USB: Final endpoints - IN: 0x%02X, OUT: 0x%02X\n", bulkInEpAddr, bulkOutEpAddr);
             return true;
-        } else {
+        }
+        else
+        {
             ESP_LOGW(TAG, "⚠️ Failed to claim interface %d: %s", interface_num, esp_err_to_name(err));
             Serial.printf("⚠️ USB: Failed to claim interface %d: %s\n", interface_num, esp_err_to_name(err));
         }
     }
-    
+
     ESP_LOGE(TAG, "❌ Failed to claim any interface");
     Serial.printf("❌ USB: Could not claim any interface\n");
     return false;
@@ -1309,7 +1400,7 @@ bool USBHostImpl::setupUSBTransfers()
 {
     ESP_LOGI(TAG, "🔧 Setting up USB transfers");
     Serial.printf("🔧 USB: Setting up transfers...\n");
-    
+
     if (!deviceHandle || bulkInEpAddr == 0 || bulkOutEpAddr == 0)
     {
         ESP_LOGE(TAG, "❌ Invalid parameters for USB transfer setup");
@@ -1326,7 +1417,7 @@ bool USBHostImpl::setupUSBTransfers()
     // Allocate bulk IN transfer
     ESP_LOGI(TAG, "📥 Allocating bulk IN transfer (%d bytes)", USB_OTG_BUFFER_SIZE);
     Serial.printf("📥 USB: Allocating bulk IN transfer (%d bytes)...\n", USB_OTG_BUFFER_SIZE);
-    
+
     esp_err_t err = usb_host_transfer_alloc(USB_OTG_BUFFER_SIZE, 0, &bulkInTransfer);
     if (err != ESP_OK)
     {
@@ -1353,7 +1444,7 @@ bool USBHostImpl::setupUSBTransfers()
     // Allocate bulk OUT transfer
     ESP_LOGI(TAG, "📤 Allocating bulk OUT transfer (%d bytes)", USB_OTG_BUFFER_SIZE);
     Serial.printf("📤 USB: Allocating bulk OUT transfer...\n");
-    
+
     err = usb_host_transfer_alloc(USB_OTG_BUFFER_SIZE, 0, &bulkOutTransfer);
     if (err != ESP_OK)
     {
@@ -1422,11 +1513,12 @@ void USBHostImpl::handleTransferFailure()
 {
     consecutiveTransferFailures++;
     lastTransferFailureTime = millis();
-    
+
     ESP_LOGW(TAG, "🔥 USB Transfer failure #%lu", consecutiveTransferFailures);
     Serial.printf("🔥 USB: Transfer failure #%lu\n", consecutiveTransferFailures);
-    
-    if (shouldAttemptRecovery()) {
+
+    if (shouldAttemptRecovery())
+    {
         ESP_LOGI(TAG, "🛠️ Attempting USB transfer recovery");
         Serial.printf("🛠️ USB: Attempting recovery...\n");
         performRecovery();
@@ -1440,7 +1532,7 @@ bool USBHostImpl::shouldAttemptRecovery()
     uint32_t now = millis();
     bool timeoutReached = (now - lastTransferFailureTime) >= RECOVERY_DELAY_MS;
     bool failureThresholdReached = consecutiveTransferFailures >= MAX_CONSECUTIVE_FAILURES;
-    
+
     return failureThresholdReached && timeoutReached;
 }
 
@@ -1448,19 +1540,22 @@ void USBHostImpl::performRecovery()
 {
     ESP_LOGI(TAG, "🔄 USB Recovery: Restarting CDC transfers");
     Serial.printf("🔄 USB Recovery: Restarting CDC transfers\n");
-    
+
     // Stop current transfers
     stopUSBTransfers();
-    
+
     // Wait a bit
     vTaskDelay(pdMS_TO_TICKS(500));
-    
+
     // Try to reinitialize CDC communication
-    if (deviceHandle && initializeCDCCommunication()) {
+    if (deviceHandle && initializeCDCCommunication())
+    {
         ESP_LOGI(TAG, "✅ USB Recovery: CDC communication restarted");
         Serial.printf("✅ USB Recovery: Success!\n");
         consecutiveTransferFailures = 0; // Reset failure counter
-    } else {
+    }
+    else
+    {
         ESP_LOGE(TAG, "❌ USB Recovery: Failed to restart CDC communication");
         Serial.printf("❌ USB Recovery: Failed\n");
     }
@@ -1468,39 +1563,42 @@ void USBHostImpl::performRecovery()
 
 bool USBHostImpl::validateEndpoint(uint8_t endpointAddr)
 {
-    if (!deviceHandle || !clientHandle) {
+    if (!deviceHandle || !clientHandle)
+    {
         ESP_LOGW(TAG, "⚠️ Cannot validate endpoint - no device handle");
         Serial.printf("⚠️ USB: Cannot validate endpoint - no device handle\n");
         return false;
     }
-    
+
     ESP_LOGI(TAG, "🔍 Validating endpoint 0x%02X", endpointAddr);
     Serial.printf("🔍 USB: Validating endpoint 0x%02X...\n", endpointAddr);
-    
+
     // Try to get endpoint handle to verify it exists
     // Note: This is a simplified validation - in a full implementation,
     // you would check against the actual interface descriptors
-    
+
     // For now, just log that we're attempting validation
     Serial.printf("   - Endpoint address: 0x%02X\n", endpointAddr);
     Serial.printf("   - Direction: %s\n", (endpointAddr & 0x80) ? "IN" : "OUT");
     Serial.printf("   - Number: %d\n", endpointAddr & 0x0F);
-    
+
     // Basic validation - endpoint address should be non-zero and valid
-    if (endpointAddr == 0) {
+    if (endpointAddr == 0)
+    {
         ESP_LOGW(TAG, "❌ Invalid endpoint address: 0x%02X", endpointAddr);
         Serial.printf("❌ USB: Invalid endpoint address: 0x%02X\n", endpointAddr);
         return false;
     }
-    
+
     // Endpoint number should be 1-15
     uint8_t epNum = endpointAddr & 0x0F;
-    if (epNum == 0 || epNum > 15) {
+    if (epNum == 0 || epNum > 15)
+    {
         ESP_LOGW(TAG, "❌ Invalid endpoint number: %d", epNum);
         Serial.printf("❌ USB: Invalid endpoint number: %d\n", epNum);
         return false;
     }
-    
+
     ESP_LOGI(TAG, "✅ Endpoint 0x%02X appears valid", endpointAddr);
     Serial.printf("✅ USB: Endpoint 0x%02X appears valid\n", endpointAddr);
     return true;
@@ -1510,18 +1608,21 @@ bool USBHostImpl::validateEndpoints()
 {
     ESP_LOGI(TAG, "🔍 Validating selected endpoints");
     Serial.printf("🔍 USB: Validating selected endpoints...\n");
-    
+
     bool inValid = validateEndpoint(bulkInEpAddr);
     bool outValid = validateEndpoint(bulkOutEpAddr);
-    
-    if (inValid && outValid) {
+
+    if (inValid && outValid)
+    {
         ESP_LOGI(TAG, "✅ Both endpoints validated successfully");
         Serial.printf("✅ USB: Both endpoints validated successfully\n");
         return true;
-    } else {
-        ESP_LOGW(TAG, "❌ Endpoint validation failed - IN:%s OUT:%s", 
+    }
+    else
+    {
+        ESP_LOGW(TAG, "❌ Endpoint validation failed - IN:%s OUT:%s",
                  inValid ? "OK" : "FAIL", outValid ? "OK" : "FAIL");
-        Serial.printf("❌ USB: Endpoint validation failed - IN:%s OUT:%s\n", 
+        Serial.printf("❌ USB: Endpoint validation failed - IN:%s OUT:%s\n",
                       inValid ? "OK" : "FAIL", outValid ? "OK" : "FAIL");
         return false;
     }

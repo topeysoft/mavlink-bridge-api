@@ -14,7 +14,8 @@ servers:
 paths:
   /api/health:
     get:
-      summary: Health check endpoint
+      summary: Enhanced health check endpoint
+      description: Returns comprehensive system health information including device details, network status, and system metrics
       responses:
         '200':
           description: System is healthy
@@ -22,6 +23,75 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                uptime: 12345
+                freeHeap: 45678
+                device:
+                  hostname: "yardrover-esp32"
+                  name: "YardRover Device"
+                  chipModel: "ESP32-S3"
+                  chipRevision: 1
+                  flashSize: 8388608
+                  sdkVersion: "4.4.0"
+                  coreCount: 2
+                network:
+                  macAddress: "24:6F:28:AB:CD:EF"
+                  apMacAddress: "24:6F:28:AB:CD:F0"
+                  wifi:
+                    status: "connected"
+                    ssid: "MyNetwork"
+                    ip: "192.168.1.100"
+                    gateway: "192.168.1.1"
+                    subnet: "255.255.255.0"
+                    rssi: -45
+                    bssid: "AA:BB:CC:DD:EE:FF"
+                    channel: 6
+                  ap:
+                    enabled: false
+                system:
+                  systemHealthy: true
+                  cpuUsage: 25.5
+                  temperature: 45.2
+                  lowMemoryWarning: false
+                  minFreeHeap: 40000
+                  largestFreeBlock: 32768
+                  taskCount: 8
+                  componentCount: 4
+                  components:
+                    - name: "Storage"
+                      healthy: true
+                      status: "healthy"
+                    - name: "WiFi"
+                      healthy: true
+                      status: "healthy"
+                config:
+                  version: 1
+                  isDirty: false
+                storage:
+                  freeBytes: 256000
+                  totalBytes: 512000
+                  usedBytes: 256000
+                  healthy: true
+        '503':
+          description: System is degraded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "degraded"
+                uptime: 12345
+                freeHeap: 3000
+                issues: ["low_memory"]
+                device:
+                  hostname: "yardrover-esp32"
+                  name: "YardRover Device"
+                  chipModel: "ESP32-S3"
+                  chipRevision: 1
+                  flashSize: 8388608
+                  sdkVersion: "4.4.0"
+                  coreCount: 2
 
   /api/config:
     get:
@@ -124,6 +194,10 @@ components:
         - status
         - uptime
         - freeHeap
+        - device
+        - network
+        - config
+        - storage
       properties:
         status:
           type: string
@@ -134,6 +208,220 @@ components:
         freeHeap:
           type: integer
           description: Free heap memory in bytes
+        device:
+          $ref: '#/components/schemas/DeviceInfo'
+        network:
+          $ref: '#/components/schemas/NetworkInfo'
+        system:
+          $ref: '#/components/schemas/SystemHealth'
+          description: System health information (only present when HealthMonitor is available)
+        config:
+          $ref: '#/components/schemas/ConfigHealth'
+        storage:
+          $ref: '#/components/schemas/StorageHealth'
+        issues:
+          type: array
+          items:
+            type: string
+            enum: [system_unhealthy, low_storage, low_memory]
+          description: Issues causing degraded status (only present when status is degraded)
+
+    DeviceInfo:
+      type: object
+      required:
+        - hostname
+        - name
+        - chipModel
+        - chipRevision
+        - flashSize
+        - sdkVersion
+        - coreCount
+      properties:
+        hostname:
+          type: string
+          description: Device hostname
+        name:
+          type: string
+          description: Device name from configuration
+        chipModel:
+          type: string
+          description: ESP32 chip model
+        chipRevision:
+          type: integer
+          description: Chip revision number
+        flashSize:
+          type: integer
+          description: Flash memory size in bytes
+        sdkVersion:
+          type: string
+          description: ESP-IDF SDK version
+        coreCount:
+          type: integer
+          description: Number of CPU cores
+
+    NetworkInfo:
+      type: object
+      required:
+        - macAddress
+        - apMacAddress
+        - wifi
+        - ap
+      properties:
+        macAddress:
+          type: string
+          pattern: '^([0-9A-F]{2}:){5}[0-9A-F]{2}$'
+          description: WiFi station MAC address
+        apMacAddress:
+          type: string
+          pattern: '^([0-9A-F]{2}:){5}[0-9A-F]{2}$'
+          description: WiFi access point MAC address
+        wifi:
+          $ref: '#/components/schemas/WiFiInfo'
+        ap:
+          $ref: '#/components/schemas/AccessPointInfo'
+
+    WiFiInfo:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [disconnected, connecting, connected, ap_mode, error]
+        ssid:
+          type: string
+          description: Connected network SSID (only when connected)
+        ip:
+          type: string
+          format: ipv4
+          description: Device IP address (only when connected)
+        gateway:
+          type: string
+          format: ipv4
+          description: Gateway IP address (only when connected)
+        subnet:
+          type: string
+          format: ipv4
+          description: Subnet mask (only when connected)
+        rssi:
+          type: integer
+          description: Signal strength in dBm (only when connected)
+        bssid:
+          type: string
+          pattern: '^([0-9A-F]{2}:){5}[0-9A-F]{2}$'
+          description: Router MAC address (only when connected)
+        channel:
+          type: integer
+          minimum: 1
+          maximum: 14
+          description: WiFi channel (only when connected)
+
+    AccessPointInfo:
+      type: object
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+          description: Whether access point is active
+        ip:
+          type: string
+          format: ipv4
+          description: Access point IP address (only when enabled)
+        ssid:
+          type: string
+          description: Access point SSID (only when enabled)
+        clients:
+          type: integer
+          minimum: 0
+          description: Number of connected clients (only when enabled)
+
+    SystemHealth:
+      type: object
+      properties:
+        systemHealthy:
+          type: boolean
+          description: Overall system health status
+        cpuUsage:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+          description: CPU usage percentage
+        temperature:
+          type: number
+          format: float
+          description: System temperature in Celsius
+        lowMemoryWarning:
+          type: boolean
+          description: Whether low memory warning is active
+        minFreeHeap:
+          type: integer
+          description: Minimum free heap recorded in bytes
+        largestFreeBlock:
+          type: integer
+          description: Largest free memory block in bytes
+        taskCount:
+          type: integer
+          description: Number of running tasks
+        componentCount:
+          type: integer
+          description: Number of monitored components
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComponentHealth'
+
+    ComponentHealth:
+      type: object
+      required:
+        - name
+        - healthy
+        - status
+      properties:
+        name:
+          type: string
+          description: Component name
+        healthy:
+          type: boolean
+          description: Component health status
+        status:
+          type: string
+          description: Component status description
+
+    ConfigHealth:
+      type: object
+      required:
+        - version
+        - isDirty
+      properties:
+        version:
+          type: integer
+          description: Configuration version
+        isDirty:
+          type: boolean
+          description: Whether configuration has unsaved changes
+
+    StorageHealth:
+      type: object
+      required:
+        - freeBytes
+        - totalBytes
+        - usedBytes
+        - healthy
+      properties:
+        freeBytes:
+          type: integer
+          description: Free storage space in bytes
+        totalBytes:
+          type: integer
+          description: Total storage space in bytes
+        usedBytes:
+          type: integer
+          description: Used storage space in bytes
+        healthy:
+          type: boolean
+          description: Whether storage is healthy
 
     Configuration:
       type: object

@@ -16,6 +16,8 @@
 #include <MemoryManager/MemoryManager.h>
 #include <ErrorHandler/ErrorHandler.h>
 #include <IntegrationTest/IntegrationTest.h>
+#include <MDNSManager/MDNSManager.h>
+#include <MDNSEndpoints/MDNSEndpoints.h>
 
 #if ENABLE_COMMUNICATION_SYSTEM
 #include <USBOTGManager/USBOTGManager.h>
@@ -37,6 +39,7 @@ TaskManager *taskManager = nullptr;
 MemoryManager *memoryManager = nullptr;
 ErrorHandler *errorHandler = nullptr;
 IntegrationTest *integrationTest = nullptr;
+NetworkLib::MDNSManager *mdnsManager = nullptr;
 
 #if ENABLE_COMMUNICATION_SYSTEM
 USBOTGManager *usbManager = nullptr;
@@ -55,6 +58,7 @@ void wsTask(void *parameter);
 void setupCommunicationRoutes();
 void setupEventHandlers();
 void onConfigChanged(const Configuration &oldConfig, const Configuration &newConfig);
+void onWiFiEvent(WiFiEvent_t event);
 String wifiStateToString(WiFiManager::State state);
 void setupSystemMonitoring();
 void setupHealthEndpoints();
@@ -77,7 +81,6 @@ void setup()
     delay(1000);
 
     Serial.println("=== MAVLinkBridge ESP32 API Starting ===");
-    Serial.println("Stage 6: System Integration & Optimization");
 
     // Initialize Storage first
     Serial.println("Initializing storage system...");
@@ -106,6 +109,14 @@ void setup()
     wifiManager = WiFiManager::getInstance();
     wifiManager->begin();
     Serial.println("✓ WiFi Manager initialized with auto-reconnection");
+
+    // Register WiFi event handler for mDNS
+    WiFi.onEvent(onWiFiEvent);
+
+    // Initialize mDNS Manager
+    mdnsManager = NetworkLib::MDNSManager::getInstance();
+    // mDNS will be started when WiFi connects
+    Serial.println("✓ mDNS Manager initialized");
 
     // Initialize System Monitoring
     Serial.println("Initializing system monitoring...");
@@ -156,6 +167,9 @@ void setup()
     setupErrorEndpoints();
     setupTaskEndpoints();
     setupTestEndpoints();
+
+    // Register mDNS endpoints
+    MDNSEndpoints::registerRoutes(httpServer, mdnsManager, configManager);
 
     httpServer->begin(80);
     Serial.println("✓ HTTP Server initialized on port 80");
@@ -255,6 +269,12 @@ void loop()
 
     // Process captive portal DNS requests
     CaptivePortal::loop();
+
+    // Update mDNS manager
+    if (mdnsManager)
+    {
+        mdnsManager->update();
+    }
 
     // Send health status every 30 seconds
     if (now - lastHealthReport > 30000)
@@ -403,6 +423,15 @@ void onConfigChanged(const Configuration &oldConfig, const Configuration &newCon
         changePayload["rtcm"]["source"]["host"] = newConfig.rtcm.source.host;
     }
 
+    // Handle mDNS configuration changes
+    if (mdnsManager &&
+        (oldConfig.mdns.enabled != newConfig.mdns.enabled ||
+         oldConfig.mdns.hostname != newConfig.mdns.hostname))
+    {
+        mdnsManager->setEnabled(newConfig.mdns.enabled);
+        mdnsManager->setHostname(newConfig.mdns.hostname);
+    }
+
     // Publish configuration change event
     eventManager->publishAsync(EventType::CONFIG_CHANGED, changePayload.as<JsonObjectConst>());
 }
@@ -414,27 +443,133 @@ void handleHealthCheck(const HttpRequest &req, HttpResponse &res)
     DynamicJsonDocument &doc = httpServer->getResponseDoc();
     doc.clear();
 
-    // Enhanced health check with Stage 5 information
+    // Basic health status
     doc["status"] = "healthy";
-    doc["stage"] = "Stage 5: USB/UART Communication System";
     doc["uptime"] = millis() / 1000;
     doc["freeHeap"] = ESP.getFreeHeap();
 
+    // Device information
+    JsonObject device = doc["device"].to<JsonObject>();
+    const Configuration &config = configManager->getConfiguration();
+    device["hostname"] = config.mdns.hostname.isEmpty() ? "yardrover-esp32" : config.mdns.hostname;
+    device["name"] = config.device.name;
+    device["chipModel"] = ESP.getChipModel();
+    device["chipRevision"] = ESP.getChipRevision();
+    device["flashSize"] = ESP.getFlashChipSize();
+    device["sdkVersion"] = ESP.getSdkVersion();
+    device["coreCount"] = ESP.getChipCores();
+
+    // Network information
+    JsonObject network = doc["network"].to<JsonObject>();
+
+    // MAC addresses
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    char macStr[18];
+    snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    network["macAddress"] = macStr;
+
+    // WiFi AP MAC (different from STA MAC)
+    WiFi.softAPmacAddress(mac);
+    snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    network["apMacAddress"] = macStr;
+
+    // WiFi connection details
+    JsonObject wifi = network["wifi"].to<JsonObject>();
+    if (wifiManager)
+    {
+        WiFiManager::State wifiState = wifiManager->getState();
+        wifi["status"] = wifiStateToString(wifiState);
+
+        if (wifiState == WiFiManager::CONNECTED)
+        {
+            WiFiManager::ConnectionInfo connInfo = wifiManager->getConnectionInfo();
+            wifi["ssid"] = connInfo.ssid;
+            wifi["ip"] = connInfo.ip.toString();
+            wifi["gateway"] = connInfo.gateway.toString();
+            wifi["subnet"] = connInfo.subnet.toString();
+            wifi["rssi"] = connInfo.rssi;
+
+            // BSSID (router MAC address)
+            char bssidStr[18];
+            snprintf(bssidStr, sizeof(bssidStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+                     connInfo.bssid[0], connInfo.bssid[1], connInfo.bssid[2],
+                     connInfo.bssid[3], connInfo.bssid[4], connInfo.bssid[5]);
+            wifi["bssid"] = bssidStr;
+            wifi["channel"] = WiFi.channel();
+        }
+    }
+
+    // Access Point information
+    JsonObject ap = network["ap"].to<JsonObject>();
+    bool apActive = (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA);
+    ap["enabled"] = apActive;
+    if (apActive)
+    {
+        ap["ip"] = WiFi.softAPIP().toString();
+        ap["ssid"] = WiFi.softAPSSID();
+        ap["clients"] = WiFi.softAPgetStationNum();
+    }
+
+    // System health from HealthMonitor
+    if (healthMonitor)
+    {
+        JsonObject system = doc["system"].to<JsonObject>();
+        HealthMonitor::SystemHealth health = healthMonitor->getSystemHealth();
+
+        system["systemHealthy"] = health.systemHealthy;
+        system["cpuUsage"] = health.cpuUsage;
+        system["temperature"] = health.temperature;
+        system["lowMemoryWarning"] = health.lowMemoryWarning;
+        system["minFreeHeap"] = health.minFreeHeap;
+        system["largestFreeBlock"] = health.largestFreeBlock;
+        system["taskCount"] = health.tasks.size();
+        system["componentCount"] = health.components.size();
+
+        // Component health summary
+        JsonArray components = system["components"].to<JsonArray>();
+        for (const auto &component : health.components)
+        {
+            JsonObject comp = components.createNestedObject();
+            comp["name"] = component.name;
+            comp["healthy"] = component.healthy;
+            comp["status"] = component.status;
+        }
+    }
+
     // Configuration health
-    doc["config"]["version"] = configManager->getConfiguration().version;
+    doc["config"]["version"] = config.version;
     doc["config"]["isDirty"] = configManager->isDirtyConfig();
 
     // Storage health
     size_t freeStorage = storage->getFreeSpace();
     doc["storage"]["freeBytes"] = freeStorage;
+    doc["storage"]["totalBytes"] = storage->getTotalSpace();
+    doc["storage"]["usedBytes"] = storage->getUsedSpace();
     doc["storage"]["healthy"] = freeStorage > 1024; // More than 1KB free
 
     // Overall health assessment
-    bool isHealthy = doc["storage"]["healthy"].as<bool>() && ESP.getFreeHeap() > 10000;
+    bool systemHealthy = healthMonitor ? healthMonitor->isSystemHealthy() : true;
+    bool storageHealthy = doc["storage"]["healthy"].as<bool>();
+    bool memoryHealthy = ESP.getFreeHeap() > 5000; // 5KB threshold (more realistic for ESP32)
+
+    bool isHealthy = systemHealthy && storageHealthy && memoryHealthy;
+
     if (!isHealthy)
     {
         doc["status"] = "degraded";
         res.statusCode = 503;
+
+        // Add reasons for degraded status
+        JsonArray issues = doc["issues"].to<JsonArray>();
+        if (!systemHealthy)
+            issues.add("system_unhealthy");
+        if (!storageHealthy)
+            issues.add("low_storage");
+        if (!memoryHealthy)
+            issues.add("low_memory");
     }
     else
     {
@@ -523,6 +658,36 @@ void setupCommunicationSystem()
 #endif
 }
 
+void onWiFiEvent(WiFiEvent_t event)
+{
+    switch (event)
+    {
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+        Serial.println("WiFi connected, starting mDNS...");
+        if (mdnsManager && configManager)
+        {
+            const MDNSConfig &config = configManager->getMDNSConfig();
+            if (config.enabled)
+            {
+                mdnsManager->setHostname(config.hostname);
+                mdnsManager->begin();
+            }
+        }
+        break;
+
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+        Serial.println("WiFi disconnected, stopping mDNS...");
+        if (mdnsManager)
+        {
+            mdnsManager->end();
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+
 void setupCommunicationEventHandlers()
 {
     // Subscribe to USB events
@@ -586,72 +751,71 @@ void setupCommunicationEventHandlers()
 #endif
 
 // System monitoring implementation
-void setupSystemMonitoring() {
+void setupSystemMonitoring()
+{
     // Initialize Error Handler first
     errorHandler = ErrorHandler::getInstance();
     errorHandler->begin();
-    
+
     // Initialize Memory Manager
     memoryManager = MemoryManager::getInstance();
     memoryManager->begin();
-    
+
     // Register cleanup callbacks
-    memoryManager->registerCleanupCallback([]() -> size_t {
+    memoryManager->registerCleanupCallback([]() -> size_t
+                                           {
         // Simple cleanup - force garbage collection
         size_t beforeFree = ESP.getFreeHeap();
         ESP.getChipRevision(); // Dummy call to trigger cleanup
         size_t afterFree = ESP.getFreeHeap();
-        return afterFree - beforeFree;
-    });
-    
+        return afterFree - beforeFree; });
+
     // Initialize Task Manager
     taskManager = TaskManager::getInstance();
     taskManager->begin();
-    
+
     // Initialize Health Monitor
     healthMonitor = HealthMonitor::getInstance();
     healthMonitor->begin();
-    
+
     // Register system components with health monitor
-    healthMonitor->registerComponent("Storage", []() -> bool {
-        return storage && storage->isHealthy();
-    });
-    
-    healthMonitor->registerComponent("WiFi", []() -> bool {
-        return wifiManager && (wifiManager->getState() == WiFiManager::CONNECTED || 
-                              wifiManager->getState() == WiFiManager::AP_MODE);
-    });
-    
-    healthMonitor->registerComponent("HTTP", []() -> bool {
-        return httpServer != nullptr;
-    });
-    
-    healthMonitor->registerComponent("WebSocket", []() -> bool {
-        return wsServer != nullptr;
-    });
-    
+    healthMonitor->registerComponent("Storage", []() -> bool
+                                     { return storage && storage->isHealthy(); });
+
+    healthMonitor->registerComponent("WiFi", []() -> bool
+                                     { return wifiManager && (wifiManager->getState() == WiFiManager::CONNECTED ||
+                                                              wifiManager->getState() == WiFiManager::AP_MODE); });
+
+    healthMonitor->registerComponent("HTTP", []() -> bool
+                                     { return httpServer != nullptr; });
+
+    healthMonitor->registerComponent("WebSocket", []() -> bool
+                                     { return wsServer != nullptr; });
+
     // Set up health monitoring callbacks
-    healthMonitor->onLowMemory([](uint32_t freeHeap) {
+    healthMonitor->onLowMemory([](uint32_t freeHeap)
+                               {
         ESP_LOGW("System", "Low memory warning: %lu bytes free", freeHeap);
         // Trigger emergency cleanup
         if (memoryManager) {
             memoryManager->emergencyCleanup();
-        }
-    });
-    
-    healthMonitor->onComponentFailure([](const char* component) {
+        } });
+
+    healthMonitor->onComponentFailure([](const char *component)
+                                      {
         ESP_LOGE("System", "Component failure detected: %s", component);
-        errorHandler->logCritical("System", "Component failure", 1001);
-    });
-    
+        errorHandler->logCritical("System", "Component failure", 1001); });
+
     // Initialize Integration Test framework
     integrationTest = IntegrationTest::getInstance();
     integrationTest->begin();
 }
 
-void setupHealthEndpoints() {
+void setupHealthEndpoints()
+{
     // GET /api/health/system
-    httpServer->addRoute("/api/health/system", HttpMethod::GET, [](const HttpRequest &req, HttpResponse &res) {
+    httpServer->addRoute("/api/health/system", HttpMethod::GET, [](const HttpRequest &req, HttpResponse &res)
+                         {
         if (!healthMonitor) {
             res.statusCode = 503;
             res.body = "{\"error\":\"Health monitor not available\"}";
@@ -691,11 +855,11 @@ void setupHealthEndpoints() {
         }
         
         serializeJson(doc, res.body);
-        res.statusCode = 200;
-    });
-    
+        res.statusCode = 200; });
+
     // POST /api/health/check
-    httpServer->addRoute("/api/health/check", HttpMethod::POST, [](const HttpRequest &req, HttpResponse &res) {
+    httpServer->addRoute("/api/health/check", HttpMethod::POST, [](const HttpRequest &req, HttpResponse &res)
+                         {
         if (!healthMonitor) {
             res.statusCode = 503;
             res.body = "{\"error\":\"Health monitor not available\"}";
@@ -704,13 +868,14 @@ void setupHealthEndpoints() {
         
         healthMonitor->triggerHealthCheck();
         res.body = "{\"message\":\"Health check triggered\"}";
-        res.statusCode = 200;
-    });
+        res.statusCode = 200; });
 }
 
-void setupMemoryEndpoints() {
+void setupMemoryEndpoints()
+{
     // GET /api/health/memory
-    httpServer->addRoute("/api/health/memory", HttpMethod::GET, [](const HttpRequest &req, HttpResponse &res) {
+    httpServer->addRoute("/api/health/memory", HttpMethod::GET, [](const HttpRequest &req, HttpResponse &res)
+                         {
         if (!memoryManager) {
             res.statusCode = 503;
             res.body = "{\"error\":\"Memory manager not available\"}";
@@ -732,11 +897,11 @@ void setupMemoryEndpoints() {
         doc["poolFrees"] = stats.poolFrees;
         
         serializeJson(doc, res.body);
-        res.statusCode = 200;
-    });
-    
+        res.statusCode = 200; });
+
     // POST /api/memory/cleanup
-    httpServer->addRoute("/api/memory/cleanup", HttpMethod::POST, [](const HttpRequest &req, HttpResponse &res) {
+    httpServer->addRoute("/api/memory/cleanup", HttpMethod::POST, [](const HttpRequest &req, HttpResponse &res)
+                         {
         if (!memoryManager) {
             res.statusCode = 503;
             res.body = "{\"error\":\"Memory manager not available\"}";
@@ -754,11 +919,11 @@ void setupMemoryEndpoints() {
         doc["afterFree"] = afterFree;
         
         serializeJson(doc, res.body);
-        res.statusCode = 200;
-    });
-    
+        res.statusCode = 200; });
+
     // POST /api/memory/defrag
-    httpServer->addRoute("/api/memory/defrag", HttpMethod::POST, [](const HttpRequest &req, HttpResponse &res) {
+    httpServer->addRoute("/api/memory/defrag", HttpMethod::POST, [](const HttpRequest &req, HttpResponse &res)
+                         {
         if (!memoryManager) {
             res.statusCode = 503;
             res.body = "{\"error\":\"Memory manager not available\"}";
@@ -782,13 +947,14 @@ void setupMemoryEndpoints() {
         doc["fragmentation"] = memoryManager->getFragmentationPercentage();
         
         serializeJson(doc, res.body);
-        res.statusCode = 200;
-    });
+        res.statusCode = 200; });
 }
 
-void setupErrorEndpoints() {
+void setupErrorEndpoints()
+{
     // GET /api/health/errors
-    httpServer->addRoute("/api/health/errors", HttpMethod::GET, [](const HttpRequest &req, HttpResponse &res) {
+    httpServer->addRoute("/api/health/errors", HttpMethod::GET, [](const HttpRequest &req, HttpResponse &res)
+                         {
         if (!errorHandler) {
             res.statusCode = 503;
             res.body = "{\"error\":\"Error handler not available\"}";
@@ -815,11 +981,11 @@ void setupErrorEndpoints() {
         doc["timeSinceLastError"] = errorHandler->getTimeSinceLastError();
         
         serializeJson(doc, res.body);
-        res.statusCode = 200;
-    });
-    
+        res.statusCode = 200; });
+
     // DELETE /api/health/errors
-    httpServer->addRoute("/api/health/errors", HttpMethod::DELETE, [](const HttpRequest &req, HttpResponse &res) {
+    httpServer->addRoute("/api/health/errors", HttpMethod::DELETE, [](const HttpRequest &req, HttpResponse &res)
+                         {
         if (!errorHandler) {
             res.statusCode = 503;
             res.body = "{\"error\":\"Error handler not available\"}";
@@ -828,13 +994,14 @@ void setupErrorEndpoints() {
         
         errorHandler->clearErrors();
         res.body = "{\"message\":\"Error log cleared\"}";
-        res.statusCode = 200;
-    });
+        res.statusCode = 200; });
 }
 
-void setupTaskEndpoints() {
+void setupTaskEndpoints()
+{
     // GET /api/health/tasks
-    httpServer->addRoute("/api/health/tasks", HttpMethod::GET, [](const HttpRequest &req, HttpResponse &res) {
+    httpServer->addRoute("/api/health/tasks", HttpMethod::GET, [](const HttpRequest &req, HttpResponse &res)
+                         {
         if (!taskManager) {
             res.statusCode = 503;
             res.body = "{\"error\":\"Task manager not available\"}";
@@ -862,13 +1029,14 @@ void setupTaskEndpoints() {
         doc["taskCount"] = taskManager->getTaskCount();
         
         serializeJson(doc, res.body);
-        res.statusCode = 200;
-    });
+        res.statusCode = 200; });
 }
 
-void setupTestEndpoints() {
+void setupTestEndpoints()
+{
     // POST /api/test/run
-    httpServer->addRoute("/api/test/run", HttpMethod::POST, [](const HttpRequest &req, HttpResponse &res) {
+    httpServer->addRoute("/api/test/run", HttpMethod::POST, [](const HttpRequest &req, HttpResponse &res)
+                         {
         if (!integrationTest) {
             res.statusCode = 503;
             res.body = "{\"error\":\"Integration test not available\"}";
@@ -912,6 +1080,5 @@ void setupTestEndpoints() {
         }
         
         serializeJson(doc, res.body);
-        res.statusCode = 200;
-    });
+        res.statusCode = 200; });
 }

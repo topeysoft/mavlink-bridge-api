@@ -74,7 +74,25 @@ void HttpServer::begin(uint16_t port) {
                 break;
                 
             case HttpMethod::POST:
+                server->on(route.path.c_str(), HTTP_POST, 
+                    [this, &route](AsyncWebServerRequest *request) {
+                        AsyncWebServerResponse *response = request->beginResponse(200, "application/json", "{\"message\":\"POST endpoint registered but handled via body parser\"}");
+                        response->addHeader("Access-Control-Allow-Origin", "*");
+                        response->addHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+                        response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+                        request->send(response);
+                    });
+                break;
+                
             case HttpMethod::PATCH:
+                server->on(route.path.c_str(), HTTP_PATCH, 
+                    [this, &route](AsyncWebServerRequest *request) {
+                        AsyncWebServerResponse *response = request->beginResponse(200, "application/json", "{\"message\":\"PATCH endpoint registered but handled via body parser\"}");
+                        response->addHeader("Access-Control-Allow-Origin", "*");
+                        response->addHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+                        response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+                        request->send(response);
+                    });
                 break;
         }
     }
@@ -121,7 +139,11 @@ void HttpServer::handleRoute(AsyncWebServerRequest *request, uint8_t* data, size
     }
     
     if (index + len > BUFFER_SIZE) {
-        request->send(413, "application/json", "{\"error\":\"Request too large\"}");
+        AsyncWebServerResponse *response = request->beginResponse(413, "application/json", "{\"error\":\"Request too large\"}");
+        response->addHeader("Access-Control-Allow-Origin", "*");
+        response->addHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+        response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+        request->send(response);
         return;
     }
     
@@ -144,7 +166,7 @@ void HttpServer::handleRoute(AsyncWebServerRequest *request, uint8_t* data, size
         AsyncWebServerResponse *response = request->beginResponse(res.statusCode, res.contentType, res.body);
         if (res.cors) {
             response->addHeader("Access-Control-Allow-Origin", "*");
-            response->addHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+            response->addHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
             response->addHeader("Access-Control-Allow-Headers", "Content-Type");
         }
         request->send(response);

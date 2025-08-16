@@ -28,7 +28,8 @@ enum class EventType {
     COMMUNICATION_STATS,
     SYSTEM_ERROR,
     HEALTH_UPDATE,
-    MEMORY_LOW
+    MEMORY_LOW,
+    MDNS_DISCOVERY
 };
 
 struct Event {

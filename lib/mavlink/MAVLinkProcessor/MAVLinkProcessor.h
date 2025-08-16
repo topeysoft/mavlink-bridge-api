@@ -7,31 +7,21 @@
 #include <functional>
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
+#include <common/mavlink.h>
 
+// Wrapper structure to add timestamp to official mavlink_message_t
 struct MAVLinkMessage {
-    uint8_t magic;
-    uint8_t length;
-    uint8_t incompat_flags;
-    uint8_t compat_flags;
-    uint8_t seq;
-    uint8_t sysid;
-    uint8_t compid;
-    uint32_t msgid;
-    uint8_t payload[255];
-    uint16_t checksum;
-    bool valid;
+    mavlink_message_t msg;
     uint32_t timestamp;
-};
-
-struct MAVLinkStatus {
-    uint8_t msg_received;
-    uint8_t buffer_overrun;
-    uint8_t parse_error;
-    uint8_t packet_idx;
-    uint8_t current_rx_seq;
-    uint8_t current_tx_seq;
-    uint16_t packet_rx_success_count;
-    uint16_t packet_rx_drop_count;
+    
+    // Helper accessors for compatibility
+    uint8_t magic() const { return msg.magic; }
+    uint8_t length() const { return msg.len; }
+    uint8_t seq() const { return msg.seq; }
+    uint8_t sysid() const { return msg.sysid; }
+    uint8_t compid() const { return msg.compid; }
+    uint32_t msgid() const { return msg.msgid; }
+    bool valid() const { return msg.msgid != 0; }
 };
 
 class MAVLinkProcessor {
@@ -44,7 +34,8 @@ public:
     };
 
     struct MessageStats {
-        uint32_t totalMessages;
+        uint32_t totalMessages;      // All parsed messages (including invalid)
+        uint32_t validMessages;      // Only messages that passed validation
         uint32_t crcErrors;
         uint32_t parseErrors;
         uint32_t sequenceErrors;
@@ -61,13 +52,14 @@ public:
     
 private:
     static MAVLinkProcessor* instance;
-    MAVLinkMessage rxMessage;
-    MAVLinkStatus rxStatus;
+    
+    // Official MAVLink parsing state for each channel
+    static const uint8_t MAVLINK_CHANNEL = 0;  // Single channel for now
+    mavlink_message_t rxMessage;
+    mavlink_status_t rxStatus;
+    
     MessageStats stats;
     Filter messageFilter;
-    
-    uint8_t parseBuffer[512];
-    size_t parseBufferPos;
     
     std::function<void(const MAVLinkMessage&)> messageCallback;
     std::function<void(const MessageStats&)> statsCallback;
@@ -94,10 +86,9 @@ public:
     void onStatistics(std::function<void(const MessageStats&)> callback);
     
     static bool isMAVLinkData(const uint8_t* data, size_t length);
-    static size_t serializeMessage(const MAVLinkMessage& message, uint8_t* buffer, size_t bufferSize);
+    static size_t serializeMessage(const mavlink_message_t& message, uint8_t* buffer, size_t bufferSize);
     
-    static uint16_t calculateChecksum(const uint8_t* data, size_t length, uint16_t crc_extra = 0);
-    static bool validateChecksum(const MAVLinkMessage& message);
+    // Remove custom checksum functions - use official implementation
     
     void startStatsLogging(uint32_t intervalMs = 10000);
     void stopStatsLogging();
@@ -111,32 +102,11 @@ private:
     MAVLinkProcessor();
     ~MAVLinkProcessor();
     
-    bool parseMessage(uint8_t byte);
-    bool validateMessage(const MAVLinkMessage& message);
-    bool shouldFilterMessage(const MAVLinkMessage& message);
-    void updateStatistics(const MAVLinkMessage& message);
-    void handleSequenceCheck(const MAVLinkMessage& message);
+    bool shouldFilterMessage(const mavlink_message_t& message);
+    void updateStatistics(const mavlink_message_t& message);
+    void handleSequenceCheck(const mavlink_message_t& message);
     
-    enum ParseState {
-        PARSE_STATE_UNINIT = 0,
-        PARSE_STATE_IDLE,
-        PARSE_STATE_GOT_STX,
-        PARSE_STATE_GOT_LENGTH,
-        PARSE_STATE_GOT_INCOMPAT_FLAGS,
-        PARSE_STATE_GOT_COMPAT_FLAGS,
-        PARSE_STATE_GOT_SEQ,
-        PARSE_STATE_GOT_SYSID,
-        PARSE_STATE_GOT_COMPID,
-        PARSE_STATE_GOT_MSGID1,
-        PARSE_STATE_GOT_MSGID2,
-        PARSE_STATE_GOT_MSGID3,
-        PARSE_STATE_GOT_PAYLOAD,
-        PARSE_STATE_GOT_CRC1,
-        PARSE_STATE_GOT_CRC2
-    };
-    
-    ParseState parseState;
-    uint8_t payloadIndex;
+    // Remove custom parse state - using official parser
     
     TimerHandle_t statsTimer;
     bool statsLoggingEnabled;

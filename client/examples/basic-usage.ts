@@ -18,12 +18,19 @@ async function basicExample() {
     await client.connect();
     console.log('Connected successfully!');
 
-    // Get device health
+    // Get device health (enhanced)
     const health = await client.getHealth();
     console.log('Device Health:');
     console.log(`  Status: ${health.status}`);
     console.log(`  Uptime: ${health.uptime} seconds`);
-    console.log(`  Free Heap: ${health.freeHeap} bytes`);
+    console.log(`  Free Heap: ${(health.freeHeap / 1024).toFixed(1)} KB`);
+    console.log(`  Hostname: ${health.device.hostname}`);
+    console.log(`  MAC Address: ${health.network.macAddress}`);
+    if (health.network.wifi.status === 'connected') {
+      console.log(`  WiFi: Connected to ${health.network.wifi.ssid} (${health.network.wifi.ip})`);
+    } else {
+      console.log(`  WiFi: ${health.network.wifi.status}`);
+    }
 
     // Get current configuration
     const config = await client.getConfiguration();

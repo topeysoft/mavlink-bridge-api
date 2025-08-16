@@ -62,11 +62,20 @@ struct RTCMConfig {
     RTCMConfig() : enabled(false) {}
 };
 
+struct MDNSConfig {
+    bool enabled;
+    String hostname;
+    bool discoveryEnabled;
+    
+    MDNSConfig() : enabled(true), hostname("yardrover"), discoveryEnabled(true) {}
+};
+
 struct Configuration {
     uint32_t version;
     DeviceConfig device;
     ConnectionConfig connection;
     RTCMConfig rtcm;
+    MDNSConfig mdns;
     
     Configuration() : version(1) {}
 };
@@ -106,6 +115,7 @@ private:
     bool validateDeviceConfig(const DeviceConfig& config) const;
     bool validateConnectionConfig(const ConnectionConfig& config) const;
     bool validateRTCMConfig(const RTCMConfig& config) const;
+    bool validateMDNSConfig(const MDNSConfig& config) const;
     bool isValidDeviceMode(const String& mode) const;
     bool isValidConnectionType(const String& type) const;
     bool isValidRTCMSourceType(const String& type) const;
@@ -115,10 +125,12 @@ private:
     void serializeDeviceConfig(const DeviceConfig& config, JsonObject& obj) const;
     void serializeConnectionConfig(const ConnectionConfig& config, JsonObject& obj) const;
     void serializeRTCMConfig(const RTCMConfig& config, JsonObject& obj) const;
+    void serializeMDNSConfig(const MDNSConfig& config, JsonObject& obj) const;
     
     bool deserializeDeviceConfig(const JsonObject& obj, DeviceConfig& config) const;
     bool deserializeConnectionConfig(const JsonObject& obj, ConnectionConfig& config) const;
     bool deserializeRTCMConfig(const JsonObject& obj, RTCMConfig& config) const;
+    bool deserializeMDNSConfig(const JsonObject& obj, MDNSConfig& config) const;
     
 public:
     ConfigManager();
@@ -132,12 +144,14 @@ public:
     const DeviceConfig& getDeviceConfig() const { return currentConfig.device; }
     const ConnectionConfig& getConnectionConfig() const { return currentConfig.connection; }
     const RTCMConfig& getRTCMConfig() const { return currentConfig.rtcm; }
+    const MDNSConfig& getMDNSConfig() const { return currentConfig.mdns; }
     
     bool setConfiguration(const Configuration& config);
     bool setConfiguration(const Configuration& config, uint32_t expectedVersion);
     bool updateDeviceConfig(const DeviceConfig& config);
     bool updateConnectionConfig(const ConnectionConfig& config);
     bool updateRTCMConfig(const RTCMConfig& config);
+    bool updateMDNSConfig(const MDNSConfig& config);
     
     bool loadConfiguration();
     bool saveConfiguration();

@@ -1,33 +1,34 @@
 #pragma once
 
-#include "../../network/HttpServer/HttpServer.h"
-#include "../RTCMClient/RTCMClient.h"
-#include "../../core/ConfigManager/ConfigManager.h"
+#include <HttpServer/HttpServer.h>
+#include <RTCMClient/RTCMClient.h>
+#include <ConfigManager/ConfigManager.h>
 #include <memory>
 
-class RTCMEndpoints {
+class RTCMEndpoints
+{
 public:
-    static void registerRoutes(HttpServer* server, ConfigManager* configManager);
-    
+    static void registerRoutes(HttpServer *server, ConfigManager *configManager);
+
     // Get current RTCM client instance
-    static RTCMClient* getCurrentClient();
-    
+    static RTCMClient *getCurrentClient();
+
     // Stop and cleanup current client
     static void stopCurrentClient();
 
 private:
-    static void handleStart(HttpRequest& req, HttpResponse& res);
-    static void handleStop(HttpRequest& req, HttpResponse& res);
-    static void handleStatus(HttpRequest& req, HttpResponse& res);
-    static void handleConfig(HttpRequest& req, HttpResponse& res);
-    
-    static std::unique_ptr<RTCMClient> createClient(const JsonDocument& config);
-    static bool validateConfig(const JsonDocument& config, JsonDocument& errors);
-    
+    static void handleStart(const NetworkLib::HttpRequest &req, NetworkLib::HttpResponse &res);
+    static void handleStop(const NetworkLib::HttpRequest &req, NetworkLib::HttpResponse &res);
+    static void handleStatus(const NetworkLib::HttpRequest &req, NetworkLib::HttpResponse &res);
+    static void handleConfig(const NetworkLib::HttpRequest &req, NetworkLib::HttpResponse &res);
+
+    static std::unique_ptr<RTCMClient> createClient(const DynamicJsonDocument &config);
+    static bool validateConfig(const DynamicJsonDocument &config, DynamicJsonDocument &errors);
+
     static std::unique_ptr<RTCMClient> currentClient;
-    static ConfigManager* configMgr;
+    static ConfigManager *configMgr;
     static SemaphoreHandle_t clientMutex;
-    
+
     // Statistics tracking
     static uint32_t startTime;
     static bool isRunning;

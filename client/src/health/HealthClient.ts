@@ -11,7 +11,15 @@ import {
   HealthEventPayload,
   MemoryEventPayload,
   TaskEventPayload,
-  ErrorEventPayload
+  ErrorEventPayload,
+  HealthCheckResponse,
+  DeviceInfo,
+  NetworkInfo,
+  WiFiInfo,
+  AccessPointInfo,
+  ConfigHealth,
+  StorageHealth,
+  EnhancedSystemHealth
 } from './HealthTypes';
 
 /**
@@ -27,6 +35,13 @@ export class HealthClient {
   constructor(httpClient: HttpClient, wsClient: WebSocketClient) {
     this.httpClient = httpClient;
     this.wsClient = wsClient;
+  }
+
+  /**
+   * Get enhanced health check with comprehensive system information
+   */
+  async getHealthCheck (): Promise<HealthCheckResponse> {
+    return this.httpClient.get<HealthCheckResponse>('/api/health');
   }
 
   /**
@@ -238,6 +253,112 @@ export class HealthClient {
   async getFragmentation (): Promise<number> {
     const memory = await this.getMemoryStats();
     return memory.fragmentation;
+  }
+
+  // Enhanced health check convenience methods
+
+  /**
+   * Get device information
+   */
+  async getDeviceInfo (): Promise<DeviceInfo> {
+    const health = await this.getHealthCheck();
+    return health.device;
+  }
+
+  /**
+   * Get network information
+   */
+  async getNetworkInfo (): Promise<NetworkInfo> {
+    const health = await this.getHealthCheck();
+    return health.network;
+  }
+
+  /**
+   * Get WiFi connection information
+   */
+  async getWiFiInfo (): Promise<WiFiInfo> {
+    const health = await this.getHealthCheck();
+    return health.network.wifi;
+  }
+
+  /**
+   * Get access point information
+   */
+  async getAccessPointInfo (): Promise<AccessPointInfo> {
+    const health = await this.getHealthCheck();
+    return health.network.ap;
+  }
+
+  /**
+   * Get device hostname
+   */
+  async getHostname (): Promise<string> {
+    const health = await this.getHealthCheck();
+    return health.device.hostname;
+  }
+
+  /**
+   * Get device MAC address
+   */
+  async getMacAddress (): Promise<string> {
+    const health = await this.getHealthCheck();
+    return health.network.macAddress;
+  }
+
+  /**
+   * Get current IP address (if connected to WiFi)
+   */
+  async getIpAddress (): Promise<string | null> {
+    const health = await this.getHealthCheck();
+    return health.network.wifi.ip || null;
+  }
+
+  /**
+   * Get WiFi signal strength (RSSI)
+   */
+  async getSignalStrength (): Promise<number | null> {
+    const health = await this.getHealthCheck();
+    return health.network.wifi.rssi || null;
+  }
+
+  /**
+   * Check if device is connected to WiFi
+   */
+  async isWiFiConnected (): Promise<boolean> {
+    const health = await this.getHealthCheck();
+    return health.network.wifi.status === 'connected';
+  }
+
+  /**
+   * Check if access point is enabled
+   */
+  async isAccessPointEnabled (): Promise<boolean> {
+    const health = await this.getHealthCheck();
+    return health.network.ap.enabled;
+  }
+
+  /**
+   * Get storage usage information
+   */
+  async getStorageInfo (): Promise<StorageHealth> {
+    const health = await this.getHealthCheck();
+    return health.storage;
+  }
+
+  /**
+   * Get storage usage percentage
+   */
+  async getStorageUsage (): Promise<number> {
+    const health = await this.getHealthCheck();
+    return (health.storage.usedBytes / health.storage.totalBytes) * 100;
+  }
+
+  /**
+   * Check if system status is degraded and get issues
+   */
+  async getSystemIssues (): Promise<string[]> {
+    const health = await this.getHealthCheck();
+    return health.issues || [];
   }
 
   // Event listeners

@@ -1,0 +1,15 @@
+{
+    "name": "network",
+    "version": "1.0.0",
+    "description": "Network library for WiFi, HTTP, WebSocket, and MDNS",
+    "dependencies": {
+        "ArduinoJson": "*",
+        "WiFi": "*",
+        "ESPAsyncWebServer": "*",
+        "AsyncTCP": "*",
+        "ESPmDNS": "*",
+        "core": "*"
+    },
+    "frameworks": ["arduino"],
+    "platforms": ["espressif32"]
+}
