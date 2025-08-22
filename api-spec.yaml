@@ -297,10 +297,115 @@ paths:
               schema:
                 $ref: '#/components/schemas/MissionStatus'
 
+  /api/mavlink/parameters/stream:
+    get:
+      summary: Parameter streaming endpoint (SSE)
+      description: |
+        Server-Sent Events endpoint for real-time parameter streaming.
+        Provides CORS-enabled parameter updates without overwhelming WebSocket connections.
+      responses:
+        '200':
+          description: SSE parameter stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-sent events stream with parameter data
+              examples:
+                connected:
+                  summary: Connection established
+                  value: 'data: {"type":"connected","timestamp":1629123456789}'
+                parameter_value:
+                  summary: Parameter value received
+                  value: 'data: {"type":"parameter_value","parameterName":"AHRS_GPS_GAIN","value":1.0,"timestamp":1629123456789}'
+
+  /api/mavlink/parameters/request:
+    post:
+      summary: Request specific parameter
+      description: Request a parameter by name or index from the flight controller
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParameterRequest'
+            examples:
+              by_name:
+                summary: Request parameter by name
+                value:
+                  parameterName: "AHRS_GPS_GAIN"
+                  targetSystem: 1
+                  targetComponent: 1
+              by_index:
+                summary: Request parameter by index
+                value:
+                  parameterIndex: 42
+                  targetSystem: 1
+                  targetComponent: 1
+      responses:
+        '200':
+          description: Parameter request sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParameterResponse'
+        '400':
+          description: Invalid request parameters
+
+  /api/mavlink/parameters/set:
+    post:
+      summary: Set parameter value
+      description: Set a parameter value on the flight controller with validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParameterSetRequest'
+            example:
+              parameterName: "AHRS_GPS_GAIN"
+              value: 1.5
+              targetSystem: 1
+              targetComponent: 1
+      responses:
+        '200':
+          description: Parameter set request sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParameterSetResponse'
+        '400':
+          description: Invalid parameter or validation failed
+
+  /api/mavlink/parameters/list:
+    post:
+      summary: Request parameter list
+      description: Request the complete parameter list from the flight controller
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParameterListRequest'
+            example:
+              targetSystem: 1
+              targetComponent: 1
+      responses:
+        '200':
+          description: Parameter list request sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParameterResponse'
+        '400':
+          description: Invalid request parameters
+
   /api/tasks:
     get:
       summary: List all tasks
-      description: Retrieve a list of all tasks with optional filtering
+      description: |
+        Retrieve a list of all tasks with optional filtering.
+        Note: Pattern generation (mowing patterns, survey patterns) is handled client-side for performance optimization.
       parameters:
         - name: type
           in: query
@@ -332,7 +437,9 @@ paths:
 
     post:
       summary: Create a new task
-      description: Create a new task with the specified parameters
+      description: |
+        Create a new task with the specified parameters.
+        Tasks should be created with pre-generated waypoints from client-side pattern algorithms.
       requestBody:
         required: true
         content:
@@ -1904,3 +2011,225 @@ components:
         templateParameters:
           type: object
           description: Template-specific parameters (e.g., area dimensions, pattern spacing)
+
+    # Parameter Management Schemas
+    ParameterRequest:
+      type: object
+      properties:
+        parameterName:
+          type: string
+          maxLength: 16
+          description: Parameter name (MAVLink limit of 16 characters)
+        parameterIndex:
+          type: integer
+          minimum: 0
+          description: Parameter index (alternative to name)
+        targetSystem:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target system ID
+        targetComponent:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target component ID
+
+    ParameterSetRequest:
+      type: object
+      required:
+        - parameterName
+        - value
+      properties:
+        parameterName:
+          type: string
+          maxLength: 16
+          description: Parameter name (MAVLink limit of 16 characters)
+        value:
+          type: number
+          description: Parameter value to set
+        targetSystem:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target system ID
+        targetComponent:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target component ID
+
+    ParameterListRequest:
+      type: object
+      properties:
+        targetSystem:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target system ID
+        targetComponent:
+          type: integer
+          minimum: 1
+          maximum: 255
+          default: 1
+          description: Target component ID
+
+    ParameterResponse:
+      type: object
+      required:
+        - success
+        - operation
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+        operation:
+          type: string
+          description: Type of operation performed
+        parameterName:
+          type: string
+          description: Parameter name (if applicable)
+        value:
+          type: number
+          description: Parameter value (if applicable)
+        totalCount:
+          type: integer
+          description: Total parameter count (for list operations)
+        index:
+          type: integer
+          description: Parameter index (if applicable)
+        errorMessage:
+          type: string
+          description: Error message if operation failed
+        targetSystem:
+          type: integer
+          description: Target system ID
+        targetComponent:
+          type: integer
+          description: Target component ID
+        bytesSent:
+          type: integer
+          description: Number of bytes sent in MAVLink message
+
+    ParameterSetResponse:
+      type: object
+      required:
+        - success
+        - operation
+        - parameterName
+        - value
+      properties:
+        success:
+          type: boolean
+          description: Whether the set operation was successful
+        operation:
+          type: string
+          description: Always "parameter_set"
+        parameterName:
+          type: string
+          description: Parameter name that was set
+        value:
+          type: number
+          description: Parameter value that was set
+        targetSystem:
+          type: integer
+          description: Target system ID
+        targetComponent:
+          type: integer
+          description: Target component ID
+        bytesSent:
+          type: integer
+          description: Number of bytes sent in MAVLink message
+
+    ParameterValue:
+      type: object
+      required:
+        - name
+        - value
+        - type
+      properties:
+        name:
+          type: string
+          description: Parameter name
+        value:
+          type: number
+          description: Parameter value
+        type:
+          type: string
+          enum: [int, float, enum, bitmask]
+          description: Parameter data type
+        timestamp:
+          type: integer
+          format: int64
+          description: Timestamp when parameter was received (milliseconds)
+
+    ParameterDefinition:
+      type: object
+      required:
+        - name
+        - displayName
+        - description
+        - category
+        - userLevel
+        - dataType
+      properties:
+        name:
+          type: string
+          description: Parameter name
+        displayName:
+          type: string
+          description: Human-readable parameter name
+        description:
+          type: string
+          description: Parameter description
+        group:
+          type: string
+          description: Parameter group (from ArduPilot)
+        category:
+          type: string
+          description: Functional category
+        userLevel:
+          type: string
+          enum: [Standard, Advanced, Expert]
+          description: Configuration complexity level
+        dataType:
+          type: string
+          enum: [int, float, enum, bitmask]
+          description: Parameter data type
+        range:
+          type: object
+          properties:
+            min:
+              type: number
+            max:
+              type: number
+          description: Valid value range
+        units:
+          type: string
+          description: Parameter units
+        increment:
+          type: number
+          description: Recommended increment value
+        values:
+          type: object
+          additionalProperties:
+            type: string
+          description: Enum value descriptions
+        bitmask:
+          type: object
+          additionalProperties:
+            type: string
+          description: Bitmask flag descriptions
+        rebootRequired:
+          type: boolean
+          description: Whether parameter change requires reboot
+        tags:
+          type: array
+          items:
+            type: string
+          description: Parameter tags for searching/filtering

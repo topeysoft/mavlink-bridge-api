@@ -54,6 +54,13 @@ export class HttpClient {
   }
 
   /**
+   * Perform a PUT request
+   */
+  async put<T>(path: string, data?: unknown, options?: RequestOptions): Promise<T> {
+    return this.request<T>('PUT', path, data, options);
+  }
+
+  /**
    * Perform a DELETE request
    */
   async delete<T>(path: string, options?: RequestOptions): Promise<T> {
@@ -64,7 +71,7 @@ export class HttpClient {
    * Generic request method
    */
   private async request<T>(
-    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
     path: string,
     data?: unknown,
     options?: RequestOptions

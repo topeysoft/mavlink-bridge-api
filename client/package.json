@@ -13,7 +13,9 @@
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build",
     "cli": "tsx cli.ts",
-    "start": "npm run cli"
+    "start": "npm run cli",
+    "fetch-parameters": "tsx scripts/fetch-parameter-definitions.ts",
+    "update-parameters": "npm run fetch-parameters && npm run build"
   },
   "bin": {
     "mavlink-bridge": "./dist/cli.js"

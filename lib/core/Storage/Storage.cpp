@@ -28,29 +28,46 @@ StorageResult Storage::begin() {
         return StorageResult::SUCCESS;
     }
     
+    Serial.println("Storage::begin() - Starting initialization");
+    
     storageMutex = xSemaphoreCreateMutex();
     if (storageMutex == nullptr) {
         setLastError("Failed to create storage mutex");
+        Serial.println("Storage::begin() - ERROR: Failed to create mutex");
         return StorageResult::FILESYSTEM_ERROR;
     }
     
-    if (!FFat.begin(true)) {
-        setLastError("Failed to initialize FFat");
-        vSemaphoreDelete(storageMutex);
-        storageMutex = nullptr;
-        return StorageResult::FILESYSTEM_ERROR;
+    Serial.println("Storage::begin() - Attempting to mount FFat filesystem");
+    // Try with partition label first, then without
+    if (!FFat.begin(true, "/config")) {
+        Serial.println("Storage::begin() - Failed with label '/config', trying default label");
+        if (!FFat.begin(true)) {
+            setLastError("Failed to initialize FFat");
+            Serial.println("Storage::begin() - ERROR: FFat.begin() failed");
+            Serial.println("Storage::begin() - This might be due to missing partition or first boot");
+            vSemaphoreDelete(storageMutex);
+            storageMutex = nullptr;
+            return StorageResult::FILESYSTEM_ERROR;
+        }
     }
+    
+    Serial.printf("Storage::begin() - FFat mounted successfully\n");
+    Serial.printf("Storage::begin() - Total bytes: %zu\n", FFat.totalBytes());
+    Serial.printf("Storage::begin() - Used bytes: %zu\n", FFat.usedBytes());
+    Serial.printf("Storage::begin() - Free bytes: %zu\n", FFat.totalBytes() - FFat.usedBytes());
     
     // Validate filesystem integrity
     StorageResult result = validateFilesystem();
     if (result != StorageResult::SUCCESS) {
         setLastError("Filesystem validation failed");
+        Serial.println("Storage::begin() - ERROR: Filesystem validation failed");
         FFat.end();
         vSemaphoreDelete(storageMutex);
         storageMutex = nullptr;
         return result;
     }
     
+    Serial.println("Storage::begin() - Storage initialization successful");
     isInitialized = true;
     return StorageResult::SUCCESS;
 }

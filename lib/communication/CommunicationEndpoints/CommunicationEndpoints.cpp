@@ -57,6 +57,13 @@ void CommunicationEndpoints::setupEndpoints(AsyncWebServer& server) {
     server.on("/api/communication/mavlink/filter", HTTP_DELETE, handleClearMAVLinkFilter);
     server.on("/api/mavlink/command", HTTP_POST, handleSendMAVLinkCommand);
     
+    // Parameter management endpoints
+    ESP_LOGI(TAG, "Registering parameter endpoints...");
+    server.on("/api/mavlink/parameters/stream", HTTP_GET, handleParameterStream);
+    server.on("/api/mavlink/parameters/request", HTTP_POST, handleRequestParameters);
+    server.on("/api/mavlink/parameters/set", HTTP_POST, handleSetParameter);
+    server.on("/api/mavlink/parameters/list", HTTP_POST, handleRequestParameterList);
+    
     // Data and control endpoints
     if (ESP.getFreeHeap() < 1024) {
         ESP_LOGW(TAG, "Low memory, skipping data/control endpoints");
@@ -768,6 +775,215 @@ void CommunicationEndpoints::handleSendMAVLinkCommand(AsyncWebServerRequest* req
     responseDoc["targetSystem"] = targetSystem;
     responseDoc["targetComponent"] = targetComponent;
     responseDoc["messageId"] = (int)message.msgid;
+    responseDoc["bytesSent"] = messageLength;
+    sendJsonResponse(request, responseDoc);
+}
+
+// Parameter management endpoint implementations
+
+void CommunicationEndpoints::handleParameterStream(AsyncWebServerRequest* request) {
+    ESP_LOGI(TAG, "📡 Setting up parameter stream");
+    
+    // Send initial SSE response
+    String initialData = "data: {\"type\":\"connected\",\"timestamp\":" + String(millis()) + "}\n\n";
+    
+    AsyncWebServerResponse* response = request->beginResponse(200, "text/event-stream", initialData);
+    response->addHeader("Cache-Control", "no-cache");
+    response->addHeader("Connection", "keep-alive");
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    response->addHeader("Access-Control-Allow-Methods", "GET");
+    response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+    
+    // TODO: Implement parameter streaming logic
+    // This will need to:
+    // 1. Set up a callback for parameter messages from MAVLinkProcessor
+    // 2. Send parameter data as SSE events using AsyncEventSource
+    // 3. Handle client disconnection
+    // 
+    // For now, we send a basic SSE response that indicates the stream is available
+    // A full implementation would use AsyncEventSource for persistent connections
+    
+    ESP_LOGI(TAG, "✅ Parameter stream response sent");
+    request->send(response);
+}
+
+void CommunicationEndpoints::handleRequestParameters(AsyncWebServerRequest* request) {
+    ESP_LOGI(TAG, "📋 Processing parameter request");
+    
+    DynamicJsonDocument doc(512);
+    if (!validateJsonRequest(request, doc)) {
+        sendErrorResponse(request, "Invalid JSON in request body");
+        return;
+    }
+    
+    uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;
+    uint8_t targetComponent = doc.containsKey("targetComponent") ? doc["targetComponent"].as<uint8_t>() : 1;
+    
+    mavlink_message_t message;
+    bool validRequest = false;
+    
+    if (doc.containsKey("parameterName")) {
+        // Request specific parameter by name
+        String paramName = doc["parameterName"].as<String>();
+        
+        if (paramName.length() > 16) {
+            sendErrorResponse(request, "Parameter name too long (max 16 characters)");
+            return;
+        }
+        
+        // Build PARAM_REQUEST_READ message
+        mavlink_param_request_read_t param_request;
+        param_request.target_system = targetSystem;
+        param_request.target_component = targetComponent;
+        param_request.param_index = -1; // Use name instead of index
+        strncpy(param_request.param_id, paramName.c_str(), sizeof(param_request.param_id));
+        
+        mavlink_msg_param_request_read_encode(0, 0, &message, &param_request);
+        validRequest = true;
+        
+        ESP_LOGI(TAG, "📤 Requesting parameter: %s", paramName.c_str());
+        
+    } else if (doc.containsKey("parameterIndex")) {
+        // Request specific parameter by index
+        int16_t paramIndex = doc["parameterIndex"].as<int16_t>();
+        
+        mavlink_param_request_read_t param_request;
+        param_request.target_system = targetSystem;
+        param_request.target_component = targetComponent;
+        param_request.param_index = paramIndex;
+        memset(param_request.param_id, 0, sizeof(param_request.param_id));
+        
+        mavlink_msg_param_request_read_encode(0, 0, &message, &param_request);
+        validRequest = true;
+        
+        ESP_LOGI(TAG, "📤 Requesting parameter index: %d", paramIndex);
+    }
+    
+    if (!validRequest) {
+        sendErrorResponse(request, "Must specify either 'parameterName' or 'parameterIndex'");
+        return;
+    }
+    
+    // Send the parameter request
+    uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
+    size_t messageLength = MAVLinkProcessor::serializeMessage(message, buffer, sizeof(buffer));
+    
+    if (messageLength == 0) {
+        sendErrorResponse(request, "Failed to serialize parameter request");
+        return;
+    }
+    
+    DataRouter* router = DataRouter::getInstance();
+    router->routeDownstream(buffer, messageLength);
+    
+    DynamicJsonDocument responseDoc(256);
+    responseDoc["success"] = true;
+    responseDoc["operation"] = "parameter_request";
+    responseDoc["targetSystem"] = targetSystem;
+    responseDoc["targetComponent"] = targetComponent;
+    responseDoc["bytesSent"] = messageLength;
+    sendJsonResponse(request, responseDoc);
+}
+
+void CommunicationEndpoints::handleSetParameter(AsyncWebServerRequest* request) {
+    ESP_LOGI(TAG, "✏️ Processing parameter set request");
+    
+    DynamicJsonDocument doc(512);
+    if (!validateJsonRequest(request, doc)) {
+        sendErrorResponse(request, "Invalid JSON in request body");
+        return;
+    }
+    
+    if (!doc.containsKey("parameterName") || !doc.containsKey("value")) {
+        sendErrorResponse(request, "Missing required fields: 'parameterName' and 'value'");
+        return;
+    }
+    
+    String paramName = doc["parameterName"].as<String>();
+    float paramValue = doc["value"].as<float>();
+    uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;
+    uint8_t targetComponent = doc.containsKey("targetComponent") ? doc["targetComponent"].as<uint8_t>() : 1;
+    
+    if (paramName.length() > 16) {
+        sendErrorResponse(request, "Parameter name too long (max 16 characters)");
+        return;
+    }
+    
+    // Build PARAM_SET message
+    mavlink_param_set_t param_set;
+    param_set.target_system = targetSystem;
+    param_set.target_component = targetComponent;
+    param_set.param_value = paramValue;
+    param_set.param_type = MAV_PARAM_TYPE_REAL32; // Default to float
+    strncpy(param_set.param_id, paramName.c_str(), sizeof(param_set.param_id));
+    
+    mavlink_message_t message;
+    mavlink_msg_param_set_encode(0, 0, &message, &param_set);
+    
+    // Send the parameter set command
+    uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
+    size_t messageLength = MAVLinkProcessor::serializeMessage(message, buffer, sizeof(buffer));
+    
+    if (messageLength == 0) {
+        sendErrorResponse(request, "Failed to serialize parameter set command");
+        return;
+    }
+    
+    DataRouter* router = DataRouter::getInstance();
+    router->routeDownstream(buffer, messageLength);
+    
+    ESP_LOGI(TAG, "📤 Setting parameter %s = %.3f", paramName.c_str(), paramValue);
+    
+    DynamicJsonDocument responseDoc(256);
+    responseDoc["success"] = true;
+    responseDoc["operation"] = "parameter_set";
+    responseDoc["parameterName"] = paramName;
+    responseDoc["value"] = paramValue;
+    responseDoc["targetSystem"] = targetSystem;
+    responseDoc["targetComponent"] = targetComponent;
+    responseDoc["bytesSent"] = messageLength;
+    sendJsonResponse(request, responseDoc);
+}
+
+void CommunicationEndpoints::handleRequestParameterList(AsyncWebServerRequest* request) {
+    ESP_LOGI(TAG, "📋 Processing parameter list request");
+    
+    DynamicJsonDocument doc(256);
+    if (!validateJsonRequest(request, doc)) {
+        sendErrorResponse(request, "Invalid JSON in request body");
+        return;
+    }
+    
+    uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;
+    uint8_t targetComponent = doc.containsKey("targetComponent") ? doc["targetComponent"].as<uint8_t>() : 1;
+    
+    // Build PARAM_REQUEST_LIST message
+    mavlink_param_request_list_t param_request_list;
+    param_request_list.target_system = targetSystem;
+    param_request_list.target_component = targetComponent;
+    
+    mavlink_message_t message;
+    mavlink_msg_param_request_list_encode(0, 0, &message, &param_request_list);
+    
+    // Send the parameter list request
+    uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
+    size_t messageLength = MAVLinkProcessor::serializeMessage(message, buffer, sizeof(buffer));
+    
+    if (messageLength == 0) {
+        sendErrorResponse(request, "Failed to serialize parameter list request");
+        return;
+    }
+    
+    DataRouter* router = DataRouter::getInstance();
+    router->routeDownstream(buffer, messageLength);
+    
+    ESP_LOGI(TAG, "📤 Requesting parameter list from system %d, component %d", targetSystem, targetComponent);
+    
+    DynamicJsonDocument responseDoc(256);
+    responseDoc["success"] = true;
+    responseDoc["operation"] = "parameter_list_request";
+    responseDoc["targetSystem"] = targetSystem;
+    responseDoc["targetComponent"] = targetComponent;
     responseDoc["bytesSent"] = messageLength;
     sendJsonResponse(request, responseDoc);
 }

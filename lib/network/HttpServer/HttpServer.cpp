@@ -102,11 +102,13 @@ void HttpServer::begin(uint16_t port) {
 
 void HttpServer::addRoute(const String& path, HttpMethod method, RouteHandler handler) {
     if (routeCount >= MAX_ROUTES) {
+        Serial.printf("ERROR: Max routes limit reached (%d). Cannot add route: %s\n", MAX_ROUTES, path.c_str());
         return;
     }
     
     routes[routeCount] = {path, method, handler};
     routeCount++;
+    Serial.printf("Route added: %s (total routes: %d)\n", path.c_str(), routeCount);
 }
 
 void HttpServer::setupCORS() {

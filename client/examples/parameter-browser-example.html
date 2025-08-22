@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAVLink Parameter Browser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .status-item {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .status-connected {
+            background: #27ae60;
+            color: white;
+        }
+
+        .status-disconnected {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .status-info {
+            background: #3498db;
+            color: white;
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .control-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input, select, button {
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: #27ae60;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        .btn-warning {
+            background: #f39c12;
+        }
+
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            height: fit-content;
+        }
+
+        .category-list {
+            list-style: none;
+        }
+
+        .category-item {
+            padding: 12px 15px;
+            margin: 5px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .category-item:hover {
+            background: #ecf0f1;
+        }
+
+        .category-item.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .category-count {
+            background: rgba(0, 0, 0, 0.1);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+
+        .parameter-grid {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .parameter-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .parameter-table th {
+            background: #34495e;
+            color: white;
+            padding: 15px 10px;
+            text-align: left;
+            font-weight: 500;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .parameter-table th:first-child {
+            border-radius: 8px 0 0 0;
+        }
+
+        .parameter-table th:last-child {
+            border-radius: 0 8px 0 0;
+        }
+
+        .parameter-table td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #ecf0f1;
+            vertical-align: top;
+        }
+
+        .parameter-row {
+            transition: background-color 0.3s ease;
+        }
+
+        .parameter-row:hover {
+            background: #f8f9fa;
+        }
+
+        .parameter-name {
+            font-weight: 600;
+            color: #2c3e50;
+            font-family: 'Courier New', monospace;
+        }
+
+        .parameter-description {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .parameter-value {
+            font-family: 'Courier New', monospace;
+            font-weight: 500;
+            color: #27ae60;
+        }
+
+        .parameter-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .user-level {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+
+        .level-standard {
+            background: #27ae60;
+            color: white;
+        }
+
+        .level-advanced {
+            background: #f39c12;
+            color: white;
+        }
+
+        .level-expert {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .data-type {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 500;
+            background: #95a5a6;
+            color: white;
+        }
+
+        .parameter-input {
+            width: 100px;
+            padding: 6px 8px;
+            font-size: 12px;
+            margin-right: 8px;
+        }
+
+        .set-button {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .validation-error {
+            color: #e74c3c;
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+
+        .validation-warning {
+            color: #f39c12;
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #7f8c8d;
+        }
+
+        .empty-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                order: 2;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .control-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .control-group {
+                justify-content: center;
+            }
+            
+            .parameter-table {
+                font-size: 0.9em;
+            }
+            
+            .parameter-table th,
+            .parameter-table td {
+                padding: 8px 6px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛠️ MAVLink Parameter Browser</h1>
+            <p>Real-time parameter management with ArduPilot metadata</p>
+            
+            <div class="status-bar">
+                <div id="connectionStatus" class="status-item status-disconnected">Disconnected</div>
+                <div id="parameterCount" class="status-item status-info">0 parameters</div>
+                <div id="streamStatus" class="status-item status-info">Stream: Off</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="deviceUrl">Device URL:</label>
+                    <input type="text" id="deviceUrl" value="http://192.168.4.1" placeholder="Device URL">
+                    <button id="connectBtn" onclick="connect()">Connect</button>
+                    <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+                </div>
+                
+                <div class="control-group">
+                    <button id="streamBtn" onclick="toggleStream()" disabled>Start Stream</button>
+                    <button id="requestListBtn" onclick="requestParameterList()" disabled>Request List</button>
+                    <button id="clearCacheBtn" onclick="clearCache()" disabled>Clear Cache</button>
+                </div>
+            </div>
+
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="searchInput">Search:</label>
+                    <input type="text" id="searchInput" placeholder="Parameter name or description" oninput="filterParameters()">
+                </div>
+                
+                <div class="control-group">
+                    <label for="userLevelFilter">User Level:</label>
+                    <select id="userLevelFilter" onchange="filterParameters()">
+                        <option value="">All Levels</option>
+                        <option value="Standard">Standard</option>
+                        <option value="Advanced">Advanced</option>
+                        <option value="Expert">Expert</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label for="dataTypeFilter">Data Type:</label>
+                    <select id="dataTypeFilter" onchange="filterParameters()">
+                        <option value="">All Types</option>
+                        <option value="int">Integer</option>
+                        <option value="float">Float</option>
+                        <option value="enum">Enum</option>
+                        <option value="bitmask">Bitmask</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <h3>Categories</h3>
+                <ul id="categoryList" class="category-list">
+                    <!-- Categories will be populated here -->
+                </ul>
+            </div>
+
+            <div class="parameter-grid">
+                <div id="parameterContent">
+                    <div class="empty-state">
+                        <div class="empty-icon">📡</div>
+                        <h3>No Parameters Loaded</h3>
+                        <p>Connect to a device and start streaming to see parameters</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // This would typically import from your built client library
+        // For demonstration, we'll simulate the functionality
+        
+        let client = null;
+        let parameterClient = null;
+        let isConnected = false;
+        let isStreaming = false;
+        let parameters = new Map();
+        let filteredParameters = [];
+        let selectedCategory = '';
+
+        // Mock parameter definitions (subset for demo)
+        const mockParameterDefinitions = {
+            'AHRS_GPS_GAIN': {
+                name: 'AHRS_GPS_GAIN',
+                displayName: 'AHRS GPS Gain',
+                description: 'This controls how much the GPS should be used to correct GPS velocity',
+                category: 'AHRS',
+                userLevel: 'Advanced',
+                dataType: 'float',
+                range: { min: 0.0, max: 1.0 },
+                units: '',
+                tags: ['ahrs', 'gps', 'gain']
+            },
+            'ARMING_CHECK': {
+                name: 'ARMING_CHECK',
+                displayName: 'Arm Checks to Perform',
+                description: 'Checks prior to arming motor. This is a bitmask of checks.',
+                category: 'ARMING',
+                userLevel: 'Standard',
+                dataType: 'bitmask',
+                bitmask: {
+                    '0': 'All',
+                    '1': 'Barometer',
+                    '2': 'Compass',
+                    '3': 'GPS lock',
+                    '4': 'INS',
+                    '8': 'Board voltage',
+                    '16': 'Battery Level'
+                },
+                tags: ['arming', 'safety', 'bitmask']
+            },
+            'BATT_MONITOR': {
+                name: 'BATT_MONITOR',
+                displayName: 'Battery monitoring',
+                description: 'Controls enabling monitoring of the battery voltage and current',
+                category: 'BATT',
+                userLevel: 'Standard',
+                dataType: 'enum',
+                values: {
+                    '0': 'Disabled',
+                    '3': 'Analog Voltage Only',
+                    '4': 'Analog Voltage and Current',
+                    '5': 'Solo',
+                    '6': 'Bebop'
+                },
+                tags: ['battery', 'monitor', 'enum']
+            }
+        };
+
+        // Mock categories
+        const mockCategories = {
+            'AHRS': { name: 'AHRS', displayName: 'Attitude & Heading', count: 15 },
+            'ARMING': { name: 'ARMING', displayName: 'Arming & Safety', count: 8 },
+            'BATT': { name: 'BATT', displayName: 'Battery', count: 12 },
+            'COMPASS': { name: 'COMPASS', displayName: 'Compass', count: 25 },
+            'GPS': { name: 'GPS', displayName: 'GPS/GNSS', count: 18 },
+            'INS': { name: 'INS', displayName: 'Inertial Navigation', count: 22 }
+        };
+
+        window.connect = async function() {
+            const deviceUrl = document.getElementById('deviceUrl').value;
+            
+            try {
+                // Simulate connection
+                await simulateDelay(1000);
+                isConnected = true;
+                updateConnectionStatus();
+                
+                // Mock some initial parameters
+                parameters.set('AHRS_GPS_GAIN', { name: 'AHRS_GPS_GAIN', value: 1.0, type: 'float', timestamp: Date.now() });
+                parameters.set('ARMING_CHECK', { name: 'ARMING_CHECK', value: 1, type: 'bitmask', timestamp: Date.now() });
+                parameters.set('BATT_MONITOR', { name: 'BATT_MONITOR', value: 4, type: 'enum', timestamp: Date.now() });
+                
+                updateParameterDisplay();
+                populateCategories();
+                
+            } catch (error) {
+                alert('Connection failed: ' + error.message);
+            }
+        };
+
+        window.disconnect = function() {
+            isConnected = false;
+            isStreaming = false;
+            parameters.clear();
+            updateConnectionStatus();
+            updateParameterDisplay();
+        };
+
+        window.toggleStream = async function() {
+            if (!isConnected) return;
+            
+            if (isStreaming) {
+                isStreaming = false;
+                updateConnectionStatus();
+            } else {
+                try {
+                    await simulateDelay(500);
+                    isStreaming = true;
+                    updateConnectionStatus();
+                    
+                    // Simulate parameter updates
+                    simulateParameterUpdates();
+                } catch (error) {
+                    alert('Failed to start stream: ' + error.message);
+                }
+            }
+        };
+
+        window.requestParameterList = async function() {
+            if (!isConnected) return;
+            
+            try {
+                await simulateDelay(1000);
+                
+                // Add more mock parameters
+                const additionalParams = [
+                    { name: 'COMPASS_AUTODEC', value: 1, type: 'enum' },
+                    { name: 'GPS_TYPE', value: 1, type: 'enum' },
+                    { name: 'INS_GYRO_FILTER', value: 20, type: 'int' },
+                    { name: 'AHRS_TRIM_X', value: 0.05, type: 'float' },
+                    { name: 'BATT_CAPACITY', value: 3300, type: 'int' }
+                ];
+                
+                additionalParams.forEach(param => {
+                    parameters.set(param.name, { ...param, timestamp: Date.now() });
+                });
+                
+                updateParameterDisplay();
+            } catch (error) {
+                alert('Failed to request parameter list: ' + error.message);
+            }
+        };
+
+        window.clearCache = function() {
+            parameters.clear();
+            updateParameterDisplay();
+        };
+
+        window.filterParameters = function() {
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+            const userLevel = document.getElementById('userLevelFilter').value;
+            const dataType = document.getElementById('dataTypeFilter').value;
+            
+            filteredParameters = Array.from(parameters.values()).filter(param => {
+                const definition = mockParameterDefinitions[param.name];
+                
+                // Search filter
+                if (searchQuery && !param.name.toLowerCase().includes(searchQuery)) {
+                    if (!definition || !definition.description.toLowerCase().includes(searchQuery)) {
+                        return false;
+                    }
+                }
+                
+                // Category filter
+                if (selectedCategory && definition && definition.category !== selectedCategory) {
+                    return false;
+                }
+                
+                // User level filter
+                if (userLevel && definition && definition.userLevel !== userLevel) {
+                    return false;
+                }
+                
+                // Data type filter
+                if (dataType && param.type !== dataType) {
+                    return false;
+                }
+                
+                return true;
+            });
+            
+            updateParameterDisplay();
+        };
+
+        window.setParameter = async function(paramName, inputElement) {
+            if (!isConnected) return;
+            
+            const value = parseFloat(inputElement.value);
+            const definition = mockParameterDefinitions[paramName];
+            
+            // Client-side validation
+            if (definition && definition.range) {
+                if (value < definition.range.min || value > definition.range.max) {
+                    alert(`Value must be between ${definition.range.min} and ${definition.range.max}`);
+                    return;
+                }
+            }
+            
+            try {
+                await simulateDelay(500);
+                
+                // Update local parameter
+                const param = parameters.get(paramName);
+                if (param) {
+                    param.value = value;
+                    param.timestamp = Date.now();
+                }
+                
+                updateParameterDisplay();
+                inputElement.style.background = '#d5f4e6';
+                setTimeout(() => {
+                    inputElement.style.background = '';
+                }, 2000);
+                
+            } catch (error) {
+                alert('Failed to set parameter: ' + error.message);
+            }
+        };
+
+        window.selectCategory = function(categoryName) {
+            selectedCategory = categoryName;
+            
+            // Update category selection visual state
+            document.querySelectorAll('.category-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            if (categoryName) {
+                document.querySelector(`[data-category="${categoryName}"]`).classList.add('active');
+            }
+            
+            filterParameters();
+        };
+
+        function updateConnectionStatus() {
+            const connectionStatus = document.getElementById('connectionStatus');
+            const streamStatus = document.getElementById('streamStatus');
+            const parameterCount = document.getElementById('parameterCount');
+            
+            connectionStatus.textContent = isConnected ? 'Connected' : 'Disconnected';
+            connectionStatus.className = `status-item ${isConnected ? 'status-connected' : 'status-disconnected'}`;
+            
+            streamStatus.textContent = `Stream: ${isStreaming ? 'On' : 'Off'}`;
+            parameterCount.textContent = `${parameters.size} parameters`;
+            
+            // Update button states
+            document.getElementById('connectBtn').disabled = isConnected;
+            document.getElementById('disconnectBtn').disabled = !isConnected;
+            document.getElementById('streamBtn').disabled = !isConnected;
+            document.getElementById('streamBtn').textContent = isStreaming ? 'Stop Stream' : 'Start Stream';
+            document.getElementById('requestListBtn').disabled = !isConnected;
+            document.getElementById('clearCacheBtn').disabled = !isConnected;
+        }
+
+        function updateParameterDisplay() {
+            const content = document.getElementById('parameterContent');
+            
+            if (parameters.size === 0) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📡</div>
+                        <h3>No Parameters Loaded</h3>
+                        <p>Connect to a device and start streaming to see parameters</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const paramsToShow = filteredParameters.length > 0 ? filteredParameters : Array.from(parameters.values());
+            
+            if (paramsToShow.length === 0) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <h3>No Matching Parameters</h3>
+                        <p>Try adjusting your search criteria</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            content.innerHTML = `
+                <h3>Parameters (${paramsToShow.length})</h3>
+                <table class="parameter-table">
+                    <thead>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Value</th>
+                            <th>Type</th>
+                            <th>Level</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${paramsToShow.map(param => createParameterRow(param)).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function createParameterRow(param) {
+            const definition = mockParameterDefinitions[param.name];
+            const displayName = definition ? definition.displayName : param.name;
+            const description = definition ? definition.description : '';
+            const userLevel = definition ? definition.userLevel : 'Unknown';
+            const units = definition && definition.units ? ` ${definition.units}` : '';
+            
+            return `
+                <tr class="parameter-row">
+                    <td>
+                        <div class="parameter-name">${param.name}</div>
+                        <div class="parameter-description">${displayName}${description ? ': ' + description.substring(0, 80) + '...' : ''}</div>
+                    </td>
+                    <td>
+                        <span class="parameter-value">${param.value}${units}</span>
+                    </td>
+                    <td>
+                        <span class="data-type">${param.type}</span>
+                    </td>
+                    <td>
+                        <span class="user-level level-${userLevel.toLowerCase()}">${userLevel}</span>
+                    </td>
+                    <td>
+                        <div class="parameter-controls">
+                            <input type="number" class="parameter-input" 
+                                   value="${param.value}" 
+                                   step="${param.type === 'float' ? '0.1' : '1'}"
+                                   ${definition && definition.range ? `min="${definition.range.min}" max="${definition.range.max}"` : ''}>
+                            <button class="set-button btn-success" 
+                                    onclick="setParameter('${param.name}', this.previousElementSibling)">
+                                Set
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function populateCategories() {
+            const categoryList = document.getElementById('categoryList');
+            
+            const allCategoryItem = `
+                <li class="category-item" onclick="selectCategory('')">
+                    <span>All Parameters</span>
+                    <span class="category-count">${parameters.size}</span>
+                </li>
+            `;
+            
+            const categoryItems = Object.values(mockCategories).map(category => `
+                <li class="category-item" data-category="${category.name}" onclick="selectCategory('${category.name}')">
+                    <span>${category.displayName}</span>
+                    <span class="category-count">${category.count}</span>
+                </li>
+            `).join('');
+            
+            categoryList.innerHTML = allCategoryItem + categoryItems;
+        }
+
+        function simulateParameterUpdates() {
+            if (!isStreaming) return;
+            
+            // Simulate periodic parameter updates
+            setTimeout(() => {
+                if (isStreaming && parameters.has('AHRS_GPS_GAIN')) {
+                    const param = parameters.get('AHRS_GPS_GAIN');
+                    param.value = Math.max(0, Math.min(1, param.value + (Math.random() - 0.5) * 0.1));
+                    param.timestamp = Date.now();
+                    updateParameterDisplay();
+                }
+                
+                simulateParameterUpdates();
+            }, 2000 + Math.random() * 3000);
+        }
+
+        function simulateDelay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Initialize the application
+        updateConnectionStatus();
+        populateCategories();
+        
+        // Filter parameters on page load
+        filterParameters();
+    </script>
+</body>
+</html>

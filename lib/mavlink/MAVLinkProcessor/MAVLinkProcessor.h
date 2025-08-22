@@ -115,6 +115,13 @@ public:
                                                           float afx, float afy, float afz,
                                                           float yaw, float yawRate);
     
+    // Parameter command builders
+    static mavlink_message_t buildParameterRequestRead(uint8_t targetSystem, uint8_t targetComponent,
+                                                      const char* paramId, int16_t paramIndex = -1);
+    static mavlink_message_t buildParameterRequestList(uint8_t targetSystem, uint8_t targetComponent);
+    static mavlink_message_t buildParameterSet(uint8_t targetSystem, uint8_t targetComponent,
+                                             const char* paramId, float paramValue, uint8_t paramType);
+    
 private:
     MAVLinkProcessor();
     ~MAVLinkProcessor();

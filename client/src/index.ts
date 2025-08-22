@@ -114,7 +114,27 @@ export * from './mavlink/MAVLinkMissionTypes';
 
 // Task management exports
 export { TaskClient } from './tasks/TaskClient';
-export * from './tasks/TaskTypes';
+export {
+  TaskType,
+  TaskPriority,
+  TaskStatus,
+  TaskMetadata,
+  TaskParameters,
+  TaskWaypoint,
+  TaskCreateRequest,
+  TaskUpdateRequest,
+  TaskListResponse,
+  TaskExecutionRequest,
+  TaskExecutionResponse,
+  TaskExecutionStatus,
+  TaskImportRequest,
+  TaskImportResponse,
+  TaskExportRequest,
+  TaskExportResponse,
+  TaskFromTemplateRequest,
+  TaskTemplate,
+  TaskTemplateListResponse
+} from './tasks/TaskTypes';
 
 // Version info
 export const VERSION = '1.0.0';

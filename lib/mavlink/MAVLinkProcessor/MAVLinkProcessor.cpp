@@ -631,3 +631,60 @@ mavlink_message_t MAVLinkProcessor::buildSetPositionTargetLocalNed(uint8_t targe
     mavlink_msg_set_position_target_local_ned_encode(1, 200, &msg, &pos);
     return msg;
 }
+
+// Parameter command builders
+
+mavlink_message_t MAVLinkProcessor::buildParameterRequestRead(uint8_t targetSystem, uint8_t targetComponent,
+                                                            const char* paramId, int16_t paramIndex)
+{
+    mavlink_message_t msg;
+    mavlink_param_request_read_t param_req = {};
+    
+    param_req.target_system = targetSystem;
+    param_req.target_component = targetComponent;
+    param_req.param_index = paramIndex;
+    
+    if (paramId && strlen(paramId) > 0) {
+        strncpy(param_req.param_id, paramId, sizeof(param_req.param_id));
+        param_req.param_id[sizeof(param_req.param_id) - 1] = '\0'; // Ensure null termination
+    } else {
+        memset(param_req.param_id, 0, sizeof(param_req.param_id));
+    }
+    
+    mavlink_msg_param_request_read_encode(1, 200, &msg, &param_req);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildParameterRequestList(uint8_t targetSystem, uint8_t targetComponent)
+{
+    mavlink_message_t msg;
+    mavlink_param_request_list_t param_list_req = {};
+    
+    param_list_req.target_system = targetSystem;
+    param_list_req.target_component = targetComponent;
+    
+    mavlink_msg_param_request_list_encode(1, 200, &msg, &param_list_req);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildParameterSet(uint8_t targetSystem, uint8_t targetComponent,
+                                                    const char* paramId, float paramValue, uint8_t paramType)
+{
+    mavlink_message_t msg;
+    mavlink_param_set_t param_set = {};
+    
+    param_set.target_system = targetSystem;
+    param_set.target_component = targetComponent;
+    param_set.param_value = paramValue;
+    param_set.param_type = paramType;
+    
+    if (paramId && strlen(paramId) > 0) {
+        strncpy(param_set.param_id, paramId, sizeof(param_set.param_id));
+        param_set.param_id[sizeof(param_set.param_id) - 1] = '\0'; // Ensure null termination
+    } else {
+        memset(param_set.param_id, 0, sizeof(param_set.param_id));
+    }
+    
+    mavlink_msg_param_set_encode(1, 200, &msg, &param_set);
+    return msg;
+}

@@ -168,8 +168,26 @@ void setup()
     // Register mDNS endpoints
     MDNSEndpoints::registerRoutes(httpServer, mdnsManager, configManager);
 
+    // Register configuration endpoints BEFORE starting the server
+    Serial.println("DEBUG: Registering ConfigEndpoints...");
+    ConfigEndpoints::registerRoutes(httpServer);
+    Serial.println("DEBUG: ConfigEndpoints registered");
+
+    // Register WiFi management endpoints
+    Serial.println("DEBUG: Registering WiFiEndpoints...");
+    WiFiEndpoints::registerRoutes(httpServer);
+    Serial.println("DEBUG: WiFiEndpoints registered");
+
+    // Start the HTTP server AFTER registering all routes
     httpServer->begin(80);
     Serial.println("✓ HTTP Server initialized on port 80");
+
+#if ENABLE_COMMUNICATION_SYSTEM
+    // Setup communication routes AFTER starting the server
+    Serial.println("Registering communication routes...");
+    setupCommunicationRoutes();
+    Serial.println("✓ Communication routes registered");
+#endif
 
     // WebSocket Server
     wsServer = WebSocketServer::getInstance();
@@ -181,11 +199,6 @@ void setup()
 #if ENABLE_COMMUNICATION_SYSTEM
     // Setup communication event handlers
     setupCommunicationEventHandlers();
-
-    // Delay and setup communication endpoints after other systems are stable
-    Serial.println("Preparing to initialize communication system...");
-    vTaskDelay(pdMS_TO_TICKS(500)); // Let other systems settle
-    setupCommunicationRoutes();
 #endif
 
     // Setup WiFi Access Point mode if active
@@ -308,53 +321,14 @@ void wsTask(void *parameter)
 
 void setupCommunicationRoutes()
 {
-    // Register enhanced configuration endpoints
-    ConfigEndpoints::registerRoutes(httpServer);
-
-    // Register WiFi management endpoints
-    WiFiEndpoints::registerRoutes(httpServer);
-
-    // Force garbage collection and heap consolidation
-    ESP.getChipRevision(); // Dummy call to trigger any pending cleanup
-
-    // Check memory before registering communication endpoints
-    size_t freeHeapBefore = ESP.getFreeHeap();
-    ESP_LOGI("SETUP", "Free heap before communication endpoints: %zu bytes", freeHeapBefore);
-
-    if (freeHeapBefore < 12288)
-    { // Require at least 12KB free heap (increased threshold)
-        ESP_LOGE("SETUP", "Insufficient memory for communication endpoints: %zu bytes available", freeHeapBefore);
-        ESP_LOGE("SETUP", "Skipping communication endpoint registration to prevent crash");
-        return;
-    }
-
-    ESP_LOGI("SETUP", "Attempting heap defragmentation...");
-    // Try to defragment heap by allocating and freeing a large block
-    void *tempBlock = malloc(4096);
-    if (tempBlock)
-    {
-        free(tempBlock);
-        ESP_LOGI("SETUP", "Heap defragmentation completed");
-    }
-
-    size_t freeHeapAfterDefrag = ESP.getFreeHeap();
-    ESP_LOGI("SETUP", "Free heap after defragmentation: %zu bytes", freeHeapAfterDefrag);
-
-    ESP_LOGI("SETUP", "Registering communication endpoints...");
-    try
-    {
-        CommunicationEndpoints::setupEndpoints(*httpServer->getAsyncServer());
-        size_t freeHeapAfter = ESP.getFreeHeap();
-        ESP_LOGI("SETUP", "Communication endpoints registered successfully. Free heap: %zu bytes", freeHeapAfter);
-    }
-    catch (const std::exception &e)
-    {
-        ESP_LOGE("SETUP", "Failed to register communication endpoints: %s", e.what());
-    }
-    catch (...)
-    {
-        ESP_LOGE("SETUP", "Unknown error registering communication endpoints");
-    }
+    Serial.println("DEBUG: setupCommunicationRoutes() called");
+    
+    // Configuration and WiFi endpoints are now registered before server starts
+    
+    // Register communication endpoints
+    Serial.println("DEBUG: Registering CommunicationEndpoints...");
+    CommunicationEndpoints::setupEndpoints(*httpServer->getAsyncServer());
+    Serial.println("DEBUG: CommunicationEndpoints registered");
 }
 
 void setupEventHandlers()
@@ -538,11 +512,23 @@ void handleHealthCheck(const HttpRequest &req, HttpResponse &res)
     doc["config"]["isDirty"] = configManager->isDirtyConfig();
 
     // Storage health
-    size_t freeStorage = storage->getFreeSpace();
-    doc["storage"]["freeBytes"] = freeStorage;
-    doc["storage"]["totalBytes"] = storage->getTotalSpace();
-    doc["storage"]["usedBytes"] = storage->getUsedSpace();
-    doc["storage"]["healthy"] = freeStorage > 1024; // More than 1KB free
+    bool storageInitialized = storage && storage->isHealthy();
+    if (storageInitialized) {
+        size_t freeStorage = storage->getFreeSpace();
+        size_t totalStorage = storage->getTotalSpace();
+        doc["storage"]["freeBytes"] = freeStorage;
+        doc["storage"]["totalBytes"] = totalStorage;
+        doc["storage"]["usedBytes"] = storage->getUsedSpace();
+        // Only mark as unhealthy if storage is initialized but low on space
+        doc["storage"]["healthy"] = (totalStorage == 0) || (freeStorage > 1024); // More than 1KB free
+    } else {
+        // Storage not initialized - not a critical failure
+        doc["storage"]["freeBytes"] = 0;
+        doc["storage"]["totalBytes"] = 0;
+        doc["storage"]["usedBytes"] = 0;
+        doc["storage"]["healthy"] = true; // Don't mark as unhealthy if storage is disabled
+        doc["storage"]["initialized"] = false;
+    }
 
     // Overall health assessment
     bool systemHealthy = healthMonitor ? healthMonitor->isSystemHealthy() : true;

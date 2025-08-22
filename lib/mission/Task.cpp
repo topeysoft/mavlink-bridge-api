@@ -215,58 +215,7 @@ TaskStorageResult Task::addReturnToLaunchWaypoint() {
     return addWaypoint(wp);
 }
 
-TaskStorageResult Task::generateMowingPattern(double centerLat, double centerLng, 
-                                            float width, float height, float spacing, 
-                                            float altitude, float speed) {
-    TaskStorageResult result = ensureDecompressed();
-    if (result != TaskStorageResult::SUCCESS) {
-        return result;
-    }
-    
-    waypoints.clear();
-    
-    if (speed <= 0) speed = parameters.speed;
-    
-    // Convert to meters (approximate)
-    const double metersPerDegreeLat = 111000.0;
-    const double metersPerDegreeLng = 111000.0 * cos(centerLat * M_PI / 180.0);
-    
-    double latStep = spacing / metersPerDegreeLat;
-    double lngOffset = width / 2.0 / metersPerDegreeLng;
-    
-    int numPasses = (int)(height / spacing) + 1;
-    bool leftToRight = true;
-    
-    for (int i = 0; i < numPasses; i++) {
-        double currentLat = centerLat - (height / 2.0 / metersPerDegreeLat) + (i * latStep);
-        
-        TaskWaypoint wp1, wp2;
-        wp1.latitude = currentLat;
-        wp1.longitude = leftToRight ? (centerLng - lngOffset) : (centerLng + lngOffset);
-        wp1.altitude = altitude;
-        wp1.speed = speed;
-        
-        wp2.latitude = currentLat;
-        wp2.longitude = leftToRight ? (centerLng + lngOffset) : (centerLng - lngOffset);
-        wp2.altitude = altitude;
-        wp2.speed = speed;
-        
-        waypoints.push_back(wp1);
-        waypoints.push_back(wp2);
-        
-        leftToRight = !leftToRight;
-    }
-    
-    updateModifiedTime();
-    return TaskStorageResult::SUCCESS;
-}
-
-TaskStorageResult Task::generateSurveyPattern(double centerLat, double centerLng, 
-                                            float width, float height, float spacing, 
-                                            float altitude, bool backAndForth) {
-    // Similar to mowing pattern but optimized for surveying
-    return generateMowingPattern(centerLat, centerLng, width, height, spacing, altitude, parameters.speed);
-}
+// Pattern generation methods removed - moved to client-side for performance optimization
 
 TaskStorageResult Task::toJson(String& jsonString, bool includeWaypoints) const {
     DynamicJsonDocument doc(8192);
@@ -434,13 +383,72 @@ TaskStorageResult Task::validate() const {
         return TaskStorageResult::INVALID_DATA;
     }
     
-    // Validate waypoints
+    // Enhanced safety validation for waypoints
     if (!isCompressed) {
         for (const auto& wp : waypoints) {
+            // Geographic bounds validation
             if (abs(wp.latitude) > 90.0 || abs(wp.longitude) > 180.0) {
                 return TaskStorageResult::INVALID_DATA;
             }
+            
+            // Altitude safety limits
+            if (wp.altitude < 0.0 || wp.altitude > 120.0) { // Max 120m altitude
+                return TaskStorageResult::INVALID_DATA;
+            }
+            
+            // Speed safety limits
+            if (wp.speed < 0.0 || wp.speed > 15.0) { // Max 15 m/s speed
+                return TaskStorageResult::INVALID_DATA;
+            }
+            
+            // Acceptance radius validation
+            if (wp.acceptanceRadius < 0.0 || wp.acceptanceRadius > 100.0) {
+                return TaskStorageResult::INVALID_DATA;
+            }
         }
+        
+        // Validate waypoint density (prevent excessive waypoints)
+        if (waypoints.size() > 1000) { // Max 1000 waypoints
+            return TaskStorageResult::INVALID_DATA;
+        }
+        
+        // Validate distance between consecutive waypoints
+        for (size_t i = 1; i < waypoints.size(); i++) {
+            const TaskWaypoint& wp1 = waypoints[i-1];
+            const TaskWaypoint& wp2 = waypoints[i];
+            
+            // Calculate distance using Haversine formula
+            double dlat = (wp2.latitude - wp1.latitude) * M_PI / 180.0;
+            double dlng = (wp2.longitude - wp1.longitude) * M_PI / 180.0;
+            double a = sin(dlat/2) * sin(dlat/2) + 
+                      cos(wp1.latitude * M_PI / 180.0) * cos(wp2.latitude * M_PI / 180.0) *
+                      sin(dlng/2) * sin(dlng/2);
+            double c = 2 * atan2(sqrt(a), sqrt(1-a));
+            double distance = 6371000 * c; // Earth radius in meters
+            
+            // Minimum distance check (prevent excessively close waypoints)
+            if (distance < 0.1) { // Minimum 10cm between waypoints
+                return TaskStorageResult::INVALID_DATA;
+            }
+            
+            // Maximum distance check (prevent excessively far waypoints)
+            if (distance > 10000) { // Maximum 10km between waypoints
+                return TaskStorageResult::INVALID_DATA;
+            }
+        }
+    }
+    
+    // Task parameter validation
+    if (parameters.speed < 0.1 || parameters.speed > 15.0) {
+        return TaskStorageResult::INVALID_DATA;
+    }
+    
+    if (parameters.altitude < 0.0 || parameters.altitude > 120.0) {
+        return TaskStorageResult::INVALID_DATA;
+    }
+    
+    if (parameters.maxExecutionTime > 86400) { // Max 24 hours
+        return TaskStorageResult::INVALID_DATA;
     }
     
     return TaskStorageResult::SUCCESS;
@@ -450,44 +458,66 @@ bool Task::isValid() const {
     return validate() == TaskStorageResult::SUCCESS;
 }
 
-float Task::calculateTotalDistance() const {
-    if (isCompressed || waypoints.size() < 2) {
-        return 0.0f;
+TaskStorageResult Task::validateForExecution() const {
+    // First run standard validation
+    TaskStorageResult result = validate();
+    if (result != TaskStorageResult::SUCCESS) {
+        return result;
     }
     
-    float totalDistance = 0.0f;
-    
-    for (size_t i = 1; i < waypoints.size(); i++) {
-        const TaskWaypoint& wp1 = waypoints[i-1];
-        const TaskWaypoint& wp2 = waypoints[i];
+    // Additional execution-specific safety checks
+    if (!isCompressed && waypoints.size() > 0) {
+        // Check for reasonable task execution time
+        float totalDistance = 0.0f;
+        for (size_t i = 1; i < waypoints.size(); i++) {
+            const TaskWaypoint& wp1 = waypoints[i-1];
+            const TaskWaypoint& wp2 = waypoints[i];
+            
+            // Calculate distance using Haversine formula
+            double dlat = (wp2.latitude - wp1.latitude) * M_PI / 180.0;
+            double dlng = (wp2.longitude - wp1.longitude) * M_PI / 180.0;
+            double a = sin(dlat/2) * sin(dlat/2) + 
+                      cos(wp1.latitude * M_PI / 180.0) * cos(wp2.latitude * M_PI / 180.0) *
+                      sin(dlng/2) * sin(dlng/2);
+            double c = 2 * atan2(sqrt(a), sqrt(1-a));
+            totalDistance += 6371000 * c;
+        }
         
-        // Haversine formula for distance calculation
-        double dlat = (wp2.latitude - wp1.latitude) * M_PI / 180.0;
-        double dlng = (wp2.longitude - wp1.longitude) * M_PI / 180.0;
-        double a = sin(dlat/2) * sin(dlat/2) + 
-                  cos(wp1.latitude * M_PI / 180.0) * cos(wp2.latitude * M_PI / 180.0) *
-                  sin(dlng/2) * sin(dlng/2);
-        double c = 2 * atan2(sqrt(a), sqrt(1-a));
-        double distance = 6371000 * c; // Earth radius in meters
+        // Estimated execution time check (prevent excessive missions)
+        float estimatedTime = totalDistance / parameters.speed;
+        if (estimatedTime > parameters.maxExecutionTime) {
+            return TaskStorageResult::INVALID_DATA; // Mission too long
+        }
         
-        totalDistance += distance;
+        // Battery range check (simplified - assume 10km max range)
+        if (totalDistance > 10000) {
+            return TaskStorageResult::INVALID_DATA; // Mission exceeds safe range
+        }
+        
+        // Check for safe return path (simplified - ensure mission doesn't end too far from start)
+        if (waypoints.size() >= 2) {
+            const TaskWaypoint& start = waypoints[0];
+            const TaskWaypoint& end = waypoints[waypoints.size() - 1];
+            
+            double dlat = (end.latitude - start.latitude) * M_PI / 180.0;
+            double dlng = (end.longitude - start.longitude) * M_PI / 180.0;
+            double a = sin(dlat/2) * sin(dlat/2) + 
+                      cos(start.latitude * M_PI / 180.0) * cos(end.latitude * M_PI / 180.0) *
+                      sin(dlng/2) * sin(dlng/2);
+            double c = 2 * atan2(sqrt(a), sqrt(1-a));
+            double returnDistance = 6371000 * c;
+            
+            // If return distance is too far and returnToLaunch is enabled, it's unsafe
+            if (parameters.returnToLaunch && returnDistance > 5000) { // Max 5km return distance
+                return TaskStorageResult::INVALID_DATA;
+            }
+        }
     }
     
-    return totalDistance;
+    return TaskStorageResult::SUCCESS;
 }
 
-uint32_t Task::calculateEstimatedTime() const {
-    if (metadata.estimatedDuration > 0) {
-        return metadata.estimatedDuration;
-    }
-    
-    float distance = calculateTotalDistance();
-    if (distance <= 0 || parameters.speed <= 0) {
-        return 0;
-    }
-    
-    return (uint32_t)(distance / parameters.speed);
-}
+// Distance and time calculation methods removed - moved to client-side for performance optimization
 
 TaskStorageResult Task::ensureDecompressed() {
     if (!isCompressed) {

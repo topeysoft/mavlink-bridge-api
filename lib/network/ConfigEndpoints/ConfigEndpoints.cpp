@@ -4,15 +4,23 @@ ConfigManager* ConfigEndpoints::configManager = nullptr;
 EventManager* ConfigEndpoints::eventManager = nullptr;
 
 void ConfigEndpoints::registerRoutes(HttpServer* server) {
+    Serial.println("DEBUG: ConfigEndpoints::registerRoutes() called");
+    
     if (server == nullptr) {
+        Serial.println("ERROR: HttpServer is nullptr in ConfigEndpoints::registerRoutes");
         return;
     }
     
+    Serial.println("DEBUG: Initializing ConfigEndpoints...");
     initialize();
     
+    Serial.println("DEBUG: Adding /api/config GET route...");
     server->addRoute("/api/config", HttpMethod::GET, handleGetConfig);
+    Serial.println("DEBUG: Adding /api/config POST route...");
     server->addRoute("/api/config", HttpMethod::POST, handlePostConfig);
+    Serial.println("DEBUG: Adding /api/config PATCH route...");
     server->addRoute("/api/config", HttpMethod::PATCH, handlePatchConfig);
+    Serial.println("DEBUG: All ConfigEndpoints routes added");
 }
 
 void ConfigEndpoints::initialize() {

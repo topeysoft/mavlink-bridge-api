@@ -181,13 +181,7 @@ public:
     TaskStorageResult addLoiterWaypoint(double lat, double lng, float alt, float radius, float time);
     TaskStorageResult addReturnToLaunchWaypoint();
     
-    // Grid pattern generation
-    TaskStorageResult generateMowingPattern(double centerLat, double centerLng, 
-                                          float width, float height, float spacing, 
-                                          float altitude, float speed = 0);
-    TaskStorageResult generateSurveyPattern(double centerLat, double centerLng, 
-                                          float width, float height, float spacing, 
-                                          float altitude, bool backAndForth = true);
+    // Grid pattern generation moved to client-side for performance
     
     // Mission conversion
     TaskStorageResult generateMissionItems(std::vector<mavlink_mission_item_int_t>& items) const;
@@ -209,10 +203,9 @@ public:
     // Validation
     TaskStorageResult validate() const;
     bool isValid() const;
+    TaskStorageResult validateForExecution() const; // Enhanced safety validation for execution
     
-    // Statistics
-    float calculateTotalDistance() const;
-    uint32_t calculateEstimatedTime() const;
+    // Statistics moved to client-side for performance
     size_t getMemoryUsage() const;
     float getCompressionRatio() const;
     

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAVLink Commands - Browser Example</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .header {
+            text-align: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .status-panel, .command-panel {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .status-item {
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .status-label {
+            font-weight: bold;
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .status-value {
+            font-size: 18px;
+            color: #333;
+            margin-top: 5px;
+        }
+
+        .command-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+        }
+
+        .command-section h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 10px 0;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: black;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        input, select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .log {
+            background: #000;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .parameter-inputs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .parameter-inputs input {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚁 MAVLink Commands</h1>
+        <p>Send commands to your flight controller through MAVLinkBridge</p>
+        <div>
+            <label for="deviceUrl">Device URL:</label>
+            <input type="text" id="deviceUrl" value="http://192.168.4.1" style="margin: 0 10px;">
+            <button id="connectBtn" class="btn-primary">Connect</button>
+            <span id="connectionStatus" class="connection-status disconnected">Disconnected</span>
+        </div>
+    </div>
+
+    <div class="status-panel">
+        <h2>📊 Device Status</h2>
+        <div class="status-grid">
+            <div class="status-item">
+                <div class="status-label">Status</div>
+                <div class="status-value" id="deviceStatus">Unknown</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">Free Heap</div>
+                <div class="status-value" id="freeHeap">-</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">Active Interface</div>
+                <div class="status-value" id="activeInterface">-</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">Data Rate</div>
+                <div class="status-value" id="dataRate">-</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="command-panel">
+        <h2>🎮 MAVLink Commands</h2>
+
+        <div class="command-section">
+            <h3>Basic Commands</h3>
+            <div class="button-group">
+                <button class="btn-success" onclick="sendArm()">✈️ ARM</button>
+                <button class="btn-danger" onclick="sendDisarm()">🛑 DISARM</button>
+                <button class="btn-warning" onclick="sendRTL()">🏠 Return to Launch</button>
+                <button class="btn-warning" onclick="sendLand()">🛬 Land</button>
+                <button class="btn-primary" onclick="sendSetHome()">📍 Set Home Here</button>
+            </div>
+        </div>
+
+        <div class="command-section">
+            <h3>Flight Modes</h3>
+            <div class="input-group">
+                <label>Mode:</label>
+                <select id="flightMode">
+                    <option value="0">Stabilize</option>
+                    <option value="1">Acro</option>
+                    <option value="2">Alt Hold</option>
+                    <option value="3">Auto</option>
+                    <option value="4">Guided</option>
+                    <option value="5">Loiter</option>
+                    <option value="6">RTL</option>
+                    <option value="7">Circle</option>
+                    <option value="9">Land</option>
+                </select>
+                <button class="btn-primary" onclick="sendSetMode()">Set Mode</button>
+            </div>
+        </div>
+
+        <div class="command-section">
+            <h3>Position Target (Local NED)</h3>
+            <div class="parameter-inputs">
+                <input type="number" id="posX" placeholder="X (North)" value="10" step="0.1">
+                <input type="number" id="posY" placeholder="Y (East)" value="5" step="0.1">
+                <input type="number" id="posZ" placeholder="Z (Down)" value="-20" step="0.1">
+                <input type="number" id="posYaw" placeholder="Yaw (rad)" value="0" step="0.1">
+            </div>
+            <button class="btn-primary" onclick="sendPositionTarget()">Set Position Target</button>
+        </div>
+
+        <div class="command-section">
+            <h3>Custom Command Long</h3>
+            <div class="parameter-inputs">
+                <input type="number" id="cmdId" placeholder="Command ID" value="400">
+                <input type="number" id="param1" placeholder="Param 1" value="0" step="0.1">
+                <input type="number" id="param2" placeholder="Param 2" value="0" step="0.1">
+                <input type="number" id="param3" placeholder="Param 3" value="0" step="0.1">
+                <input type="number" id="param4" placeholder="Param 4" value="0" step="0.1">
+            </div>
+            <button class="btn-primary" onclick="sendCustomCommand()">Send Command</button>
+        </div>
+
+        <div class="command-section">
+            <h3>System Commands</h3>
+            <div class="button-group">
+                <button class="btn-primary" onclick="requestCapabilities()">📋 Request Capabilities</button>
+                <button class="btn-warning" onclick="calibrateGyro()">⚖️ Calibrate Gyro</button>
+                <button class="btn-primary" onclick="refreshStatus()">🔄 Refresh Status</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="status-panel">
+        <h2>📝 Command Log</h2>
+        <div id="log" class="log"></div>
+        <button onclick="clearLog()" style="margin-top: 10px;">Clear Log</button>
+    </div>
+
+    <script type="module">
+        // Since we can't import the actual client in a simple HTML file,
+        // we'll simulate the MAVLink client functionality using direct HTTP calls
+        
+        let isConnected = false;
+        let deviceUrl = '';
+
+        // UI Helper functions
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            logDiv.innerHTML += `[${timestamp}] ${prefix} ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateConnectionStatus(connected) {
+            isConnected = connected;
+            const statusEl = document.getElementById('connectionStatus');
+            const connectBtn = document.getElementById('connectBtn');
+            
+            if (connected) {
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'connection-status connected';
+                connectBtn.textContent = 'Disconnect';
+                connectBtn.className = 'btn-danger';
+            } else {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'connection-status disconnected';
+                connectBtn.textContent = 'Connect';
+                connectBtn.className = 'btn-primary';
+            }
+        }
+
+        function updateDeviceStatus(status) {
+            document.getElementById('deviceStatus').textContent = status.status || 'Unknown';
+            document.getElementById('freeHeap').textContent = status.freeHeap ? 
+                `${(status.freeHeap / 1024).toFixed(1)} KB` : '-';
+        }
+
+        function updateCommStatus(status) {
+            document.getElementById('activeInterface').textContent = status.activeInterface || '-';
+            document.getElementById('dataRate').textContent = status.upstreamRate ? 
+                `${status.upstreamRate.toFixed(1)} B/s` : '-';
+        }
+
+        // HTTP helper function
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            const url = `${deviceUrl}${endpoint}`;
+            const options = {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: body ? JSON.stringify(body) : null
+            };
+
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || `HTTP ${response.status}`);
+                }
+                
+                return data;
+            } catch (error) {
+                log(`API call failed: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // Connection functions
+        async function connect() {
+            deviceUrl = document.getElementById('deviceUrl').value.trim();
+            if (!deviceUrl) {
+                log('Please enter a device URL', 'error');
+                return;
+            }
+
+            try {
+                log(`Connecting to ${deviceUrl}...`);
+                const health = await apiCall('/api/health');
+                updateDeviceStatus(health);
+                updateConnectionStatus(true);
+                log('Connected successfully!', 'success');
+                
+                // Get communication status
+                try {
+                    const commStatus = await apiCall('/api/communication/status');
+                    updateCommStatus(commStatus);
+                } catch (error) {
+                    log('Could not get communication status', 'error');
+                }
+                
+            } catch (error) {
+                log(`Connection failed: ${error.message}`, 'error');
+                updateConnectionStatus(false);
+            }
+        }
+
+        function disconnect() {
+            updateConnectionStatus(false);
+            log('Disconnected', 'info');
+        }
+
+        // MAVLink command functions
+        async function sendMAVLinkCommand(commandData) {
+            if (!isConnected) {
+                log('Not connected to device', 'error');
+                return;
+            }
+
+            try {
+                log(`Sending ${commandData.commandType} command...`);
+                const response = await apiCall('/api/mavlink/command', 'POST', commandData);
+                log(`Command sent: ${response.commandType} (${response.bytesSent} bytes)`, 'success');
+                return response;
+            } catch (error) {
+                log(`Command failed: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+
+        // Expose functions to global scope for onclick handlers
+        window.connectDevice = async function() {
+            if (isConnected) {
+                disconnect();
+            } else {
+                await connect();
+            }
+        };
+
+        window.sendArm = () => sendMAVLinkCommand({ commandType: 'arm' });
+        window.sendDisarm = () => sendMAVLinkCommand({ commandType: 'disarm' });
+        window.sendRTL = () => sendMAVLinkCommand({ commandType: 'setMode', customMode: 6 });
+        window.sendLand = () => sendMAVLinkCommand({ commandType: 'setMode', customMode: 9 });
+        window.sendSetHome = () => sendMAVLinkCommand({ 
+            commandType: 'commandLong', 
+            command: 179, 
+            param1: 1 
+        });
+
+        window.sendSetMode = () => {
+            const mode = parseInt(document.getElementById('flightMode').value);
+            sendMAVLinkCommand({ commandType: 'setMode', customMode: mode });
+        };
+
+        window.sendPositionTarget = () => {
+            const x = parseFloat(document.getElementById('posX').value);
+            const y = parseFloat(document.getElementById('posY').value);
+            const z = parseFloat(document.getElementById('posZ').value);
+            const yaw = parseFloat(document.getElementById('posYaw').value);
+            
+            sendMAVLinkCommand({
+                commandType: 'setPositionTarget',
+                x, y, z, yaw
+            });
+        };
+
+        window.sendCustomCommand = () => {
+            const command = parseInt(document.getElementById('cmdId').value);
+            const param1 = parseFloat(document.getElementById('param1').value);
+            const param2 = parseFloat(document.getElementById('param2').value);
+            const param3 = parseFloat(document.getElementById('param3').value);
+            const param4 = parseFloat(document.getElementById('param4').value);
+            
+            sendMAVLinkCommand({
+                commandType: 'commandLong',
+                command, param1, param2, param3, param4
+            });
+        };
+
+        window.requestCapabilities = () => sendMAVLinkCommand({
+            commandType: 'commandLong',
+            command: 520,
+            param1: 1
+        });
+
+        window.calibrateGyro = () => sendMAVLinkCommand({
+            commandType: 'commandLong',
+            command: 241,
+            param1: 1
+        });
+
+        window.refreshStatus = async function() {
+            if (!isConnected) return;
+            
+            try {
+                const health = await apiCall('/api/health');
+                updateDeviceStatus(health);
+                
+                const commStatus = await apiCall('/api/communication/status');
+                updateCommStatus(commStatus);
+                
+                log('Status refreshed', 'success');
+            } catch (error) {
+                log(`Status refresh failed: ${error.message}`, 'error');
+            }
+        };
+
+        window.clearLog = () => {
+            document.getElementById('log').innerHTML = '';
+        };
+
+        // Set up event listeners
+        document.getElementById('connectBtn').onclick = window.connectDevice;
+
+        // Initial log message
+        log('MAVLink Commands Example ready. Enter device URL and click Connect.');
+    </script>
+</body>
+</html>

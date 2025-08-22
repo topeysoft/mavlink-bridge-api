@@ -250,6 +250,39 @@ export interface SurveyPatternOptions {
   backAndForth?: boolean;
 }
 
+export interface SpiralPatternOptions {
+  centerLat: number;
+  centerLng: number;
+  radius: number;
+  spacing: number;
+  altitude: number;
+  clockwise?: boolean;
+}
+
+export interface PerimeterPatternOptions {
+  centerLat: number;
+  centerLng: number;
+  width: number;
+  height: number;
+  altitude: number;
+  buffer?: number; // Distance from perimeter
+}
+
+export interface CustomPolygonPatternOptions {
+  vertices: Array<{lat: number, lng: number}>;
+  spacing: number;
+  altitude: number;
+  fillPattern?: 'parallel' | 'spiral' | 'zigzag';
+}
+
+export interface PatternOptimizationOptions {
+  minimizeDistance?: boolean;
+  avoidObstacles?: Array<{lat: number, lng: number, radius: number}>;
+  windDirection?: number; // degrees
+  terrainFollowing?: boolean;
+  batteryOptimized?: boolean;
+}
+
 export interface TaskEventPayload {
   type: 'task_created' | 'task_updated' | 'task_deleted' | 
         'task_execution_started' | 'task_execution_progress' | 'task_execution_paused' |
@@ -324,7 +357,7 @@ export function createWaypoint(options: CreateWaypointOptions): TaskWaypoint {
     longitude: options.lng,
     altitude: options.alt,
     speed: options.speed || 0,
-    yaw: options.yaw,
+    yaw: options.yaw || 0,
     acceptanceRadius: options.acceptanceRadius || 0,
     command: options.command || 16, // MAV_CMD_NAV_WAYPOINT
     param1: options.param1 || 0,

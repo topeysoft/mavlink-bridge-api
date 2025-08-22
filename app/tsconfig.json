@@ -1,0 +1,13 @@
+{
+  "extends": "./.quasar/tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./../src/*"],
+      "@components/*": ["./../src/components/*"],
+      "@stores/*": ["./../src/stores/*"],
+      "@composables/*": ["./../src/composables/*"],
+      "@utils/*": ["./../src/utils/*"],
+      "@types/*": ["./../src/types/*"]
+    }
+  }
+}

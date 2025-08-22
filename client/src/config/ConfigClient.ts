@@ -9,9 +9,9 @@ import {
   ConfigValidationError,
   StorageError
 } from './ConfigTypes';
-import * as jsonpatch from 'fast-json-patch';
+import * as fastJsonPatch from 'fast-json-patch';
 
-type Operation = jsonpatch.Operation;
+type Operation = fastJsonPatch.Operation;
 
 /**
  * Client for configuration management operations
@@ -128,7 +128,7 @@ export class ConfigClient {
 
     // Create a deep copy and apply patch
     const configCopy = JSON.parse(JSON.stringify(config));
-    const result = jsonpatch.applyPatch(configCopy, patches, false, false);
+    const result = fastJsonPatch.applyPatch(configCopy, patches, false, false);
 
     // Check if any patches failed
     const hasErrors = result.some((r: any) => r && typeof r === 'object' && 'error' in r);

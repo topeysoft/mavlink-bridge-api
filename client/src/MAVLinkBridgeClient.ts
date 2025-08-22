@@ -7,6 +7,7 @@ import { HealthClient } from './health/HealthClient';
 import { CommunicationClient } from './communication/CommunicationClient';
 import { MAVLinkCommandClient } from './mavlink/MAVLinkCommandClient';
 import { MAVLinkMissionClient } from './mavlink/MAVLinkMissionClient';
+import { MAVLinkParameterClient } from './mavlink/parameters/MAVLinkParameterClient';
 import { TaskClient } from './tasks/TaskClient';
 import { EventType, EventHandler, StatusPayload, ConfigChangedPayload, RTCMDataPayload, ErrorPayload, LogPayload, WiFiConnectedPayload, WiFiDisconnectedPayload, WiFiSignalUpdatePayload } from './core/EventTypes';
 import { Configuration, HealthResponse, WiFiCredentials } from './config/ConfigTypes';
@@ -40,6 +41,7 @@ export class MAVLinkBridgeClient {
   private readonly commClient: CommunicationClient;
   private readonly mavlinkClient: MAVLinkCommandClient;
   private readonly missionClient: MAVLinkMissionClient;
+  private readonly parameterClient: MAVLinkParameterClient;
   private readonly taskClient: TaskClient;
   private readonly options: Required<MAVLinkBridgeClientOptions>;
 
@@ -85,6 +87,9 @@ export class MAVLinkBridgeClient {
     
     // Initialize MAVLink mission client
     this.missionClient = new MAVLinkMissionClient(this.httpClient, this.wsClient);
+    
+    // Initialize MAVLink parameter client
+    this.parameterClient = new MAVLinkParameterClient(this.httpClient);
     
     // Initialize task client
     this.taskClient = new TaskClient(this.httpClient, this.wsClient);
@@ -194,6 +199,34 @@ export class MAVLinkBridgeClient {
    */
   get communication(): CommunicationClient {
     return this.commClient;
+  }
+
+  /**
+   * Get MAVLink command client for flight controller commands
+   */
+  get mavlink(): MAVLinkCommandClient {
+    return this.mavlinkClient;
+  }
+
+  /**
+   * Get MAVLink mission client for mission management
+   */
+  get mission(): MAVLinkMissionClient {
+    return this.missionClient;
+  }
+
+  /**
+   * Get MAVLink parameter client for parameter management
+   */
+  get parameters(): MAVLinkParameterClient {
+    return this.parameterClient;
+  }
+
+  /**
+   * Get task client for task management
+   */
+  get tasks(): TaskClient {
+    return this.taskClient;
   }
 
   /**
@@ -461,27 +494,6 @@ export class MAVLinkBridgeClient {
   }
 
   // MAVLink Commands
-
-  /**
-   * Get MAVLink command client for sending commands to flight controller
-   */
-  get mavlink(): MAVLinkCommandClient {
-    return this.mavlinkClient;
-  }
-
-  /**
-   * Get MAVLink mission client for mission management operations
-   */
-  get mission(): MAVLinkMissionClient {
-    return this.missionClient;
-  }
-
-  /**
-   * Get task client for high-level task management operations
-   */
-  get tasks(): TaskClient {
-    return this.taskClient;
-  }
 
   /**
    * Get WebSocket connection state

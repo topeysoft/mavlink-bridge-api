@@ -31,6 +31,12 @@ private:
     static void handleClearMAVLinkFilter(AsyncWebServerRequest* request);
     static void handleSendMAVLinkCommand(AsyncWebServerRequest* request);
     
+    // Parameter management endpoints
+    static void handleParameterStream(AsyncWebServerRequest* request);
+    static void handleRequestParameters(AsyncWebServerRequest* request);
+    static void handleSetParameter(AsyncWebServerRequest* request);
+    static void handleRequestParameterList(AsyncWebServerRequest* request);
+    
     static void handleSendData(AsyncWebServerRequest* request);
     static void handleResetStatistics(AsyncWebServerRequest* request);
     static void handleRestart(AsyncWebServerRequest* request);
