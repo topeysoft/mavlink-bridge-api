@@ -119,7 +119,8 @@ void CommunicationEndpoints::handleUpdateConfiguration(AsyncWebServerRequest* re
     DataRouter* router = DataRouter::getInstance();
     
     if (doc.containsKey("routingMode")) {
-        DataRouter::RoutingMode mode = stringToRoutingMode(doc["routingMode"]);
+        const char* modeStr = doc["routingMode"];
+        DataRouter::RoutingMode mode = stringToRoutingMode(String(modeStr));
         router->setRoutingMode(mode);
     }
     
@@ -178,7 +179,8 @@ void CommunicationEndpoints::handleSetRoutingMode(AsyncWebServerRequest* request
         return;
     }
     
-    DataRouter::RoutingMode mode = stringToRoutingMode(doc["mode"]);
+    const char* modeStr = doc["mode"];
+    DataRouter::RoutingMode mode = stringToRoutingMode(String(modeStr));
     DataRouter* router = DataRouter::getInstance();
     router->setRoutingMode(mode);
     
@@ -200,7 +202,8 @@ void CommunicationEndpoints::handleSwitchInterface(AsyncWebServerRequest* reques
         return;
     }
     
-    DataRouter::Interface iface = stringToInterface(doc["interface"]);
+    const char* ifaceStr = doc["interface"];
+    DataRouter::Interface iface = stringToInterface(String(ifaceStr));
     DataRouter* router = DataRouter::getInstance();
     
     if (router->switchInterface(iface)) {
@@ -250,7 +253,8 @@ void CommunicationEndpoints::handleTestInterface(AsyncWebServerRequest* request)
         return;
     }
     
-    DataRouter::Interface iface = stringToInterface(doc["interface"]);
+    const char* ifaceStr = doc["interface"];
+    DataRouter::Interface iface = stringToInterface(String(ifaceStr));
     bool success = false;
     
     switch (iface) {
@@ -399,7 +403,8 @@ void CommunicationEndpoints::handleSendData(AsyncWebServerRequest* request) {
         return;
     }
     
-    String data = doc["data"];
+    const char* dataStr = doc["data"];
+    String data = String(dataStr);
     DataRouter* router = DataRouter::getInstance();
     
     router->routeDownstream((uint8_t*)data.c_str(), data.length());
@@ -667,7 +672,8 @@ void CommunicationEndpoints::handleSendMAVLinkCommand(AsyncWebServerRequest* req
         return;
     }
     
-    String commandType = doc["commandType"];
+    const char* cmdTypeStr = doc["commandType"];
+    String commandType = String(cmdTypeStr);
     uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;
     uint8_t targetComponent = doc.containsKey("targetComponent") ? doc["targetComponent"].as<uint8_t>() : 1;
     
@@ -824,7 +830,7 @@ void CommunicationEndpoints::handleRequestParameters(AsyncWebServerRequest* requ
     
     if (doc.containsKey("parameterName")) {
         // Request specific parameter by name
-        String paramName = doc["parameterName"].as<String>();
+        String paramName = String(doc["parameterName"].as<const char*>());
         
         if (paramName.length() > 16) {
             sendErrorResponse(request, "Parameter name too long (max 16 characters)");
@@ -899,7 +905,7 @@ void CommunicationEndpoints::handleSetParameter(AsyncWebServerRequest* request) 
         return;
     }
     
-    String paramName = doc["parameterName"].as<String>();
+    String paramName = String(doc["parameterName"].as<const char*>());
     float paramValue = doc["value"].as<float>();
     uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;
     uint8_t targetComponent = doc.containsKey("targetComponent") ? doc["targetComponent"].as<uint8_t>() : 1;

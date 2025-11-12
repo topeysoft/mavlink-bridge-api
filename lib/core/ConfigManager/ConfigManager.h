@@ -5,6 +5,7 @@
 #include <ArduinoJson.h>
 #include <functional>
 #include "../Storage/Storage.h"
+#include "../NVSManager/NVSManager.h"
 
 struct DeviceConfig {
     String name;
@@ -13,28 +14,16 @@ struct DeviceConfig {
     DeviceConfig() : name("ESP32-MAVLinkBridge"), mode("usb_otg") {}
 };
 
-struct SavedNetwork {
-    String ssid;
-    String password;
-    uint8_t priority;
-    
-    SavedNetwork() : ssid(""), password(""), priority(0) {}
-    SavedNetwork(const String& s, const String& p, uint8_t pr = 0) 
-        : ssid(s), password(p), priority(pr) {}
-};
-
 struct WiFiConfig {
-    String ssid;
+    String ssid;           // Currently saved network SSID
+    String password;       // Currently saved network password
     bool autoConnect;
     bool apModeEnabled;
     String apSSID;
     String apPassword;
-    SavedNetwork networks[5];
-    uint8_t networkCount;
     
-    WiFiConfig() : ssid(""), autoConnect(true), apModeEnabled(true), 
-                   apSSID("MAVLinkBridge-Setup"), apPassword("mavlinkbridge123"), 
-                   networkCount(0) {}
+    WiFiConfig() : ssid(""), password(""), autoConnect(true), apModeEnabled(true), 
+                   apSSID("MAVLinkBridge-Setup"), apPassword("mavlinkbridge123") {}
 };
 
 struct ConnectionConfig {
@@ -55,10 +44,21 @@ struct RTCMSourceConfig {
     RTCMSourceConfig() : type("ntrip"), host(""), port(2101), mountpoint(""), username(""), password("") {}
 };
 
+struct RTCMOutputConfig {
+    String name;
+    String protocol;   // "raw" or "mavlink"
+    String transport;  // "tcp", "udp", "espnow", "serial"
+    bool enabled;
+    DynamicJsonDocument params;  // Transport-specific parameters
+
+    RTCMOutputConfig() : name(""), protocol("raw"), transport("serial"), enabled(true), params(512) {}
+};
+
 struct RTCMConfig {
     bool enabled;
     RTCMSourceConfig source;
-    
+    std::vector<RTCMOutputConfig> outputs;  // Multiple output targets
+
     RTCMConfig() : enabled(false) {}
 };
 
@@ -110,6 +110,7 @@ private:
     
     ConfigChangeHandler changeHandler;
     Storage* storage;
+    NVSManager* nvsManager;
     
     void setDefaults();
     bool validateDeviceConfig(const DeviceConfig& config) const;
@@ -173,4 +174,8 @@ public:
     DynamicJsonDocument& getConfigDoc() { return configDoc; }
     char* getConfigBuffer() { return configBuffer; }
     size_t getBufferSize() const { return CONFIG_BUFFER_SIZE; }
+    
+    // NVS integration
+    bool syncCriticalConfigsToNVS();
+    bool loadCriticalConfigsFromNVS();
 };

@@ -1,5 +1,6 @@
 #include "Storage.h"
 #include <esp_crc.h>
+#include <algorithm>
 
 const char* StorageConfig::CONFIG_FILE = "/config.json";
 const char* StorageConfig::BACKUP_PREFIX = "/config_backup_";
@@ -37,13 +38,13 @@ StorageResult Storage::begin() {
         return StorageResult::FILESYSTEM_ERROR;
     }
     
-    Serial.println("Storage::begin() - Attempting to mount FFat filesystem");
-    // Try with partition label first, then without
-    if (!FFat.begin(true, "/config")) {
-        Serial.println("Storage::begin() - Failed with label '/config', trying default label");
-        if (!FFat.begin(true)) {
-            setLastError("Failed to initialize FFat");
-            Serial.println("Storage::begin() - ERROR: FFat.begin() failed");
+    Serial.println("Storage::begin() - Attempting to mount LittleFS filesystem");
+    // Mount LittleFS on the config partition
+    if (!LittleFS.begin(true, "/config", 5, "config")) {
+        Serial.println("Storage::begin() - Failed with partition label 'config', trying default mount");
+        if (!LittleFS.begin(true)) {
+            setLastError("Failed to initialize LittleFS");
+            Serial.println("Storage::begin() - ERROR: LittleFS.begin() failed");
             Serial.println("Storage::begin() - This might be due to missing partition or first boot");
             vSemaphoreDelete(storageMutex);
             storageMutex = nullptr;
@@ -51,17 +52,17 @@ StorageResult Storage::begin() {
         }
     }
     
-    Serial.printf("Storage::begin() - FFat mounted successfully\n");
-    Serial.printf("Storage::begin() - Total bytes: %zu\n", FFat.totalBytes());
-    Serial.printf("Storage::begin() - Used bytes: %zu\n", FFat.usedBytes());
-    Serial.printf("Storage::begin() - Free bytes: %zu\n", FFat.totalBytes() - FFat.usedBytes());
+    Serial.printf("Storage::begin() - LittleFS mounted successfully\n");
+    Serial.printf("Storage::begin() - Total bytes: %zu\n", LittleFS.totalBytes());
+    Serial.printf("Storage::begin() - Used bytes: %zu\n", LittleFS.usedBytes());
+    Serial.printf("Storage::begin() - Free bytes: %zu\n", LittleFS.totalBytes() - LittleFS.usedBytes());
     
     // Validate filesystem integrity
     StorageResult result = validateFilesystem();
     if (result != StorageResult::SUCCESS) {
         setLastError("Filesystem validation failed");
         Serial.println("Storage::begin() - ERROR: Filesystem validation failed");
-        FFat.end();
+        LittleFS.end();
         vSemaphoreDelete(storageMutex);
         storageMutex = nullptr;
         return result;
@@ -77,7 +78,7 @@ void Storage::end() {
         return;
     }
     
-    FFat.end();
+    LittleFS.end();
     
     if (storageMutex != nullptr) {
         vSemaphoreDelete(storageMutex);
@@ -181,7 +182,7 @@ StorageResult Storage::restoreFromBackup(uint8_t backupIndex) {
     
     if (result == StorageResult::SUCCESS) {
         // Copy backup to main config file
-        File configFile = FFat.open(StorageConfig::CONFIG_FILE, "w");
+        File configFile = LittleFS.open(StorageConfig::CONFIG_FILE, "w");
         if (!configFile) {
             result = StorageResult::WRITE_FAILED;
         } else {
@@ -239,7 +240,7 @@ StorageResult Storage::deleteFile(const String& filePath) {
     
     StorageResult result = StorageResult::SUCCESS;
     
-    if (!FFat.remove(filePath)) {
+    if (!LittleFS.remove(filePath)) {
         result = StorageResult::FILE_NOT_FOUND;
     }
     
@@ -253,8 +254,8 @@ bool Storage::hasValidConfig() {
 }
 
 StorageResult Storage::validateFilesystem() {
-    // Check if FFat is properly mounted
-    File root = FFat.open("/");
+    // Check if LittleFS is properly mounted
+    File root = LittleFS.open("/");
     if (!root) {
         return StorageResult::FILESYSTEM_ERROR;
     }
@@ -271,17 +272,17 @@ StorageResult Storage::validateFilesystem() {
 }
 
 StorageResult Storage::defragment() {
-    // FFat handles wear leveling automatically
+    // LittleFS handles wear leveling automatically
     // This is a placeholder for future optimization
     return StorageResult::SUCCESS;
 }
 
 size_t Storage::getTotalSpace() {
-    return FFat.totalBytes();
+    return LittleFS.totalBytes();
 }
 
 size_t Storage::getUsedSpace() {
-    return FFat.usedBytes();
+    return LittleFS.usedBytes();
 }
 
 size_t Storage::getFreeSpace() {
@@ -294,7 +295,7 @@ bool Storage::isHealthy() {
     }
     
     // Check if filesystem is available
-    if (!FFat.exists("/")) {
+    if (!LittleFS.exists("/")) {
         return false;
     }
     
@@ -323,7 +324,7 @@ uint64_t Storage::getConfigTimestamp() {
         return 0;
     }
     
-    File file = FFat.open(StorageConfig::CONFIG_FILE, "r");
+    File file = LittleFS.open(StorageConfig::CONFIG_FILE, "r");
     if (!file) {
         return 0;
     }
@@ -344,7 +345,7 @@ uint32_t Storage::calculateChecksum(const uint8_t* data, size_t length) {
 }
 
 bool Storage::validateFileIntegrity(const String& filePath) {
-    File file = FFat.open(filePath, "r");
+    File file = LittleFS.open(filePath, "r");
     if (!file) {
         return false;
     }
@@ -363,7 +364,7 @@ bool Storage::validateFileIntegrity(const String& filePath) {
     }
     
     // Read data and verify checksum
-    size_t remainingBytes = min(header.dataSize, (uint32_t)(BUFFER_SIZE - sizeof(FileHeader)));
+    size_t remainingBytes = std::min<size_t>(header.dataSize, BUFFER_SIZE - sizeof(FileHeader));
     bytesRead = file.read(readBuffer, remainingBytes);
     file.close();
     
@@ -389,12 +390,12 @@ StorageResult Storage::createBackup(const String& filePath) {
     // Copy main file to backup_0
     String backupPath = getBackupPath(filePath, 0);
     
-    File sourceFile = FFat.open(filePath, "r");
+    File sourceFile = LittleFS.open(filePath, "r");
     if (!sourceFile) {
         return StorageResult::READ_FAILED;
     }
     
-    File backupFile = FFat.open(backupPath, "w");
+    File backupFile = LittleFS.open(backupPath, "w");
     if (!backupFile) {
         sourceFile.close();
         return StorageResult::WRITE_FAILED;
@@ -403,14 +404,14 @@ StorageResult Storage::createBackup(const String& filePath) {
     size_t totalBytes = 0;
     uint8_t buffer[256];
     while (sourceFile.available()) {
-        size_t bytesToRead = min((size_t)sourceFile.available(), sizeof(buffer));
+        size_t bytesToRead = std::min<size_t>(sourceFile.available(), sizeof(buffer));
         size_t bytesRead = sourceFile.read(buffer, bytesToRead);
         size_t bytesWritten = backupFile.write(buffer, bytesRead);
         
         if (bytesWritten != bytesRead) {
             sourceFile.close();
             backupFile.close();
-            FFat.remove(backupPath);
+            LittleFS.remove(backupPath);
             return StorageResult::WRITE_FAILED;
         }
         
@@ -418,7 +419,7 @@ StorageResult Storage::createBackup(const String& filePath) {
         if (totalBytes > StorageConfig::MAX_FILE_SIZE) {
             sourceFile.close();
             backupFile.close();
-            FFat.remove(backupPath);
+            LittleFS.remove(backupPath);
             return StorageResult::INVALID_SIZE;
         }
     }
@@ -438,11 +439,11 @@ StorageResult Storage::rotateBackups(const String& basePath) {
         if (fileExists(currentPath)) {
             // Remove old backup if it exists
             if (fileExists(nextPath)) {
-                FFat.remove(nextPath);
+                LittleFS.remove(nextPath);
             }
             
             // Rename current to next
-            if (!FFat.rename(currentPath, nextPath)) {
+            if (!LittleFS.rename(currentPath, nextPath)) {
                 return StorageResult::BACKUP_FAILED;
             }
         }
@@ -472,7 +473,7 @@ String Storage::getTempPath(const String& filePath) {
 }
 
 bool Storage::fileExists(const String& filePath) {
-    File file = FFat.open(filePath, "r");
+    File file = LittleFS.open(filePath, "r");
     bool exists = (bool)file;
     if (exists) {
         file.close();
@@ -481,7 +482,7 @@ bool Storage::fileExists(const String& filePath) {
 }
 
 size_t Storage::getFileSize(const String& filePath) {
-    File file = FFat.open(filePath, "r");
+    File file = LittleFS.open(filePath, "r");
     if (!file) {
         return 0;
     }
@@ -502,7 +503,7 @@ StorageResult Storage::writeFileAtomic(const String& filePath, const uint8_t* da
     header.timestamp = esp_timer_get_time();
     
     // Write to temporary file first
-    File tempFile = FFat.open(tempPath, "w");
+    File tempFile = LittleFS.open(tempPath, "w");
     if (!tempFile) {
         return StorageResult::WRITE_FAILED;
     }
@@ -510,22 +511,22 @@ StorageResult Storage::writeFileAtomic(const String& filePath, const uint8_t* da
     // Write header
     if (tempFile.write(reinterpret_cast<const uint8_t*>(&header), sizeof(FileHeader)) != sizeof(FileHeader)) {
         tempFile.close();
-        FFat.remove(tempPath);
+        LittleFS.remove(tempPath);
         return StorageResult::WRITE_FAILED;
     }
     
     // Write data
     if (tempFile.write(data, dataSize) != dataSize) {
         tempFile.close();
-        FFat.remove(tempPath);
+        LittleFS.remove(tempPath);
         return StorageResult::WRITE_FAILED;
     }
     
     tempFile.close();
     
     // Atomically rename temp file to final name
-    if (!FFat.rename(tempPath, filePath)) {
-        FFat.remove(tempPath);
+    if (!LittleFS.rename(tempPath, filePath)) {
+        LittleFS.remove(tempPath);
         return StorageResult::WRITE_FAILED;
     }
     
@@ -541,7 +542,7 @@ StorageResult Storage::readFileWithValidation(const String& filePath, uint8_t* b
         return StorageResult::CORRUPTION_DETECTED;
     }
     
-    File file = FFat.open(filePath, "r");
+    File file = LittleFS.open(filePath, "r");
     if (!file) {
         return StorageResult::READ_FAILED;
     }

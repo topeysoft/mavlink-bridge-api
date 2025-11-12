@@ -4,9 +4,12 @@ import { ConsoleContext } from '../types/index.js';
 import { ClientManager } from '../utils/ClientManager.js';
 import { UIHelpers } from '../core/UIHelpers.js';
 import { ErrorHandler } from '../utils/ErrorHandler.js';
+import { DiscoveryProfileManager } from '../utils/DiscoveryProfileManager.js';
+import type { DiscoveryOptions, MAVLinkBridgeDevice } from '@mavlinkbridge/api-client';
 
 export class DeviceCommands {
   private errorHandler: ErrorHandler;
+  private profileManager: DiscoveryProfileManager;
 
   constructor(
     private context: ConsoleContext,
@@ -14,52 +17,307 @@ export class DeviceCommands {
     private uiHelpers: UIHelpers
   ) {
     this.errorHandler = new ErrorHandler(uiHelpers);
+    this.profileManager = new DiscoveryProfileManager();
   }
 
   public async discoverDevices (): Promise<void> {
     console.log(chalk.blue.bold('\n🔍 Device Discovery'));
     this.uiHelpers.displaySeparator();
 
-    const devices = await this.clientManager.discoverDevices();
+    // Ask user about discovery mode
+    const discoveryMode = await this.uiHelpers.selectFromList(
+      'Select discovery mode:',
+      [
+        { name: '⚡ Quick Scan - Common subnets only', value: 'quick' },
+        { name: '🌐 Full Scan - Auto-detect all local subnets', value: 'full' },
+        { name: '⚙️  Custom Scan - Specify subnets', value: 'custom' },
+        { name: '📁 Load Profile - Use saved configuration', value: 'profile' },
+        { name: '🔙 Back', value: 'back' }
+      ]
+    );
 
-    if (devices.length === 0) {
-      this.uiHelpers.displayWarning('No devices discovered');
+    if (discoveryMode === 'back') {
       return;
     }
 
-    console.log(chalk.green(`\nFound ${devices.length} potential device(s):`));
+    // Configure discovery options based on mode
+    const options = await this.configureDiscoveryOptions(discoveryMode);
+    if (!options) return;
 
-    const table = this.uiHelpers.createTable(['#', 'Device URL', 'Type']);
-    devices.forEach((device, index) => {
-      let type = 'Unknown';
-      if (device.includes('192.168.4.1')) type = 'AP Mode';
-      else if (device.includes('.local')) type = 'mDNS';
-      else type = 'Network';
+    // Add progress callback
+    const progressMessages: string[] = [];
+    const onProgress = (message: string) => {
+      progressMessages.push(message);
+    };
+
+    // Perform discovery
+    const result = await this.clientManager.discoverDevices(options, onProgress);
+
+    if (result.devices.length === 0) {
+      this.uiHelpers.displayWarning('No devices discovered');
+      if (progressMessages.length > 0) {
+        console.log(chalk.gray('\nDiscovery log:'));
+        progressMessages.forEach(msg => console.log(chalk.gray(`  • ${msg}`)));
+      }
+      await this.uiHelpers.pressAnyKey();
+      return;
+    }
+
+    // Display discovery results
+    await this.displayDiscoveryResults(result);
+    
+    await this.uiHelpers.pressAnyKey();
+  }
+
+  private async configureDiscoveryOptions(mode: string): Promise<DiscoveryOptions | null> {
+    const options: DiscoveryOptions = {
+      timeout: 5000,
+      concurrent: 20
+    };
+
+    switch (mode) {
+      case 'quick':
+        // Common home network subnets
+        options.subnets = [
+          '192.168.1.0/24',
+          '192.168.0.0/24',
+          '192.168.4.0/24', // ESP32 AP mode
+          '10.0.0.0/24'
+        ];
+        console.log(chalk.gray('\nScanning common subnets:'));
+        options.subnets.forEach(subnet => console.log(chalk.gray(`  • ${subnet}`)));
+        break;
+
+      case 'full':
+        // Will use auto-detection in the discovery function
+        console.log(chalk.gray('\nAuto-detecting local network subnets...'));
+        break;
+
+      case 'custom':
+        // Ask user for subnets
+        const subnetInput = await this.uiHelpers.getTextInput(
+          'Enter subnet(s) to scan (comma-separated, e.g., 192.168.1.0/24, 10.0.0.0/24):',
+          '192.168.1.0/24',
+          (input) => {
+            if (!input.trim()) {
+              return { valid: false, error: 'Subnet cannot be empty' };
+            }
+            // Basic validation
+            const subnets = input.split(',').map(s => s.trim());
+            for (const subnet of subnets) {
+              if (!subnet.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/)) {
+                return { 
+                  valid: false, 
+                  error: `Invalid subnet format: ${subnet}`,
+                  suggestion: 'Use CIDR notation, e.g., 192.168.1.0/24'
+                };
+              }
+            }
+            return { valid: true };
+          }
+        );
+        
+        options.subnets = subnetInput.split(',').map(s => s.trim());
+        break;
+
+      case 'profile':
+        return await this.selectDiscoveryProfile();
+
+      default:
+        return null;
+    }
+
+    // Ask about advanced options
+    const useAdvanced = await this.uiHelpers.confirmAction(
+      'Configure advanced options?',
+      false
+    );
+
+    if (useAdvanced) {
+      await this.configureAdvancedOptions(options);
+    }
+
+    // Ask to save as profile
+    if (mode === 'custom') {
+      const saveProfile = await this.uiHelpers.confirmAction(
+        'Save this configuration as a profile?',
+        false
+      );
+
+      if (saveProfile) {
+        await this.saveDiscoveryProfile(options);
+      }
+    }
+
+    return options;
+  }
+
+  private async configureAdvancedOptions(options: DiscoveryOptions): Promise<void> {
+    // Timeout
+    const timeoutStr = await this.uiHelpers.getTextInput(
+      'Discovery timeout in seconds (default: 5):',
+      '5',
+      (input) => {
+        const num = parseInt(input, 10);
+        if (isNaN(num) || num < 1 || num > 60) {
+          return { valid: false, error: 'Timeout must be between 1 and 60 seconds' };
+        }
+        return { valid: true };
+      }
+    );
+    options.timeout = parseInt(timeoutStr, 10) * 1000;
+
+    // Ports
+    const portsInput = await this.uiHelpers.getTextInput(
+      'HTTP ports to check (comma-separated, default: 80,8080):',
+      '80,8080',
+      (input) => {
+        const ports = input.split(',').map(p => parseInt(p.trim(), 10));
+        for (const port of ports) {
+          if (isNaN(port) || port < 1 || port > 65535) {
+            return { valid: false, error: 'Invalid port number' };
+          }
+        }
+        return { valid: true };
+      }
+    );
+    options.ports = portsInput.split(',').map(p => parseInt(p.trim(), 10));
+  }
+
+  private async selectDiscoveryProfile(): Promise<DiscoveryOptions | null> {
+    const profiles = await this.profileManager.loadProfiles();
+    const defaultProfiles = this.profileManager.getDefaultProfiles();
+
+    // Combine saved and default profiles
+    const allProfiles = [...profiles];
+    
+    // Add default profiles if they don't exist in saved profiles
+    for (const defaultProfile of defaultProfiles) {
+      if (!profiles.find(p => p.name === defaultProfile.name)) {
+        allProfiles.push(defaultProfile);
+      }
+    }
+
+    if (allProfiles.length === 0) {
+      this.uiHelpers.displayWarning('No profiles available');
+      return null;
+    }
+
+    const profileChoices = allProfiles.map(profile => ({
+      name: `${profile.name} - ${profile.description || 'No description'}`,
+      value: profile
+    }));
+
+    profileChoices.push({ name: '🔙 Back', value: null as any });
+
+    const selectedProfile = await this.uiHelpers.selectFromList(
+      'Select a discovery profile:',
+      profileChoices
+    );
+
+    if (!selectedProfile) return null;
+
+    // Mark profile as used
+    await this.profileManager.markProfileUsed(selectedProfile.name);
+
+    console.log(chalk.gray(`\nUsing profile: ${selectedProfile.name}`));
+    if (selectedProfile.options.subnets) {
+      console.log(chalk.gray('Subnets:'));
+      selectedProfile.options.subnets.forEach(subnet => 
+        console.log(chalk.gray(`  • ${subnet}`))
+      );
+    }
+
+    return selectedProfile.options;
+  }
+
+  private async saveDiscoveryProfile(options: DiscoveryOptions): Promise<void> {
+    const name = await this.uiHelpers.getTextInput(
+      'Profile name:',
+      'My Network',
+      (input) => {
+        if (!input.trim()) {
+          return { valid: false, error: 'Profile name cannot be empty' };
+        }
+        return { valid: true };
+      }
+    );
+
+    const description = await this.uiHelpers.getTextInput(
+      'Profile description (optional):',
+      '',
+      () => ({ valid: true })
+    );
+
+    try {
+      await this.profileManager.saveProfile({
+        name,
+        description: description || undefined,
+        options
+      });
+
+      this.uiHelpers.displaySuccess(`Profile '${name}' saved successfully`);
+    } catch (error) {
+      this.uiHelpers.displayError('Failed to save profile', error);
+    }
+  }
+
+  private async displayDiscoveryResults(result: any): Promise<void> {
+    console.log(chalk.green(`\n✅ Discovery Results:`));
+    console.log(chalk.gray(`   Scan duration: ${(result.duration / 1000).toFixed(1)}s`));
+    console.log(chalk.gray(`   Hosts scanned: ${result.hostsScanned}`));
+    console.log(chalk.gray(`   Devices found: ${result.devices.length}`));
+    console.log();
+
+    // Create detailed device table
+    const table = this.uiHelpers.createTable([
+      '#', 'Name', 'IP Address', 'Status', 'WiFi', 'Signal'
+    ]);
+
+    result.devices.forEach((device: MAVLinkBridgeDevice, index: number) => {
+      const wifiStatus = device.isProvisioned 
+        ? `Connected to ${device.network.wifi.ssid || 'Unknown'}` 
+        : 'AP Mode';
+      
+      const signal = device.network.wifi.rssi 
+        ? `${device.network.wifi.rssi} dBm` 
+        : 'N/A';
 
       table.push([
         (index + 1).toString(),
-        device,
-        type
+        device.name || device.hostname,
+        device.ip,
+        device.status === 'healthy' ? chalk.green('Healthy') : chalk.yellow('Degraded'),
+        wifiStatus,
+        signal
       ]);
     });
 
     console.log(table.toString());
 
+    // Offer connection
     const connectNow = await this.uiHelpers.confirmAction(
       'Would you like to connect to one of these devices?',
       true
     );
 
     if (connectNow) {
-      const selectedDevice = await this.uiHelpers.selectFromList(
+      const deviceChoices = result.devices.map((device: MAVLinkBridgeDevice, index: number) => ({
+        name: `${device.name || device.hostname} (${device.ip})`,
+        value: `http://${device.ip}`
+      }));
+      
+      deviceChoices.push({ name: '🔙 Back', value: null });
+
+      const selectedUrl = await this.uiHelpers.selectFromList<string | null>(
         'Select a device to connect to:',
-        devices.map(device => ({ name: device, value: device }))
+        deviceChoices
       );
 
-      await this.connectToSpecificDevice(selectedDevice);
+      if (selectedUrl && typeof selectedUrl === 'string') {
+        await this.connectToSpecificDevice(selectedUrl);
+      }
     }
-
-    await this.uiHelpers.pressAnyKey();
   }
 
   public async connectToDevice (): Promise<void> {
@@ -236,6 +494,20 @@ export class DeviceCommands {
         'Config Version': healthCheck.config.version.toString(),
         'Config Status': healthCheck.config.isDirty ? 'Modified (unsaved)' : 'Saved'
       });
+
+      // RTCM Status
+      if (healthCheck.rtcm) {
+        const rtcmStatusIcon = healthCheck.rtcm.connected ? '🟢' : '🔴';
+        console.log(chalk.green('\n🛰️  RTCM Correction Data:'));
+        this.uiHelpers.displayKeyValuePairs({
+          'Status': `${rtcmStatusIcon} ${healthCheck.rtcm.state.toUpperCase()}`,
+          'Client Type': healthCheck.rtcm.type || 'N/A',
+          'Messages Received': healthCheck.rtcm.messagesReceived?.toString() || '0',
+          'Data Rate': healthCheck.rtcm.dataRate ? `${healthCheck.rtcm.dataRate.toFixed(2)} KB/s` : 'N/A',
+          'Bytes Received': healthCheck.rtcm.bytesReceived ? this.uiHelpers.formatBytes(healthCheck.rtcm.bytesReceived) : '0',
+          'CRC Errors': healthCheck.rtcm.crcErrors?.toString() || '0'
+        });
+      }
 
       if (healthCheck.issues && healthCheck.issues.length > 0) {
         console.log(chalk.yellow('\n⚠️  Issues Detected:'));

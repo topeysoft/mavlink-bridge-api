@@ -11,6 +11,7 @@ static const char *TAG = "RTCMEndpoints";
 
 // Static members
 std::unique_ptr<RTCMClient> RTCMEndpoints::currentClient = nullptr;
+std::unique_ptr<RTCMOutputRouter> RTCMEndpoints::outputRouter = nullptr;
 ConfigManager *RTCMEndpoints::configMgr = nullptr;
 SemaphoreHandle_t RTCMEndpoints::clientMutex = xSemaphoreCreateMutex();
 uint32_t RTCMEndpoints::startTime = 0;
@@ -23,10 +24,16 @@ void RTCMEndpoints::registerRoutes(HttpServer *server, ConfigManager *configMana
 {
     configMgr = configManager;
 
+    // Client control endpoints
     server->addRoute("/api/rtcm/start", NetworkLib::HttpMethod::POST, handleStart);
     server->addRoute("/api/rtcm/stop", NetworkLib::HttpMethod::POST, handleStop);
     server->addRoute("/api/rtcm/status", NetworkLib::HttpMethod::GET, handleStatus);
     server->addRoute("/api/rtcm/config", NetworkLib::HttpMethod::GET, handleConfig);
+
+    // Output configuration endpoints
+    server->addRoute("/api/rtcm/outputs", NetworkLib::HttpMethod::GET, handleGetOutputs);
+    server->addRoute("/api/rtcm/outputs", NetworkLib::HttpMethod::POST, handleUpdateOutputs);
+    server->addRoute("/api/rtcm/outputs/toggle", NetworkLib::HttpMethod::POST, handleToggleOutput);
 
     ESP_LOGI(TAG, "RTCM endpoints registered");
 }
@@ -79,6 +86,12 @@ void RTCMEndpoints::handleStart(const NetworkLib::HttpRequest &req, NetworkLib::
         return;
     }
 
+    // Initialize output router
+    if (!initializeOutputRouter())
+    {
+        ESP_LOGW(TAG, "Output router initialization failed, data will not be forwarded");
+    }
+
     // Set up data callback to handle RTCM data
     currentClient->setDataCallback([](const uint8_t *data, size_t length)
                                    {
@@ -101,8 +114,11 @@ void RTCMEndpoints::handleStart(const NetworkLib::HttpRequest &req, NetworkLib::
                                            EventManager::getInstance()->publishAsync(EventType::RTCM_DATA_RECEIVED, event.as<JsonObjectConst>());
                                        }
 
-                                       // TODO: Forward to flight controller via MAVLink or raw
-                                       // This would use the MAVLinkConverter if configured
+                                       // Route RTCM data to configured outputs
+                                       if (outputRouter)
+                                       {
+                                           outputRouter->route(data, length);
+                                       }
                                    });
 
     // Set up state callback
@@ -197,6 +213,7 @@ void RTCMEndpoints::handleStatus(const NetworkLib::HttpRequest &req, NetworkLib:
         status["state"] = state == RTCMClient::CONNECTED ? "connected" : state == RTCMClient::CONNECTING ? "connecting"
                                                                      : state == RTCMClient::ERROR        ? "error"
                                                                                                          : "disconnected";
+        status["connected"] = (state == RTCMClient::CONNECTED);
 
         RTCMClient::Statistics stats = currentClient->getStatistics();
         DynamicJsonDocument statsDoc(512);
@@ -295,7 +312,7 @@ std::unique_ptr<RTCMClient> RTCMEndpoints::createClient(const DynamicJsonDocumen
         // Configure remote endpoint if specified
         if (config["source"].containsKey("remoteHost"))
         {
-            String remoteHost = config["source"]["remoteHost"].as<String>();
+            String remoteHost = String(config["source"]["remoteHost"].as<const char*>());
             uint16_t remotePort = config["source"]["remotePort"] | port;
 
             // Try to parse as IP first, then resolve hostname/mDNS
@@ -421,4 +438,282 @@ void RTCMEndpoints::stopCurrentClient()
         isRunning = false;
     }
     xSemaphoreGive(clientMutex);
+}
+
+bool RTCMEndpoints::startClient(const DynamicJsonDocument &config)
+{
+    // Validate configuration
+    DynamicJsonDocument errors(512);
+    if (!validateConfig(config, errors))
+    {
+        ESP_LOGE(TAG, "Invalid RTCM configuration");
+        return false;
+    }
+
+    xSemaphoreTake(clientMutex, portMAX_DELAY);
+
+    // Stop existing client if any
+    if (currentClient)
+    {
+        currentClient->disconnect();
+        currentClient.reset();
+    }
+
+    // Create new client
+    currentClient = createClient(config);
+    if (!currentClient)
+    {
+        xSemaphoreGive(clientMutex);
+        ESP_LOGE(TAG, "Failed to create RTCM client");
+        return false;
+    }
+
+    // Set up data callback to handle RTCM data
+    currentClient->setDataCallback([](const uint8_t *data, size_t length)
+                                   {
+                                       // Parse RTCM message
+                                       RTCMParser::RTCMMessage msg;
+                                       if (RTCMParser::parseMessage(data, length, msg))
+                                       {
+                                           ESP_LOGI(TAG, "Received RTCM message type %d (%s), %d bytes",
+                                                    msg.messageType,
+                                                    RTCMParser::getMessageTypeName(msg.messageType),
+                                                    length);
+
+                                           // Emit event
+                                           DynamicJsonDocument event(512);
+                                           event["type"] = "rtcm_data";
+                                           event["messageType"] = msg.messageType;
+                                           event["messageName"] = RTCMParser::getMessageTypeName(msg.messageType);
+                                           event["length"] = length;
+                                           event["stationId"] = msg.stationId;
+                                           EventManager::getInstance()->publishAsync(EventType::RTCM_DATA_RECEIVED, event.as<JsonObjectConst>());
+                                       }
+
+                                       // TODO: Forward to flight controller via MAVLink or raw
+                                       // This would use the MAVLinkConverter if configured
+                                   });
+
+    // Set up state callback
+    currentClient->setStateCallback([](RTCMClient::State state)
+                                    {
+        DynamicJsonDocument event(512);
+        event["state"] = (int)state;
+        event["stateName"] = state == RTCMClient::CONNECTED ? "connected" :
+                            state == RTCMClient::CONNECTING ? "connecting" :
+                            state == RTCMClient::ERROR ? "error" : "disconnected";
+        EventManager::getInstance()->publishAsync(EventType::RTCM_CLIENT_STARTED, event.as<JsonObjectConst>()); });
+
+    // Attempt to connect
+    if (!currentClient->connect())
+    {
+        currentClient.reset();
+        xSemaphoreGive(clientMutex);
+        ESP_LOGE(TAG, "Failed to connect to RTCM source");
+        return false;
+    }
+
+    startTime = millis();
+    isRunning = true;
+
+    xSemaphoreGive(clientMutex);
+
+    ESP_LOGI(TAG, "RTCM client started successfully");
+    return true;
+}
+
+bool RTCMEndpoints::initializeOutputRouter()
+{
+    if (!configMgr)
+    {
+        ESP_LOGE(TAG, "ConfigManager not available");
+        return false;
+    }
+
+    const RTCMConfig &rtcmConfig = configMgr->getRTCMConfig();
+
+    // Create output router if it doesn't exist
+    if (!outputRouter)
+    {
+        outputRouter = std::make_unique<RTCMOutputRouter>();
+    }
+
+    // Clear existing outputs
+    outputRouter->clearTargets();
+
+    // If no outputs configured, create default serial output
+    if (rtcmConfig.outputs.empty())
+    {
+        ESP_LOGI(TAG, "No outputs configured, using default serial output");
+
+        DynamicJsonDocument defaultOutput(512);
+        defaultOutput["name"] = "Default Serial";
+        defaultOutput["protocol"] = "raw";
+        defaultOutput["transport"] = "serial";
+        defaultOutput["enabled"] = true;
+        defaultOutput["params"]["interface"] = "auto";
+
+        if (!outputRouter->addTarget(defaultOutput.as<JsonObjectConst>()))
+        {
+            ESP_LOGE(TAG, "Failed to add default output");
+            return false;
+        }
+
+        return true;
+    }
+
+    // Configure outputs from config
+    DynamicJsonDocument outputsDoc(4096);
+    JsonArray outputsArray = outputsDoc.to<JsonArray>();
+
+    for (const auto &output : rtcmConfig.outputs)
+    {
+        JsonObject outputObj = outputsArray.createNestedObject();
+        outputObj["name"] = output.name;
+        outputObj["protocol"] = output.protocol;
+        outputObj["transport"] = output.transport;
+        outputObj["enabled"] = output.enabled;
+
+        if (!output.params.isNull())
+        {
+            outputObj["params"] = output.params.as<JsonObjectConst>();
+        }
+    }
+
+    if (!outputRouter->begin(outputsArray))
+    {
+        ESP_LOGE(TAG, "Failed to initialize output router");
+        return false;
+    }
+
+    ESP_LOGI(TAG, "Output router initialized with %d targets", rtcmConfig.outputs.size());
+    return true;
+}
+
+void RTCMEndpoints::handleGetOutputs(const NetworkLib::HttpRequest &req, NetworkLib::HttpResponse &res)
+{
+    if (!outputRouter)
+    {
+        res.statusCode = 503;
+        DynamicJsonDocument errorDoc(256);
+        errorDoc["error"] = "Output router not initialized";
+        serializeJson(errorDoc, res.body);
+        return;
+    }
+
+    DynamicJsonDocument info(2048);
+    outputRouter->getTargetInfo(info);
+    serializeJson(info, res.body);
+    res.statusCode = 200;
+}
+
+void RTCMEndpoints::handleUpdateOutputs(const NetworkLib::HttpRequest &req, NetworkLib::HttpResponse &res)
+{
+    DynamicJsonDocument doc(4096);
+    DeserializationError error = deserializeJson(doc, req.body);
+
+    if (error)
+    {
+        res.statusCode = 400;
+        DynamicJsonDocument errorDoc(256);
+        errorDoc["error"] = "Invalid JSON";
+        serializeJson(errorDoc, res.body);
+        return;
+    }
+
+    if (!doc.containsKey("outputs"))
+    {
+        res.statusCode = 400;
+        DynamicJsonDocument errorDoc(256);
+        errorDoc["error"] = "Missing 'outputs' array";
+        serializeJson(errorDoc, res.body);
+        return;
+    }
+
+    // Update configuration
+    RTCMConfig rtcmConfig = configMgr->getRTCMConfig();
+    rtcmConfig.outputs.clear();
+
+    JsonArray outputsArray = doc["outputs"];
+    for (JsonVariantConst outputVar : outputsArray)
+    {
+        JsonObjectConst outputObj = outputVar.as<JsonObjectConst>();
+        if (!outputObj) continue;
+
+        RTCMOutputConfig output;
+        output.name = outputObj["name"] ? String(outputObj["name"].as<const char*>()) : String("");
+        output.protocol = outputObj["protocol"] ? String(outputObj["protocol"].as<const char*>()) : String("raw");
+        output.transport = outputObj["transport"] ? String(outputObj["transport"].as<const char*>()) : String("serial");
+        output.enabled = outputObj["enabled"] | true;
+
+        if (outputObj.containsKey("params"))
+        {
+            output.params.clear();
+            output.params.set(outputObj["params"]);
+        }
+
+        rtcmConfig.outputs.push_back(output);
+    }
+
+    // Save configuration
+    configMgr->updateRTCMConfig(rtcmConfig);
+    configMgr->saveConfiguration();
+
+    // Reinitialize output router
+    if (!initializeOutputRouter())
+    {
+        res.statusCode = 500;
+        DynamicJsonDocument errorDoc(256);
+        errorDoc["error"] = "Failed to reinitialize output router";
+        serializeJson(errorDoc, res.body);
+        return;
+    }
+
+    DynamicJsonDocument response(256);
+    response["success"] = true;
+    response["message"] = "Outputs updated successfully";
+    serializeJson(response, res.body);
+    res.statusCode = 200;
+}
+
+void RTCMEndpoints::handleToggleOutput(const NetworkLib::HttpRequest &req, NetworkLib::HttpResponse &res)
+{
+    DynamicJsonDocument doc(512);
+    DeserializationError error = deserializeJson(doc, req.body);
+
+    if (error)
+    {
+        res.statusCode = 400;
+        DynamicJsonDocument errorDoc(256);
+        errorDoc["error"] = "Invalid JSON";
+        serializeJson(errorDoc, res.body);
+        return;
+    }
+
+    if (!doc.containsKey("index") || !doc.containsKey("enabled"))
+    {
+        res.statusCode = 400;
+        DynamicJsonDocument errorDoc(256);
+        errorDoc["error"] = "Missing 'index' or 'enabled' field";
+        serializeJson(errorDoc, res.body);
+        return;
+    }
+
+    size_t index = doc["index"];
+    bool enabled = doc["enabled"];
+
+    if (!outputRouter || !outputRouter->setTargetEnabled(index, enabled))
+    {
+        res.statusCode = 400;
+        DynamicJsonDocument errorDoc(256);
+        errorDoc["error"] = "Invalid output index";
+        serializeJson(errorDoc, res.body);
+        return;
+    }
+
+    DynamicJsonDocument response(256);
+    response["success"] = true;
+    response["message"] = enabled ? "Output enabled" : "Output disabled";
+    serializeJson(response, res.body);
+    res.statusCode = 200;
 }

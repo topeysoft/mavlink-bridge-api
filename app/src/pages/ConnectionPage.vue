@@ -1,253 +1,268 @@
 <template>
-  <div class="connection-page">
-    <div class="connection-content">
-      <!-- Header with fade-in animation -->
-      <div 
-        class="connection-header"
-        :class="{ 'fade-in': !isPageLoading }"
-      >
-        <q-icon
-          name="mdi-robot-mower"
-          size="80px"
+  <q-page class="connection-page">
+    <div class="q-pa-md">
+      <!-- Page Header -->
+      <div class="page-header q-mb-lg">
+        <h1 class="text-h4 text-primary q-mb-sm">Device Connection</h1>
+        <p class="text-body1 text-grey-7">
+          Connect to your YardRover device to start managing tasks
+        </p>
+      </div>
+      
+      <!-- Connection Status Card -->
+      <ConnectionStatus class="q-mb-lg" />
+      
+      <!-- Quick Actions -->
+      <div class="row q-gutter-md q-mb-lg">
+        <q-btn
+          v-if="!connectionStore.isConnected"
+          unelevated
           color="primary"
-          class="q-mb-md"
+          icon="search"
+          label="Discover Devices"
+          @click="startDiscovery"
+          :loading="devicesStore.isDiscovering"
+          class="col-12 col-sm-auto"
         />
         
-        <h4 class="text-h4 q-mb-sm">YardRover Control</h4>
-        <p class="text-subtitle1 text-grey-7 q-mb-lg">
-          Connect to your YardRover device to get started
-        </p>
-
-        <!-- Quick Reconnect Button -->
         <q-btn
-          v-if="lastDevice && !isPageLoading"
-          :label="`Reconnect to ${lastDevice.name}`"
+          v-if="!connectionStore.isConnected"
+          outline
           color="primary"
-          size="lg"
-          class="full-width q-mb-xl"
-          icon="mdi-history"
-          @click="reconnectLast"
+          icon="add_circle"
+          label="Manual Connection"
+          @click="showManualConnection = true"
+          class="col-12 col-sm-auto"
+        />
+        
+        <q-btn
+          v-if="connectionStore.isConnected"
+          outline
+          color="negative"
+          icon="link_off"
+          label="Disconnect"
+          @click="disconnect"
+          class="col-12 col-sm-auto"
         />
       </div>
-
-      <!-- Connection Methods Card -->
-      <div v-if="isPageLoading" class="connection-methods-card-skeleton">
-        <q-card>
-          <q-skeleton type="rect" height="48px" />
-          <q-separator />
-          <q-card-section>
-            <div class="text-center q-py-xl">
-              <q-spinner-dots color="primary" size="40px" />
-              <div class="text-caption text-grey-7 q-mt-md">
-                Loading connection options...
-              </div>
+      
+      <!-- Device Lists -->
+      <q-tabs
+        v-model="activeTab"
+        class="text-primary"
+        active-color="primary"
+        indicator-color="primary"
+        align="left"
+      >
+        <q-tab name="discovered" label="Discovered" icon="radar" />
+        <q-tab name="saved" label="Saved" icon="bookmark" />
+        <q-tab name="recent" label="Recent" icon="history" />
+      </q-tabs>
+      
+      <q-separator />
+      
+      <q-tab-panels v-model="activeTab" animated>
+        <!-- Discovered Devices -->
+        <q-tab-panel name="discovered">
+          <div v-if="devicesStore.isDiscovering" class="text-center q-py-xl">
+            <q-circular-progress
+              :value="devicesStore.discoveryProgress"
+              size="120px"
+              :thickness="0.2"
+              color="primary"
+              track-color="grey-3"
+              class="q-mb-md"
+            >
+              <div class="text-h6">{{ devicesStore.discoveryProgress }}%</div>
+            </q-circular-progress>
+            <p class="text-body1 text-grey-7">
+              Searching for YardRover devices...
+            </p>
+          </div>
+          
+          <div
+            v-else-if="devicesStore.discoveredDevices.length === 0"
+            class="text-center q-py-xl"
+          >
+            <q-icon name="wifi_find" size="64px" color="grey-5" class="q-mb-md" />
+            <p class="text-body1 text-grey-7">
+              No devices discovered. Click "Discover Devices" to search.
+            </p>
+          </div>
+          
+          <div v-else class="row q-gutter-md">
+            <div
+              v-for="device in devicesStore.discoveredDevices"
+              :key="device.ip"
+              class="col-12 col-sm-6 col-md-4"
+            >
+              <DeviceCard
+                :device="device"
+                @connect="connectToDevice(device)"
+                @save="saveDevice(device)"
+              />
             </div>
-          </q-card-section>
-        </q-card>
-      </div>
-
-      <q-card 
-        v-else
-        class="connection-methods-card fade-in-delayed"
-      >
-        <q-tabs
-          v-model="activeTab"
-          dense
-          active-color="primary"
-          indicator-color="primary"
-          align="left"
-          class="q-mb-md"
-        >
-          <q-tab name="discover" label="Discover" icon="mdi-radar" />
-          <q-tab name="manual" label="Manual" icon="mdi-keyboard" />
-          <q-tab name="saved" label="Saved" icon="mdi-history" />
-        </q-tabs>
-
-        <q-separator />
-
-        <q-card-section>
-          <q-tab-panels v-model="activeTab" animated>
-            <q-tab-panel name="discover" class="q-pa-none">
-              <DeviceScanning
-                :is-connecting="isConnecting"
-                :connection-error="connectionError"
-                @connect="handleConnect"
-                @clear-error="connectionError = null"
-              />
-            </q-tab-panel>
-
-            <q-tab-panel name="manual" class="q-pa-none">
-              <ManualConnection
-                :is-connecting="isConnecting"
-                @connect="handleConnect"
-              />
-            </q-tab-panel>
-
-            <q-tab-panel name="saved" class="q-pa-none">
-              <SavedDevices
-                :is-connecting="isConnecting"
-                @connect="handleConnect"
-              />
-            </q-tab-panel>
-          </q-tab-panels>
-        </q-card-section>
-      </q-card>
-
-      <div 
-        v-if="!isPageLoading"
-        class="q-mt-lg text-caption text-grey-6 text-center fade-in-delayed"
-      >
-        <p>Make sure your device is powered on and connected to the same network.</p>
-        <p>Default AP Mode: Connect to "YardRover-AP" WiFi</p>
-      </div>
+          </div>
+        </q-tab-panel>
+        
+        <!-- Saved Devices -->
+        <q-tab-panel name="saved">
+          <SavedDevicesList
+            :devices="devicesStore.savedDevices"
+            @connect="connectToDevice"
+            @remove="devicesStore.removeDevice"
+            @toggle-favorite="devicesStore.toggleFavorite"
+            @update-nickname="devicesStore.updateNickname"
+          />
+        </q-tab-panel>
+        
+        <!-- Recent Devices -->
+        <q-tab-panel name="recent">
+          <SavedDevicesList
+            :devices="devicesStore.recentDevices"
+            @connect="connectToDevice"
+            hide-actions
+          />
+        </q-tab-panel>
+      </q-tab-panels>
     </div>
-  </div>
+    
+    <!-- Manual Connection Dialog -->
+    <q-dialog v-model="showManualConnection">
+      <ConnectionDialog @connect="handleManualConnection" />
+    </q-dialog>
+  </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { Notify } from 'quasar'
-import { useConnectionManager } from '../composables/useConnectionManager'
-import { useMAVLinkClient } from '../composables/useMAVLinkClient'
-import { deviceDiscovery } from '../services/DeviceDiscovery'
-import DeviceScanning from '../components/connection/DeviceScanning.vue'
-import ManualConnection from '../components/connection/ManualConnection.vue'
-import SavedDevices from '../components/connection/SavedDevices.vue'
-import type { DiscoveredDevice } from '../services/DeviceDiscovery'
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
+import { useConnectionStore } from '@/stores/connection';
+import { useDevicesStore } from '@/stores/devices';
+import ConnectionStatus from '@/components/connection/ConnectionStatus.vue';
+import DeviceCard from '@/components/connection/DeviceCard.vue';
+import SavedDevicesList from '@/components/connection/SavedDevicesList.vue';
+import ConnectionDialog from '@/components/connection/ConnectionDialog.vue';
+import type { MAVLinkBridgeDevice } from '@mavlinkbridge/api-client';
 
-const router = useRouter()
-const { lastConnectedDevice, connectToDevice } = useConnectionManager()
-const { isConnected } = useMAVLinkClient()
+const $q = useQuasar();
+const router = useRouter();
+const connectionStore = useConnectionStore();
+const devicesStore = useDevicesStore();
 
-const activeTab = ref('discover')
-const isConnecting = ref(false)
-const connectionError = ref<string | null>(null)
-const isPageLoading = ref(true)
+const activeTab = ref('discovered');
+const showManualConnection = ref(false);
 
-const lastDevice = computed(() => lastConnectedDevice.value)
+async function startDiscovery() {
+  try {
+    await devicesStore.discoverDevices(10000);
+    
+    if (devicesStore.discoveredDevices.length === 0) {
+      $q.notify({
+        type: 'info',
+        message: 'No devices found. Make sure your YardRover is powered on and connected to the same network.'
+      });
+    }
+  } catch (error) {
+    $q.notify({
+        type: 'negative',
+        message: `Discovery failed: ${(error as Error).message}`
+      });
+  }
+}
 
-async function handleConnect(device: DiscoveredDevice) {
-  if (isConnecting.value) return
+async function connectToDevice(device: MAVLinkBridgeDevice) {
+  try {
+    const url = `http://${device.ip}`;
+    await connectionStore.connect(url, device);
+    
+    // Save device for future use
+    devicesStore.saveDevice(device);
+    
+    // Navigate to dashboard
+    router.push('/');
+    
+    $q.notify({
+      type: 'positive',
+      message: `Connected to ${device.name || device.ip}`
+    });
+  } catch (error) {
+    $q.notify({
+      type: 'negative',
+      message: `Connection failed: ${(error as Error).message}`
+    });
+  }
+}
+
+async function disconnect() {
+  connectionStore.disconnect();
   
-  isConnecting.value = true
-  connectionError.value = null
+  $q.notify({
+    type: 'info',
+    message: 'Disconnected from device'
+  });
+}
+
+function saveDevice(device: MAVLinkBridgeDevice) {
+  $q.dialog({
+    title: 'Save Device',
+    message: 'Enter a nickname for this device (optional)',
+    prompt: {
+      model: '',
+      type: 'text',
+      placeholder: device.name || 'YardRover'
+    },
+    cancel: true
+  }).onOk((nickname) => {
+    devicesStore.saveDevice(device, nickname || undefined);
+    
+    $q.notify({
+      type: 'positive',
+      message: 'Device saved'
+    });
+  });
+}
+
+async function handleManualConnection(url: string) {
+  showManualConnection.value = false;
   
   try {
-    await connectToDevice(device)
+    await connectionStore.connect(url);
     
-    Notify.create({
+    // Navigate to dashboard
+    router.push('/');
+    
+    $q.notify({
       type: 'positive',
-      message: `Connected to ${device.name}`,
-      position: 'top'
-    })
-    
-    // Navigate to dashboard on successful connection
-    void router.replace('/')
+      message: 'Connected successfully'
+    });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Connection failed'
-    connectionError.value = errorMessage
-    
-    Notify.create({
+    $q.notify({
       type: 'negative',
-      message: 'Failed to connect to device',
-      caption: errorMessage,
-      position: 'top'
-    })
-    
-    console.error('Connection failed:', error)
-  } finally {
-    isConnecting.value = false
+      message: `Connection failed: ${(error as Error).message}`
+    });
   }
 }
 
-async function reconnectLast() {
-  if (lastDevice.value) {
-    await handleConnect(lastDevice.value)
+onMounted(() => {
+  // Auto-discover on page load if not connected
+  if (!connectionStore.isConnected) {
+    startDiscovery();
   }
-}
-
-onMounted(async () => {
-  // Redirect if already connected
-  if (isConnected.value) {
-    void router.replace('/')
-    return
-  }
-  
-  // Progressive loading: show header first, then card
-  await new Promise(resolve => setTimeout(resolve, 500))
-  isPageLoading.value = false
-})
-
-onUnmounted(() => {
-  // Always stop discovery when page unmounts
-  deviceDiscovery.stopDiscovery()
-})
+});
 </script>
 
 <style lang="scss" scoped>
 .connection-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: var(--q-color-page-background, #f5f5f5);
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.connection-content {
-  width: 100%;
-  max-width: 800px;
-}
-
-.connection-header {
-  text-align: center;
-  margin-bottom: 2rem;
-  opacity: 0;
-  transform: translateY(20px);
-  transition: all 0.6s ease-out;
-  
-  &.fade-in {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.connection-methods-card,
-.connection-methods-card-skeleton {
-  width: 100%;
-}
-
-.fade-in-delayed {
-  opacity: 0;
-  transform: translateY(20px);
-  animation: fadeInUp 0.6s ease-out 0.3s both;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.connection-methods-card-skeleton {
-  .q-card {
-    min-height: 300px;
-  }
-}
-
-@media (max-width: 599px) {
-  .connection-content {
-    max-width: 100%;
-  }
-  
-  .connection-page {
-    padding: 8px;
+.page-header {
+  h1 {
+    font-weight: 300;
+    margin: 0;
   }
 }
 </style>

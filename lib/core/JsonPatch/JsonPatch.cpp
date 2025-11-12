@@ -38,8 +38,10 @@ JsonPatchResult JsonPatch::apply(JsonDocument& document, const JsonArray& operat
             return JsonPatchResult::INVALID_OPERATION;
         }
         
-        String opStr = opObj["op"];
-        String path = opObj["path"];
+        const char* opCStr = opObj["op"];
+        const char* pathCStr = opObj["path"];
+        String opStr = String(opCStr);
+        String path = String(pathCStr);
         JsonPatchOperation operation = stringToOperation(opStr);
         
         if (operation == JsonPatchOperation::UNKNOWN) {
@@ -277,7 +279,8 @@ bool JsonPatch::validateOperations(const JsonArray& operations) {
             return false;
         }
         
-        String opStr = opObj["op"];
+        const char* opCStr = opObj["op"];
+        String opStr = String(opCStr);
         JsonPatchOperation operation = stringToOperation(opStr);
         
         if (operation == JsonPatchOperation::UNKNOWN) {
@@ -285,7 +288,7 @@ bool JsonPatch::validateOperations(const JsonArray& operations) {
             return false;
         }
         
-        if (!isValidPath(opObj["path"])) {
+        if (!isValidPath(String(opObj["path"].as<const char*>()))) {
             setLastError("Invalid path format");
             return false;
         }

@@ -281,9 +281,9 @@ TaskStorageResult Task::fromJson(const String& jsonString) {
     // Parse metadata
     if (doc.containsKey("metadata")) {
         JsonObject meta = doc["metadata"];
-        metadata.id = meta["id"].as<String>();
-        metadata.name = meta["name"].as<String>();
-        metadata.description = meta["description"].as<String>();
+        metadata.id = String(meta["id"].as<const char*>());
+        metadata.name = String(meta["name"].as<const char*>());
+        metadata.description = String(meta["description"].as<const char*>());
         metadata.type = (TaskType)meta["type"].as<int>();
         metadata.status = (TaskStatus)meta["status"].as<int>();
         metadata.priority = (TaskPriority)meta["priority"].as<int>();
@@ -302,7 +302,7 @@ TaskStorageResult Task::fromJson(const String& jsonString) {
         parameters.loiterTime = params["loiterTime"];
         parameters.returnToLaunch = params["returnToLaunch"];
         parameters.maxExecutionTime = params["maxExecutionTime"];
-        parameters.customParameters = params["custom"].as<String>();
+        parameters.customParameters = String(params["custom"].as<const char*>());
     }
     
     // Parse waypoints

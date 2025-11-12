@@ -7,8 +7,14 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
+    "predev": "cd ../client && npm run build",
     "start": "npm run build && node dist/index.js",
     "console": "tsx src/index.ts",
+    "debug": "node --inspect --loader tsx/esm src/index.ts",
+    "predebug": "cd ../client && npm run build",
+    "debug:vscode": "tsx --inspect src/index.ts",
+    "debug:break": "node --inspect-brk --loader tsx/esm src/index.ts",
+    "dev:verbose": "DEBUG=* tsx src/index.ts",
     "test": "jest",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist"

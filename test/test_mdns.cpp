@@ -1,9 +1,11 @@
 #include <unity.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
-#include "MDNSManager/MDNSManager.h"
-#include "MDNSManager/MDNSRTCMDiscovery.h"
-#include "ConfigManager/ConfigManager.h"
+#include "MDNSManager.h"
+#include "MDNSRTCMDiscovery.h"
+#include "ConfigManager.h"
+#include "TCPRTCMClient.h"
+#include "UDPRTCMClient.h"
 
 using namespace NetworkLib;
 

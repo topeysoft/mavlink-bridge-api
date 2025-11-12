@@ -4,20 +4,16 @@ import {
   createRouter,
   createWebHashHistory,
   createWebHistory,
+  NavigationGuardNext,
+  RouteLocationNormalized
 } from 'vue-router';
-import routes from './routes';
-import { useMAVLinkClient } from '../composables/useMAVLinkClient';
+import routes, { RouteMeta } from './routes';
 
-/*
- * If not building with SSR mode, you can
- * directly export the Router instantiation;
- *
- * The function below can be async too; either use
- * async/await or return a Promise which resolves
- * with the Router instance.
- */
+declare module 'vue-router' {
+  interface RouteMeta extends RouteMeta {}
+}
 
-export default route(function (/* { store, ssrContext } */) {
+export default route(function ({ store }) {
   const createHistory = process.env.SERVER
     ? createMemoryHistory
     : (process.env.VUE_ROUTER_MODE === 'history' ? createWebHistory : createWebHashHistory);
@@ -25,31 +21,62 @@ export default route(function (/* { store, ssrContext } */) {
   const Router = createRouter({
     scrollBehavior: () => ({ left: 0, top: 0 }),
     routes,
-
-    // Leave this as is and make changes in quasar.conf.js instead!
-    // quasar.conf.js -> build -> vueRouterMode
-    // quasar.conf.js -> build -> publicPath
-    history: createHistory(process.env.VUE_ROUTER_BASE),
+    history: createHistory(process.env.VUE_ROUTER_BASE)
   });
 
-  // Connection guard
-  Router.beforeEach((to, from, next) => {
-    const { isConnected } = useMAVLinkClient()
+  // Add route guards
+  Router.beforeEach(async (
+    to: RouteLocationNormalized,
+    from: RouteLocationNormalized,
+    next: NavigationGuardNext
+  ) => {
+    // Import stores dynamically to avoid circular dependencies
+    const { useUserStore } = await import('@/stores/user');
+    const { useConnectionStore } = await import('@/stores/connection');
     
-    // Allow access to connection page and error page
-    if (to.name === 'connect' || to.name === 'ErrorNotFound') {
-      next()
-      return
+    const userStore = useUserStore(store);
+    const connectionStore = useConnectionStore(store);
+
+    // Update document title
+    if (to.meta?.title) {
+      document.title = `${to.meta.title} - YardRover Control`;
+    } else {
+      document.title = 'YardRover Control';
+    }
+
+    // Check authentication
+    if (to.meta?.requiresAuth && !userStore.isAuthenticated) {
+      // Redirect to login with return URL
+      return next({ 
+        name: 'login', 
+        query: { redirect: to.fullPath } 
+      });
+    }
+
+    // Check connection requirement
+    if (to.meta?.requiresConnection && !connectionStore.isConnected) {
+      // Show notification and redirect to connection page
+      const { Notify } = await import('quasar');
+      Notify.create({
+        type: 'warning',
+        message: 'Device connection required',
+        caption: 'Please connect to a device first',
+        position: 'top'
+      });
+      return next({ name: 'connection' });
     }
     
-    // Redirect to connection page if not connected
-    if (!isConnected.value) {
-      next({ name: 'connect' })
-      return
+    next();
+  });
+
+  // Add route transition animations
+  Router.afterEach((to) => {
+    if (to.meta?.transition) {
+      document.documentElement.setAttribute('data-route-transition', to.meta.transition);
     }
-    
-    next()
-  })
+  });
 
   return Router;
 });
+
+export { routes };

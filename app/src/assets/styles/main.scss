@@ -1,0 +1,72 @@
+// Import variables first
+@import 'variables';
+@import 'mixins';
+@import 'animations';
+@import 'utilities';
+
+// Global styles with nature theme
+body {
+  font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background-color: $background;
+  color: $text-primary;
+  line-height: 1.6;
+}
+
+// Theme classes for seasonal variations
+.theme-spring {
+  @include seasonal-theme('spring');
+}
+
+.theme-summer {
+  @include seasonal-theme('summer');
+}
+
+.theme-autumn {
+  @include seasonal-theme('autumn');
+}
+
+.theme-winter {
+  @include seasonal-theme('winter');
+}
+
+// Custom scrollbar with nature theme
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: $surface-variant;
+  border-radius: $radius-sm;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba($primary, 0.6);
+  border-radius: $radius-sm;
+  
+  &:hover {
+    background: rgba($primary, 0.8);
+  }
+}
+
+// Nature-inspired component styles
+.nature-card {
+  @include nature-card;
+}
+
+.organic-button {
+  @include organic-button;
+}
+
+// Status indicator styles
+.status-connected {
+  color: $positive;
+}
+
+.status-disconnected {
+  color: $negative;
+}
+
+.status-connecting {
+  color: $warning;
+}

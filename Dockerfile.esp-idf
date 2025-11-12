@@ -1,0 +1,25 @@
+# ESP32-S3 QEMU Emulator - Using ESP-IDF base
+FROM espressif/idf:v5.1.2
+
+# Install pip and PlatformIO
+RUN apt-get update && apt-get install -y python3-pip && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip3 install platformio
+
+# Set up working directory
+WORKDIR /workspace
+
+# Copy project files
+COPY platformio.ini /workspace/
+COPY lib /workspace/lib
+COPY src /workspace/src
+COPY test /workspace/test
+COPY partitions.csv /workspace/
+
+# Create scripts directory
+RUN mkdir -p /workspace/scripts
+
+# The ESP-IDF image already has QEMU installed and configured
+
+# Default command
+CMD ["/bin/bash"]

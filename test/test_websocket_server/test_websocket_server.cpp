@@ -1,5 +1,5 @@
 #include <unity.h>
-#include "../../lib/WebSocketServer/WebSocketServer.h"
+#include "WebSocketServer.h"
 
 WebSocketServer* server = nullptr;
 bool messageHandlerCalled = false;

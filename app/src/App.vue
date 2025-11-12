@@ -1,61 +1,62 @@
 <template>
-  <div id="app">
-    <div v-if="isAppLoading" id="initial-loading">
-      <div class="loading-icon">
-        <!-- Robot mower icon SVG -->
-        <svg viewBox="0 0 24 24">
-          <path
-            d="M12,3A1,1 0 0,1 13,4V6H16A1,1 0 0,1 17,7V9H19A2,2 0 0,1 21,11V16A2,2 0 0,1 19,18H5A2,2 0 0,1 3,16V11A2,2 0 0,1 5,9H7V7A1,1 0 0,1 8,6H11V4A1,1 0 0,1 12,3M12,5V6H11V7H13V6H12V5M15,9H9V7H15V9M19,11H5V16H19V11M7,12A1,1 0 0,1 8,13A1,1 0 0,1 7,14A1,1 0 0,1 6,13A1,1 0 0,1 7,12M17,12A1,1 0 0,1 18,13A1,1 0 0,1 17,14A1,1 0 0,1 16,13A1,1 0 0,1 17,12Z"
-          />
-        </svg>
-      </div>
-      <div class="loading-text">YardRover</div>
-      <div class="loading-dots">
-        <div class="loading-dot"></div>
-        <div class="loading-dot"></div>
-        <div class="loading-dot"></div>
-      </div>
-    </div>
-
-    <router-view v-slot="{ Component }">
-      <transition name="fade" mode="out-in">
-        <component :is="Component" />
+  <div id="q-app">
+    <router-view v-slot="{ Component, route }">
+      <transition
+        :name="getTransitionName(route)"
+        mode="out-in"
+        appear
+      >
+        <component :is="Component" :key="route.path" />
       </transition>
     </router-view>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { onMounted } from 'vue';
+import { RouteLocationNormalized } from 'vue-router';
+import { useAppStore } from '@/stores/app';
 
-const isAppLoading = ref(true);
+const appStore = useAppStore();
+
+// Transition logic
+function getTransitionName(route: RouteLocationNormalized): string {
+  // Custom transitions based on route
+  if (route.name === 'login') {
+    return 'fade';
+  }
+  if (route.name === 'dashboard') {
+    return 'slide-up';
+  }
+  if (route.name === 'control') {
+    return 'slide-left';
+  }
+  if (route.name === 'yard') {
+    return 'zoom';
+  }
+  
+  // Default transition
+  return 'fade';
+}
 
 onMounted(() => {
-  // // Hide initial CSS loading screen
-  // const initialLoading = document.getElementById('initial-loading');
-
-  // // Minimum loading time to prevent flash
-  // const minLoadTime = new Promise((resolve) => setTimeout(resolve, 1000));
-
-  // // Wait for Vue to be ready and minimum time
-  // await Promise.all([nextTick(), minLoadTime]);
-
-  // // Fade out initial loading screen
-  // if (initialLoading) {
-  //   initialLoading.classList.add('fade-out');
-  //   setTimeout(() => {
-  //     if (initialLoading.parentNode) {
-  //       initialLoading.parentNode.removeChild(initialLoading);
-  //     }
-  //   }, 500);
-  // }
-
-  // Hide Vue loading overlay
-  isAppLoading.value = false;
+  // Initialize seasonal theme based on current date
+  const month = new Date().getMonth();
+  if (month >= 2 && month <= 4) appStore.setTheme('spring');
+  else if (month >= 5 && month <= 7) appStore.setTheme('summer');
+  else if (month >= 8 && month <= 10) appStore.setTheme('autumn');
+  else appStore.setTheme('winter');
 });
 </script>
 
 <style lang="scss">
+@import '@/assets/styles/main.scss';
+
+#q-app {
+  min-height: 100vh;
+}
+
+// Route Transitions
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.3s ease;
@@ -66,8 +67,69 @@ onMounted(() => {
   opacity: 0;
 }
 
-#app {
-  height: 100vh;
-  overflow: hidden;
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.4s ease-out;
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(-30px);
+}
+
+.slide-left-enter-active,
+.slide-left-leave-active {
+  transition: all 0.4s ease-out;
+}
+
+.slide-left-enter-from {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.slide-left-leave-to {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+
+.zoom-enter-active,
+.zoom-leave-active {
+  transition: all 0.4s ease-out;
+}
+
+.zoom-enter-from {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.zoom-leave-to {
+  opacity: 0;
+  transform: scale(1.05);
+}
+
+// Page loading animation
+.page-enter-active {
+  animation: pageSlideIn 0.5s ease-out;
+}
+
+@keyframes pageSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Smooth scrolling for route changes
+html {
+  scroll-behavior: smooth;
 }
 </style>

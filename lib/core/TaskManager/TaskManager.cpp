@@ -39,7 +39,7 @@ bool TaskManager::begin(uint32_t watchdogIntervalMs) {
     }
 
     watchdogRunning = true;
-    ESP_LOGI(TAG, "Task manager started with watchdog interval: %lums", watchdogIntervalMs);
+    ESP_LOGI(TAG, "Task manager started with watchdog interval: %ums", watchdogIntervalMs);
     return true;
 }
 
@@ -119,11 +119,11 @@ void TaskManager::printTaskStats() const {
     for (const auto* task : tasks) {
         ESP_LOGI(TAG, "Task: %s", task->getName());
         ESP_LOGI(TAG, "  State: %s", task->isRunning() ? "Running" : "Stopped");
-        ESP_LOGI(TAG, "  Stack HWM: %lu bytes", task->getStackHighWaterMark());
-        ESP_LOGI(TAG, "  Runtime: %lu ms", task->getRuntime());
+        ESP_LOGI(TAG, "  Stack HWM: %u bytes", task->getStackHighWaterMark());
+        ESP_LOGI(TAG, "  Runtime: %u ms", task->getRuntime());
         ESP_LOGI(TAG, "  Priority: %u", task->getPriority());
-        ESP_LOGI(TAG, "  Watchdog feeds: %lu", task->getWatchdogFeeds());
-        ESP_LOGI(TAG, "  Watchdog violations: %lu", task->getWatchdogViolations());
+        ESP_LOGI(TAG, "  Watchdog feeds: %u", task->getWatchdogFeeds());
+        ESP_LOGI(TAG, "  Watchdog violations: %u", task->getWatchdogViolations());
     }
 }
 
@@ -146,7 +146,7 @@ TaskManager::ManagedTask* TaskManager::findTask(const char* name) const {
 
 void TaskManager::setWatchdogInterval(uint32_t intervalMs) {
     watchdogCheckInterval = intervalMs;
-    ESP_LOGI(TAG, "Watchdog interval set to %lums", intervalMs);
+    ESP_LOGI(TAG, "Watchdog interval set to %ums", intervalMs);
 }
 
 void TaskManager::enableWatchdog(bool enable) {

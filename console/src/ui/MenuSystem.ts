@@ -8,6 +8,7 @@ import { ConfigCommands } from '../commands/ConfigCommands.js';
 import { WiFiCommands } from '../commands/WiFiCommands.js';
 import { MAVLinkCommands } from '../commands/MAVLinkCommands.js';
 import { TaskCommands } from '../commands/TaskCommands.js';
+import { RTCMCommands } from '../commands/RTCMCommands.js';
 
 export class MenuSystem {
   private context: ConsoleContext;
@@ -19,6 +20,7 @@ export class MenuSystem {
     wifi: WiFiCommands;
     mavlink: MAVLinkCommands;
     tasks: TaskCommands;
+    rtcm: RTCMCommands;
   };
 
   constructor(context: ConsoleContext, clientManager: ClientManager, uiHelpers: UIHelpers) {
@@ -35,7 +37,8 @@ export class MenuSystem {
       config: new ConfigCommands(context, clientManager, uiHelpers),
       wifi: new WiFiCommands(context, clientManager, uiHelpers),
       mavlink: new MAVLinkCommands(context, clientManager, uiHelpers),
-      tasks: new TaskCommands(context, clientManager, uiHelpers)
+      tasks: new TaskCommands(context, clientManager, uiHelpers),
+      rtcm: new RTCMCommands(context, clientManager, uiHelpers)
     };
   }
 
@@ -83,6 +86,13 @@ export class MenuSystem {
         label: 'Task Management',
         description: 'Create, manage, and execute tasks',
         action: () => this.taskMenu(),
+        requiresConnection: true
+      },
+      {
+        key: 'rtcm',
+        label: 'RTCM Correction Data',
+        description: 'Manage RTCM correction data sources',
+        action: () => this.rtcmMenu(),
         requiresConnection: true
       },
       {
@@ -417,6 +427,43 @@ export class MenuSystem {
     ];
 
     await this.displayMenu('Task Management', items);
+  }
+
+  private async rtcmMenu(): Promise<void> {
+    const items: MenuItem[] = [
+      {
+        key: 'status',
+        label: 'View RTCM Status',
+        description: 'View current RTCM client status and statistics',
+        action: () => this.commands.rtcm.viewStatus()
+      },
+      {
+        key: 'start',
+        label: 'Start RTCM Client',
+        description: 'Start RTCM correction data client',
+        action: () => this.commands.rtcm.startClient()
+      },
+      {
+        key: 'stop',
+        label: 'Stop RTCM Client',
+        description: 'Stop RTCM correction data client',
+        action: () => this.commands.rtcm.stopClient()
+      },
+      {
+        key: 'monitor',
+        label: 'Real-time Monitoring',
+        description: 'Monitor RTCM data in real-time',
+        action: () => this.commands.rtcm.monitorRealtime()
+      },
+      {
+        key: 'back',
+        label: 'Back to Main Menu',
+        description: 'Return to main menu',
+        action: async () => {}
+      }
+    ];
+
+    await this.displayMenu('RTCM Correction Data', items);
   }
 
   private async toolsMenu(): Promise<void> {

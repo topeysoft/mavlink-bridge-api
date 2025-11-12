@@ -71,7 +71,7 @@ using StatsCallback = std::function<void(const MessageStats&)>;
 
 static const size_t MAX_RTCM_FRAGMENT_SIZE = 180;  // MAVLink GPS_RTCM_DATA max payload
 static const size_t MAX_PARSE_BUFFER_SIZE = 512;
-static const uint8_t MAVLINK_STX = 0xFD;  // MAVLink 2.0 start byte
+// Note: MAVLINK_STX is defined as macro in mavlink.h (253 / 0xFD)
 
 bool isMAVLinkData(const uint8_t* data, size_t length);
 size_t serializeMessage(const Message& message, uint8_t* buffer, size_t bufferSize);

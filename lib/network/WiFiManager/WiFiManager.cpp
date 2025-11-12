@@ -11,10 +11,11 @@ const uint16_t WiFiManager::RECONNECT_DELAYS[MAX_RECONNECT_ATTEMPTS] = {
 WiFiManager::WiFiManager() 
     : currentState(DISCONNECTED), previousState(DISCONNECTED), wifiTaskHandle(nullptr), 
       reconnectAttempts(0), lastReconnectTime(0), lastSignalCheck(0),
-      eventManager(nullptr), configManager(nullptr), connectingSsid(""), 
+      eventManager(nullptr), configManager(nullptr), nvsManager(nullptr), connectingSsid(""), 
       isScanning(false), lastScanTime(0) {
     eventManager = EventManager::getInstance();
     configManager = ConfigManager::getInstance();
+    nvsManager = NVSManager::getInstance();
     memset(connectionInfo.bssid, 0, 6);
 }
 
@@ -32,6 +33,15 @@ WiFiManager* WiFiManager::getInstance() {
 }
 
 void WiFiManager::begin() {
+    // Initialize NVS Manager
+    NVSResult nvsResult = nvsManager->begin();
+    if (nvsResult != NVSResult::SUCCESS) {
+        Serial.printf("WiFiManager: Warning - NVS initialization failed: %s\n", nvsManager->getLastError().c_str());
+        Serial.println("WiFiManager: Continuing with ConfigManager only");
+    } else {
+        Serial.println("WiFiManager: NVS initialized successfully");
+    }
+    
     // Set WiFi mode
     WiFi.mode(WIFI_AP_STA);
     
@@ -83,6 +93,14 @@ void WiFiManager::disconnect() {
     WiFi.disconnect();
     setState(DISCONNECTED);
     publishConnectionEvent("", "user_request");
+}
+
+WiFiManager::ConnectionInfo WiFiManager::getConnectionInfo() {
+    // Update connection info if we're connected
+    if (currentState == CONNECTED) {
+        updateConnectionInfo();
+    }
+    return connectionInfo;
 }
 
 void WiFiManager::startAccessPoint() {
@@ -178,51 +196,91 @@ std::vector<WiFiNetwork> WiFiManager::scan(bool forceNew) {
     return lastScanResults;
 }
 
-bool WiFiManager::addSavedNetwork(const String& ssid, const String& password, uint8_t priority) {
+bool WiFiManager::saveNetwork(const String& ssid, const String& password) {
+    // Save to NVS first (primary storage)
+    WiFiCredential cred(ssid, password);
+    NVSResult nvsResult = nvsManager->saveWiFiCredential(cred);
+    
+    if (nvsResult != NVSResult::SUCCESS) {
+        Serial.printf("WiFiManager: NVS save failed (%s), using ConfigManager fallback\n", nvsManager->getLastError().c_str());
+    } else {
+        Serial.printf("WiFiManager: Saved WiFi credential to NVS: %s\n", ssid.c_str());
+    }
+    
+    // Also save to ConfigManager (primary storage when NVS fails)
     Configuration config = configManager->getConfiguration();
+    config.connection.wifi.ssid = ssid;
+    config.connection.wifi.password = password;
     
-    // Check if network already exists
-    for (uint8_t i = 0; i < config.connection.wifi.networkCount; i++) {
-        if (config.connection.wifi.networks[i].ssid == ssid) {
-            // Update existing network
-            config.connection.wifi.networks[i].password = password;
-            config.connection.wifi.networks[i].priority = priority;
-            return configManager->setConfiguration(config);
-        }
-    }
+    bool configResult = configManager->setConfiguration(config);
     
-    // Add new network if there's space
-    if (config.connection.wifi.networkCount < 5) {
-        SavedNetwork& network = config.connection.wifi.networks[config.connection.wifi.networkCount];
-        network.ssid = ssid;
-        network.password = password;
-        network.priority = priority;
-        config.connection.wifi.networkCount++;
+    if (configResult) {
+        Serial.printf("WiFiManager: Saved WiFi credential to ConfigManager: %s\n", ssid.c_str());
         
-        return configManager->setConfiguration(config);
+        // If connected, disable AP mode
+        if (currentState == CONNECTED) {
+            stopAccessPoint();
+        }
+    } else {
+        Serial.println("WiFiManager: ERROR - Failed to save to both NVS and ConfigManager");
     }
     
-    Serial.println("Cannot add network: maximum of 5 saved networks reached");
-    return false;
+    return nvsResult == NVSResult::SUCCESS || configResult;
 }
 
-bool WiFiManager::removeSavedNetwork(const String& ssid) {
-    Configuration config = configManager->getConfiguration();
-    
-    // Find and remove network
-    for (uint8_t i = 0; i < config.connection.wifi.networkCount; i++) {
-        if (config.connection.wifi.networks[i].ssid == ssid) {
-            // Shift remaining networks down
-            for (uint8_t j = i; j < config.connection.wifi.networkCount - 1; j++) {
-                config.connection.wifi.networks[j] = config.connection.wifi.networks[j + 1];
-            }
-            config.connection.wifi.networkCount--;
-            
-            return configManager->setConfiguration(config);
-        }
+bool WiFiManager::clearSavedNetwork() {
+    // Remove from NVS
+    bool nvsSuccess = (nvsManager->removeWiFiCredential() == NVSResult::SUCCESS);
+    if (!nvsSuccess) {
+        Serial.printf("Failed to remove WiFi credential from NVS: %s\n", nvsManager->getLastError().c_str());
     }
     
-    return false; // Network not found
+    // Also clear from ConfigManager
+    Configuration config = configManager->getConfiguration();
+    config.connection.wifi.ssid = "";
+    config.connection.wifi.password = "";
+    
+    bool configSuccess = configManager->setConfiguration(config);
+    
+    return nvsSuccess || configSuccess;
+}
+
+bool WiFiManager::hasSavedNetwork() const {
+    // Check NVS first (but don't fail if NVS is not working)
+    bool hasNVSCredential = false;
+    try {
+        hasNVSCredential = nvsManager->hasWiFiCredential();
+    } catch (...) {
+        // Ignore NVS errors
+    }
+    
+    // Check ConfigManager
+    bool hasConfigCredential = !configManager->getConfiguration().connection.wifi.ssid.isEmpty();
+    
+    return hasNVSCredential || hasConfigCredential;
+}
+
+WiFiCredential WiFiManager::getSavedCredential() const {
+    WiFiCredential cred;
+    
+    // Try NVS first
+    NVSResult nvsResult = nvsManager->getWiFiCredential(cred);
+    if (nvsResult == NVSResult::SUCCESS && !cred.ssid.isEmpty()) {
+        Serial.printf("WiFiManager: Retrieved credential from NVS: %s\n", cred.ssid.c_str());
+        return cred;
+    }
+    
+    // Fall back to ConfigManager
+    const Configuration& config = configManager->getConfiguration();
+    if (!config.connection.wifi.ssid.isEmpty()) {
+        cred.ssid = config.connection.wifi.ssid;
+        cred.password = config.connection.wifi.password;
+        Serial.printf("WiFiManager: Retrieved credential from ConfigManager: %s\n", cred.ssid.c_str());
+    } else {
+        Serial.println("WiFiManager: No saved credential found in either NVS or ConfigManager");
+    }
+    
+    return cred;
 }
 
 void WiFiManager::tryAutoConnect() {
@@ -230,12 +288,14 @@ void WiFiManager::tryAutoConnect() {
         return;
     }
     
-    SavedNetwork* bestNetwork = findBestSavedNetwork();
-    if (bestNetwork != nullptr) {
-        Serial.printf("Auto-connecting to: %s\n", bestNetwork->ssid.c_str());
-        connect(bestNetwork->ssid, bestNetwork->password);
+    // Get saved credential if any
+    WiFiCredential cred = getSavedCredential();
+    
+    if (!cred.ssid.isEmpty()) {
+        Serial.printf("Auto-connecting to saved network: %s\n", cred.ssid.c_str());
+        connect(cred.ssid, cred.password);
     } else {
-        Serial.println("No saved networks available for auto-connect");
+        Serial.println("No saved network available for auto-connect");
         const Configuration& config = configManager->getConfiguration();
         if (config.connection.wifi.apModeEnabled) {
             startAccessPoint();
@@ -283,11 +343,8 @@ void WiFiManager::handleStateTransition() {
                 }
             } else {
                 // Max attempts reached, start AP mode
-                const Configuration& config = configManager->getConfiguration();
-                if (config.connection.wifi.apModeEnabled) {
-                    startAccessPoint();
-                    reconnectAttempts = 0; // Reset for next time
-                }
+                checkAndStartAP();
+                reconnectAttempts = 0; // Reset for next time
             }
             break;
             
@@ -298,6 +355,10 @@ void WiFiManager::handleStateTransition() {
                 if (now - lastReconnectTime > delay) {
                     attemptReconnection();
                 }
+            } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                // Max attempts reached, start AP mode
+                checkAndStartAP();
+                reconnectAttempts = 0; // Reset for next time
             }
             break;
             
@@ -309,19 +370,17 @@ void WiFiManager::handleStateTransition() {
 void WiFiManager::attemptReconnection() {
     if (!connectingSsid.isEmpty()) {
         // Try reconnecting to the last attempted network
-        const Configuration& config = configManager->getConfiguration();
-        for (uint8_t i = 0; i < config.connection.wifi.networkCount; i++) {
-            if (config.connection.wifi.networks[i].ssid == connectingSsid) {
-                Serial.printf("Reconnection attempt %d to: %s\n", 
-                             reconnectAttempts + 1, connectingSsid.c_str());
-                connectToNetwork(connectingSsid, config.connection.wifi.networks[i].password);
-                return;
-            }
+        WiFiCredential cred = getSavedCredential();
+        if (cred.ssid == connectingSsid) {
+            Serial.printf("Reconnection attempt %d to: %s\n", 
+                         reconnectAttempts + 1, connectingSsid.c_str());
+            connectToNetwork(connectingSsid, cred.password);
+            return;
         }
-    } else {
-        // Try auto-connect to best available network
-        tryAutoConnect();
     }
+    
+    // Try auto-connect to saved network
+    tryAutoConnect();
 }
 
 void WiFiManager::updateConnectionInfo() {
@@ -427,40 +486,6 @@ unsigned long WiFiManager::getReconnectDelay(uint8_t attempt) {
     return RECONNECT_DELAYS[attempt];
 }
 
-SavedNetwork* WiFiManager::findBestSavedNetwork() {
-    Configuration& config = configManager->getConfiguration();
-    
-    if (config.connection.wifi.networkCount == 0) {
-        return nullptr;
-    }
-    
-    // Get current scan results to check signal strength
-    std::vector<WiFiNetwork> scanResults = scan();
-    
-    SavedNetwork* bestNetwork = nullptr;
-    int8_t bestRssi = -100;
-    uint8_t highestPriority = 0;
-    
-    for (uint8_t i = 0; i < config.connection.wifi.networkCount; i++) {
-        SavedNetwork* network = &config.connection.wifi.networks[i];
-        
-        // Find this network in scan results
-        for (const auto& scanned : scanResults) {
-            if (scanned.ssid == network->ssid) {
-                // Prefer higher priority, then better signal
-                if (network->priority > highestPriority || 
-                    (network->priority == highestPriority && scanned.rssi > bestRssi)) {
-                    bestNetwork = network;
-                    bestRssi = scanned.rssi;
-                    highestPriority = network->priority;
-                }
-                break;
-            }
-        }
-    }
-    
-    return bestNetwork;
-}
 
 bool WiFiManager::connectToNetwork(const String& ssid, const String& password) {
     setState(CONNECTING);
@@ -477,6 +502,8 @@ void WiFiManager::handleWiFiEvent(WiFiEvent_t event) {
             Serial.printf("Connected to WiFi: %s\n", WiFi.SSID().c_str());
             setState(CONNECTED);
             reconnectAttempts = 0;
+            // Disable AP mode when connected
+            stopAccessPoint();
             break;
             
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
@@ -492,9 +519,19 @@ void WiFiManager::handleWiFiEvent(WiFiEvent_t event) {
         case ARDUINO_EVENT_WIFI_STA_GOT_IP:
             Serial.printf("WiFi connected, IP: %s\n", WiFi.localIP().toString().c_str());
             setState(CONNECTED);
+            // Disable AP mode when connected
+            stopAccessPoint();
             break;
             
         default:
             break;
     }
 }
+
+void WiFiManager::checkAndStartAP() {
+    const Configuration& config = configManager->getConfiguration();
+    if (config.connection.wifi.apModeEnabled && currentState != AP_MODE) {
+        startAccessPoint();
+    }
+}
+

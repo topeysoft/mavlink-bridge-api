@@ -77,7 +77,7 @@ void MDNSEndpoints::handleDiscover(const HttpRequest& req, HttpResponse& res) {
         DynamicJsonDocument requestDoc(256);
         if (deserializeJson(requestDoc, req.body) == DeserializationError::Ok) {
             if (requestDoc.containsKey("serviceType")) {
-                serviceType = requestDoc["serviceType"].as<String>();
+                serviceType = String(requestDoc["serviceType"].as<const char*>());
             }
         }
     }
@@ -157,7 +157,7 @@ void MDNSEndpoints::handleUpdateConfig(const HttpRequest& req, HttpResponse& res
     }
     
     if (requestDoc.containsKey("hostname")) {
-        newConfig.hostname = requestDoc["hostname"].as<String>();
+        newConfig.hostname = String(requestDoc["hostname"].as<const char*>());
     }
     
     if (requestDoc.containsKey("discoveryEnabled")) {

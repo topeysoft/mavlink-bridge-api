@@ -1,0 +1,42 @@
+# ESP32-S3 QEMU Emulator - Simplified version
+FROM espressif/idf:v5.1.2
+
+# Install pip and PlatformIO
+RUN apt-get update && apt-get install -y python3-pip && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip3 install platformio
+
+# Install QEMU build dependencies
+RUN apt-get update && apt-get install -y \
+    ninja-build \
+    libglib2.0-0 \
+    libpixman-1-0 \
+    libsdl2-2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install QEMU for ESP32
+RUN cd /opt && \
+    git clone https://github.com/espressif/qemu.git -b esp-develop-8.2.0-20240122 && \
+    cd qemu && \
+    ./configure --target-list=xtensa-softmmu --prefix=/opt/qemu-esp32 --disable-werror && \
+    make -j$(nproc) && \
+    make install
+
+# Add QEMU to PATH
+ENV PATH="/opt/qemu-esp32/bin:${PATH}"
+
+# Set up working directory
+WORKDIR /workspace
+
+# Copy project files
+COPY platformio.ini /workspace/
+COPY lib /workspace/lib
+COPY src /workspace/src
+COPY test /workspace/test
+COPY partitions.csv /workspace/
+
+# Create scripts directory
+RUN mkdir -p /workspace/scripts
+
+# Default command
+CMD ["/bin/bash"]

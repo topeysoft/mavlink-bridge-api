@@ -1,0 +1,31 @@
+{
+  "version": 8,
+  "device": {
+    "name": "ESP32-MAVLinkBridge",
+    "mode": "usb_otg"
+  },
+  "connection": {
+    "type": "wifi",
+    "wifi": {
+      "ssid": "VirusBroadcast",
+      "password": "6185810376",
+      "autoConnect": true,
+      "apModeEnabled": true,
+      "apSSID": "MAVLinkBridge-Setup",
+      "apPassword": "mavlinkbridge123"
+    }
+  },
+  "rtcm": {
+    "enabled": true,
+    "source": {
+      "type": "tcp",
+      "host": "192.168.86.56",
+      "port": 2101
+    }
+  },
+  "mdns": {
+    "enabled": true,
+    "hostname": "yardrover",
+    "discoveryEnabled": true
+  }
+}

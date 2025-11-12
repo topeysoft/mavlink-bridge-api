@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "TypeScript client library for MAVLinkBridge ESP32 API",
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
   "scripts": {

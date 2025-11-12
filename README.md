@@ -1,225 +1,206 @@
-# MAVLinkBridge ESP32 API - Stage 1: Core Infrastructure
+# YardRover API
 
-This repository contains the core infrastructure implementation for the MAVLinkBridge ESP32-based REST API system. This is Stage 1 of a multi-stage implementation focused on establishing the foundational components.
+ESP32-based MAVLink bridge with comprehensive API for drone communication and control.
 
-## 🚀 Features Implemented (Stage 1)
+## Features
 
-### Core Components
-- **HTTP Server**: Async HTTP server with JSON request/response handling
-- **WebSocket Server**: Real-time communication with multiple client support
-- **Event Manager**: Lightweight pub/sub system for component communication  
-- **Configuration Manager**: JSON-based configuration with validation
+- **MAVLink Processing**: Real-time MAVLink message parsing and filtering
+- **Multiple Interfaces**: USB OTG and UART communication support
+- **Command System**: Send MAVLink commands to flight controllers
+- **WebSocket API**: Real-time bidirectional communication
+- **RESTful API**: Comprehensive HTTP endpoints for configuration and control
+- **Client Library**: TypeScript/JavaScript client with full type safety
+- **Health Monitoring**: System health, memory usage, and error tracking
+- **WiFi Management**: Connect to networks, manage credentials
+- **RTCM Support**: NTRIP/TCP/UDP RTCM data routing
+- **Configuration Management**: Persistent settings with backup/restore
 
-### Key Specifications
-- **Memory Optimized**: Static allocation where possible, ~120KB total usage
-- **Multi-threaded**: FreeRTOS tasks for concurrent operations
-- **Resource Constrained**: Designed for ESP32 limitations
-- **Event-Driven**: Pub/sub architecture for loose coupling
+## Quick Start
 
-## 📁 Project Structure
+### Hardware Setup
 
-```
-mavlinkbridge-api/
-├── lib/                    # Component libraries
-│   ├── HttpServer/         # HTTP server implementation
-│   ├── WebSocketServer/    # WebSocket server
-│   ├── EventManager/       # Event pub/sub system
-│   └── ConfigManager/      # Configuration management
-├── src/                    # Main application
-│   ├── main.cpp           # Application entry point
-│   └── config.h           # Build configuration
-├── test/                   # Unit tests
-├── client/                 # TypeScript client library
-└── platformio.ini         # Build configuration
-```
+1. Flash the ESP32 with the YardRover firmware
+2. Connect flight controller via USB or UART
+3. Connect to the ESP32's WiFi network or configure it to join your network
 
-## 🔧 Hardware Requirements
+### Using the Client Library
 
-- **ESP32-S3** or **ESP32-S2** development board
-- **320KB RAM** minimum (ESP32-S3 recommended)
-- **WiFi capability** for API access
-
-## 🛠️ Setup & Installation
-
-### 1. Platform Setup
 ```bash
-# Install PlatformIO
-pip install platformio
-
-# Clone repository
-git clone <repository-url>
-cd mavlinkbridge-api
-
-# Build for ESP32-S3
-pio run -e esp32s3
-
-# Upload to device
-pio run -e esp32s3 -t upload
-
-# Monitor serial output
-pio device monitor
+npm install @mavlinkbridge/api-client
 ```
 
-### 2. TypeScript Client Setup
-```bash
-cd client
-npm install
-npm run build
-
-# Run examples
-npm run dev
-```
-
-## 📡 API Endpoints
-
-### HTTP REST API
-- `GET /api/health` - Device health status
-- `GET /api/config` - Get complete configuration
-- `POST /api/config` - Replace entire configuration
-- `PATCH /api/config` - Update specific configuration fields
-
-### WebSocket Events
-- `ws://device-ip/ws` - Real-time event stream
-- Event types: `status`, `config_changed`, `rtcm_data`, `error`, `log`
-
-## 🧪 Testing
-
-### Run Unit Tests
-```bash
-# Run all tests
-pio test
-
-# Run specific component tests
-pio test -f test_http_server
-pio test -f test_websocket_server
-pio test -f test_event_manager
-pio test -f test_config_manager
-```
-
-### Test Coverage
-- ✅ HTTP Server: Route handling, CORS, buffer management
-- ✅ WebSocket Server: Connection management, message broadcasting
-- ✅ Event Manager: Pub/sub, async processing, thread safety
-- ✅ Configuration Manager: JSON serialization, validation, change tracking
-
-## 💾 Memory Usage Analysis
-
-| Component | RAM Usage | Description |
-|-----------|-----------|-------------|
-| HTTP Server | 8KB | Request/response buffers + state |
-| WebSocket Server | 6KB | 3 client connections × 2KB each |
-| Event Manager | 2KB | Event queue + subscriptions |
-| Configuration | 4KB | JSON storage + runtime config |
-| System Reserve | 17KB | FreeRTOS + Arduino framework |
-| **Total** | **~37KB** | Core components only |
-
-**Remaining**: ~283KB available for future stages
-
-## 📚 Client Library Usage
-
-### Basic Usage
 ```typescript
-import { MAVLinkBridgeClient } from '@mavlinkbridge/api-client';
+import { MAVLinkBridgeClient, ArduPilotMode } from '@mavlinkbridge/api-client';
 
 const client = new MAVLinkBridgeClient('http://192.168.4.1');
 await client.connect();
 
-// Get device health
-const health = await client.getHealth();
-console.log(`Status: ${health.status}, Free Heap: ${health.freeHeap}`);
-
-// Listen for events
-client.onStatus(status => {
-  console.log(`Device status: ${status.status}`);
+// Send MAVLink commands to flight controller
+await client.mavlink.arm();
+await client.mavlink.setMode(ArduPilotMode.GUIDED);
+await client.mavlink.setPositionTarget({
+  x: 10,    // 10m north
+  y: 5,     // 5m east 
+  z: -20,   // 20m up
+  yaw: 0    // face north
 });
-
-// Update configuration
-await client.updateDeviceName('My-MAVLinkBridge');
+await client.mavlink.land();
 ```
 
-### Configuration Management
+## MAVLink Commands
+
+The system supports comprehensive MAVLink command functionality:
+
+### Basic Commands
+- `arm()` / `disarm()` - Arm/disarm the vehicle
+- `setMode(mode)` - Change flight mode
+- `returnToLaunch()` - RTL command
+- `land()` - Land the vehicle
+- `setHomeHere()` - Set home position to current location
+
+### Advanced Commands
+- `sendCommandLong(options)` - Send generic COMMAND_LONG messages
+- `sendCommandInt(options)` - Send COMMAND_INT with position data
+- `setPositionTarget(options)` - Set position/velocity targets
+- `takeoff(altitude)` - Takeoff to specified altitude
+- `requestCapabilities()` - Request autopilot capabilities
+
+### Example Commands
+
 ```typescript
-// Get current config
-const config = await client.getConfiguration();
+// ARM the vehicle
+await client.mavlink.arm();
 
-// Update specific values
-await client.updateConfigValue('/device/mode', 'uart');
-await client.updateWiFiSettings('MyNetwork', true);
+// Set to Guided mode
+await client.mavlink.setMode(ArduPilotMode.GUIDED);
 
-// Reset to defaults
-await client.resetConfiguration();
-```
-
-## 🔄 Event System
-
-The event system provides loose coupling between components:
-
-```cpp
-// Subscribe to events
-EventManager::getInstance()->subscribe(EventType::CONFIG_CHANGED, [](const Event& e) {
-    // Handle configuration change
-    Serial.println("Configuration changed!");
+// Navigate to position
+await client.mavlink.setPositionTarget({
+  x: 10.0,   // 10 meters north
+  y: 5.0,    // 5 meters east
+  z: -20.0,  // 20 meters up (negative in NED)
+  yaw: 1.57  // 90 degrees
 });
 
-// Publish events
-DynamicJsonDocument payload(256);
-payload["section"] = "device";
-EventManager::getInstance()->publishAsync(EventType::CONFIG_CHANGED, payload.as<JsonObject>());
+// Send custom command
+await client.mavlink.sendCommandLong({
+  command: 400, // MAV_CMD_COMPONENT_ARM_DISARM
+  param1: 1,    // Arm
+  param2: 0
+});
+
+// Return to launch
+await client.mavlink.returnToLaunch();
 ```
 
-## 🐛 Debugging
+## API Endpoints
 
-### Serial Debug Output
+### Core Endpoints
+- `GET /api/health` - System health and status
+- `GET /api/config` - Get device configuration  
+- `POST /api/config` - Update configuration
+- `POST /api/wifi/connect` - Connect to WiFi network
+
+### MAVLink Endpoints
+- `POST /api/mavlink/command` - Send MAVLink commands
+- `GET /api/communication/status` - Communication interface status
+- `GET /api/communication/statistics` - Data flow statistics
+- `POST /api/communication/mavlink/filter` - Configure message filtering
+
+### Command API
+
+Send MAVLink commands via HTTP POST to `/api/mavlink/command`:
+
+```json
+{
+  "commandType": "arm",
+  "targetSystem": 1,
+  "targetComponent": 1
+}
+```
+
+Supported command types:
+- `arm` / `disarm` - Vehicle arming
+- `setMode` - Flight mode changes
+- `commandLong` - Generic COMMAND_LONG
+- `commandInt` - COMMAND_INT with coordinates
+- `setPositionTarget` - Position/velocity targets
+
+## Examples
+
+See the `client/examples/` directory for complete examples:
+
+- **Node.js Example**: `mavlink-commands-example.ts` - Complete command testing
+- **Browser Example**: `mavlink-browser-example.html` - Interactive web interface
+- **Basic Usage**: `basic-usage.ts` - Simple client setup
+- **Health Monitoring**: `health-monitoring-example.ts` - System monitoring
+
+## Development
+
+### Building
+
 ```bash
-# Monitor with timestamps and exception decoder
-pio device monitor --filter esp32_exception_decoder --filter time
+# ESP32 firmware
+pio run
+
+# Client library
+cd client
+npm install
+npm run build
 ```
 
-### Memory Debugging
-```cpp
-// Check free heap
-Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
+### Testing
 
-// Check task stack usage
-Serial.printf("HTTP task stack: %d words remaining\n", 
-              uxTaskGetStackHighWaterMark(httpTaskHandle));
+```bash
+# Run client tests
+cd client
+npm test
+
+# Test examples
+npm run example:commands
 ```
 
-## 📈 Performance Characteristics
+## Configuration
 
-- **HTTP Response Time**: < 100ms typical
-- **WebSocket Latency**: < 50ms for local events
-- **Event Processing**: 100+ events/second
-- **Concurrent Connections**: 4 HTTP + 3 WebSocket
-- **Memory Efficiency**: Static allocation, minimal fragmentation
+Default configuration supports common flight controller setups:
 
-## 🔜 Next Stages
+```json
+{
+  "device": {
+    "name": "YardRover Bridge",
+    "mode": "usb_otg"
+  },
+  "communication": {
+    "interface": "auto",
+    "baudRate": 115200,
+    "mavlinkProcessing": true
+  }
+}
+```
 
-This implementation provides the foundation for:
+## Architecture
 
-- **Stage 2**: Configuration persistence and JSON Patch support
-- **Stage 3**: WiFi management and network configuration
-- **Stage 4**: RTCM client with NTRIP/TCP/UDP support
-- **Stage 5**: USB OTG and UART communication
-- **Stage 6**: System integration and health monitoring
+- **ESP32 Core**: FreeRTOS-based firmware with ArduinoCore
+- **Communication**: USB OTG and UART with automatic detection
+- **MAVLink**: Official MAVLink library with custom extensions
+- **Networking**: AsyncWebServer with WebSocket support
+- **Storage**: SPIFFS-based configuration persistence
+- **Client**: TypeScript library with full type safety
 
-## 📋 Known Limitations
+## License
 
-- Configuration persistence not implemented (Stage 2)
-- WiFi management limited to AP mode (Stage 3)
-- RTCM client not implemented (Stage 4)
-- No USB/UART communication (Stage 5)
-- Limited error recovery (Stage 6)
+MIT License - see LICENSE file for details.
 
-## 🤝 Contributing
+## Contributing
 
-This is a staged implementation. Focus areas for Stage 1:
-- Memory optimization
-- Event system improvements
-- API endpoint enhancements
-- Client library features
-- Test coverage expansion
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-## 📄 License
+## Support
 
-MIT License - See LICENSE file for details.
+- GitHub Issues: Report bugs and feature requests
+- Documentation: See `docs/` directory for detailed guides
+- Examples: Check `client/examples/` for usage patterns

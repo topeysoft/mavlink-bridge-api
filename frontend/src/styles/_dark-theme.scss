@@ -1,0 +1,456 @@
+// YardRover Dark Theme
+// Dark mode variations for nature theme
+
+// ===================================
+// DARK THEME VARIABLES
+// ===================================
+
+[data-theme='dark'] {
+  // Base colors remain the same but with dark variants
+  --primary-color: #{lighten($grass-green, 10%)};
+  --secondary-color: #{lighten($earth-brown, 15%)};
+  --accent-color: #{lighten($leaf-orange, 10%)};
+
+  // Background colors
+  --bg-primary: #{$dark-bg-primary};
+  --bg-secondary: #{$dark-bg-secondary};
+  --bg-accent: #{$dark-bg-accent};
+
+  // Text colors
+  --text-primary: #{$dark-text-primary};
+  --text-secondary: #{$dark-text-secondary};
+  --text-disabled: #{$dark-text-disabled};
+
+  // Semantic colors (slightly adjusted for dark theme)
+  --success-color: #{lighten($success, 15%)};
+  --warning-color: #{lighten($warning, 10%)};
+  --error-color: #{lighten($error, 10%)};
+  --info-color: #{lighten($info, 15%)};
+
+  // Border and separator colors
+  --separator-color: #{$separator-dark-color};
+  --border-color: #{rgba(255, 255, 255, 0.1)};
+}
+
+// ===================================
+// DARK THEME BODY STYLES
+// ===================================
+
+[data-theme='dark'] {
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
+
+  // Update CSS custom properties
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+
+  // ===================================
+  // CARD DARK THEME
+  // ===================================
+
+  .card {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+
+    .card-header {
+      background: rgba(var(--primary-color), 0.1);
+      border-color: var(--border-color);
+
+      .card-title {
+        color: var(--text-primary);
+      }
+
+      .card-subtitle {
+        color: var(--text-secondary);
+      }
+    }
+
+    .card-footer {
+      background: var(--bg-accent);
+      border-color: var(--border-color);
+    }
+  }
+
+  .card-nature {
+    background: linear-gradient(135deg, rgba($grass-green, 0.8), rgba($forest-green, 0.6));
+  }
+
+  // ===================================
+  // BUTTON DARK THEME
+  // ===================================
+
+  .btn {
+    &.btn-ghost {
+      color: var(--primary-color);
+
+      &:hover {
+        background: rgba($grass-green, 0.1);
+      }
+    }
+
+    &.btn-outline {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+
+      &:hover {
+        background: var(--primary-color);
+        color: white;
+      }
+    }
+  }
+
+  // ===================================
+  // FORM DARK THEME
+  // ===================================
+
+  .form-input,
+  .form-textarea,
+  .form-select {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+
+    &::placeholder {
+      color: var(--text-disabled);
+    }
+
+    &:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba($grass-green, 0.1);
+    }
+
+    &.input-error {
+      border-color: var(--error-color);
+
+      &:focus {
+        box-shadow: 0 0 0 3px rgba($error, 0.1);
+      }
+    }
+
+    &.input-success {
+      border-color: var(--success-color);
+
+      &:focus {
+        box-shadow: 0 0 0 3px rgba($success, 0.1);
+      }
+    }
+  }
+
+  .form-label {
+    color: var(--text-primary);
+  }
+
+  .form-help {
+    color: var(--text-secondary);
+  }
+
+  .form-error {
+    color: var(--error-color);
+  }
+
+  // ===================================
+  // NAVIGATION DARK THEME
+  // ===================================
+
+  .nav {
+    .nav-link {
+      color: var(--text-secondary);
+
+      &:hover {
+        color: var(--primary-color);
+      }
+
+      &.active {
+        color: var(--primary-color);
+      }
+    }
+
+    &.nav-pills {
+      .nav-link {
+        &:hover {
+          background: rgba($grass-green, 0.1);
+        }
+
+        &.active {
+          background: var(--primary-color);
+          color: white;
+        }
+      }
+    }
+
+    &.nav-tabs {
+      border-color: var(--border-color);
+
+      .nav-link {
+        &.active {
+          border-bottom-color: var(--primary-color);
+        }
+      }
+    }
+  }
+
+  // ===================================
+  // ALERT DARK THEME
+  // ===================================
+
+  .alert {
+    &.alert-success {
+      background: rgba($success, 0.1);
+      border-color: rgba($success, 0.3);
+      color: var(--success-color);
+    }
+
+    &.alert-warning {
+      background: rgba($warning, 0.1);
+      border-color: rgba($warning, 0.3);
+      color: var(--warning-color);
+    }
+
+    &.alert-error {
+      background: rgba($error, 0.1);
+      border-color: rgba($error, 0.3);
+      color: var(--error-color);
+    }
+
+    &.alert-info {
+      background: rgba($info, 0.1);
+      border-color: rgba($info, 0.3);
+      color: var(--info-color);
+    }
+  }
+
+  // ===================================
+  // PROGRESS DARK THEME
+  // ===================================
+
+  .progress {
+    background: var(--bg-accent);
+
+    .progress-bar {
+      background: var(--primary-color);
+
+      &.progress-success {
+        background: var(--success-color);
+      }
+
+      &.progress-warning {
+        background: var(--warning-color);
+      }
+
+      &.progress-error {
+        background: var(--error-color);
+      }
+    }
+  }
+
+  // ===================================
+  // SPINNER DARK THEME
+  // ===================================
+
+  .spinner {
+    border-color: var(--bg-accent);
+    border-top-color: var(--primary-color);
+  }
+
+  // ===================================
+  // SKELETON DARK THEME
+  // ===================================
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--bg-secondary) 25%,
+      var(--bg-accent) 50%,
+      var(--bg-secondary) 75%
+    );
+    background-size: 200% 100%;
+  }
+
+  // ===================================
+  // BADGE DARK THEME
+  // ===================================
+
+  .badge {
+    &.badge-outline {
+      color: var(--text-primary);
+    }
+  }
+
+  // ===================================
+  // UTILITY DARK OVERRIDES
+  // ===================================
+
+  .bg-light {
+    background-color: var(--bg-secondary) !important;
+  }
+
+  .bg-white {
+    background-color: var(--bg-primary) !important;
+  }
+
+  .text-muted {
+    color: var(--text-secondary) !important;
+  }
+
+  .border {
+    border-color: var(--border-color) !important;
+  }
+
+  .border-top {
+    border-top-color: var(--border-color) !important;
+  }
+
+  .border-right {
+    border-right-color: var(--border-color) !important;
+  }
+
+  .border-bottom {
+    border-bottom-color: var(--border-color) !important;
+  }
+
+  .border-left {
+    border-left-color: var(--border-color) !important;
+  }
+}
+
+// ===================================
+// DARK THEME TOGGLE UTILITIES
+// ===================================
+
+.theme-toggle {
+  @include nature-button('ghost', 'md');
+  position: relative;
+  width: 50px;
+  height: 24px;
+  border-radius: 12px;
+  background: $storm-gray;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color $transition-normal;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    transition: transform $transition-normal;
+  }
+
+  &.theme-dark {
+    background: var(--primary-color);
+
+    &::before {
+      transform: translateX(26px);
+    }
+  }
+
+  // Icon indicators
+  &::after {
+    content: '☀️';
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    opacity: 1;
+    transition: opacity $transition-normal;
+  }
+
+  &.theme-dark::after {
+    content: '🌙';
+    right: auto;
+    left: 6px;
+  }
+}
+
+// ===================================
+// SEASONAL DARK VARIANTS
+// ===================================
+
+[data-theme='dark'] {
+  .seasonal-spring {
+    --primary-color: #{$moss-green};
+    --accent-color: #{lighten($grass-green, 20%)};
+  }
+
+  .seasonal-summer {
+    --primary-color: #{$ocean-blue};
+    --accent-color: #{lighten($sky-blue, 15%)};
+  }
+
+  .seasonal-autumn {
+    --primary-color: #{$sunset-orange};
+    --accent-color: #{lighten($leaf-orange, 15%)};
+  }
+
+  .seasonal-winter {
+    --primary-color: #{lighten($storm-gray, 20%)};
+    --accent-color: #{lighten($shadow-gray, 25%)};
+  }
+}
+
+// ===================================
+// MEDIA QUERIES FOR SYSTEM PREFERENCE
+// ===================================
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    // Apply dark theme if no explicit theme is set and user prefers dark
+    // Manually copy styles instead of @extend to avoid media query issues
+    background-color: #{$dark-bg-primary};
+    color: #{$dark-text-primary};
+
+    body {
+      background-color: #{$dark-bg-primary};
+      color: #{$dark-text-primary};
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      color: #{$dark-text-primary};
+    }
+
+    .text-primary {
+      color: #{$dark-text-primary};
+    }
+
+    .text-secondary {
+      color: #{$dark-text-secondary};
+    }
+
+    .text-disabled {
+      color: #{$dark-text-disabled};
+    }
+  }
+}
+
+// ===================================
+// SMOOTH THEME TRANSITIONS
+// ===================================
+
+:root {
+  transition:
+    background-color $transition-normal,
+    color $transition-normal,
+    border-color $transition-normal;
+}
+
+* {
+  transition:
+    background-color $transition-normal,
+    color $transition-normal,
+    border-color $transition-normal,
+    box-shadow $transition-normal;
+}

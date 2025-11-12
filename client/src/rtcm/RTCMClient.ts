@@ -28,7 +28,7 @@ export class RTCMClient {
    * Start RTCM client with the given configuration
    */
   async start (config: Partial<RTCMConfig>): Promise<RTCMResponse> {
-    const response = await this.httpClient.post<RTCMResponse>('/rtcm/start', config);
+    const response = await this.httpClient.post<RTCMResponse>('/api/rtcm/start', config);
     return response;
   }
 
@@ -36,7 +36,7 @@ export class RTCMClient {
    * Stop the RTCM client
    */
   async stop (): Promise<RTCMResponse> {
-    const response = await this.httpClient.post<RTCMResponse>('/rtcm/stop');
+    const response = await this.httpClient.post<RTCMResponse>('/api/rtcm/stop');
     return response;
   }
 
@@ -44,7 +44,7 @@ export class RTCMClient {
    * Get current RTCM client status
    */
   async getStatus (): Promise<RTCMStatus> {
-    const response = await this.httpClient.get<RTCMStatus>('/rtcm/status');
+    const response = await this.httpClient.get<RTCMStatus>('/api/rtcm/status');
     return response;
   }
 
@@ -52,7 +52,7 @@ export class RTCMClient {
    * Get current RTCM configuration
    */
   async getConfig (): Promise<RTCMConfig> {
-    const response = await this.httpClient.get<RTCMConfig>('/rtcm/config');
+    const response = await this.httpClient.get<RTCMConfig>('/api/rtcm/config');
     return response;
   }
 

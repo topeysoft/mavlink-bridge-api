@@ -1,265 +1,382 @@
 <template>
-  <BasePage
-    title="Vehicle Control"
-    subtitle="Monitor and control your vehicle"
-    :loading="loading"
-    :error="error"
-    @retry="loadData"
-  >
-    <template #actions>
-      <q-btn round flat icon="refresh" @click="loadData" :loading="loading">
-        <q-tooltip>Refresh</q-tooltip>
-      </q-btn>
-    </template>
+  <q-page class="control-page nature-gradient">
+    <q-toolbar class="bg-transparent">
+      <q-toolbar-title class="text-h5 text-primary">
+        Machine Control Center
+      </q-toolbar-title>
+      <ConnectionStatus />
+    </q-toolbar>
 
-    <!-- Connection Warning -->
-    <q-banner v-if="!isConnected" class="bg-warning text-white q-mb-lg" rounded>
-      <template #avatar>
-        <q-icon name="mdi-link-off" />
-      </template>
-      MAVLink connection not established. Check your vehicle connection.
-    </q-banner>
+    <div class="control-layout q-pa-md">
+      <!-- Main Control Panel -->
+      <section class="control-section">
+        <q-card class="nature-card full-height">
+          <q-card-section>
+            <div class="text-h6 text-primary q-mb-md">
+              <q-icon name="control_camera" class="q-mr-sm" />
+              Control Panel
+            </div>
+            
+            <!-- Mode Selector -->
+            <div class="q-mb-md">
+              <q-btn-toggle
+                v-model="controlMode"
+                spread
+                no-caps
+                toggle-color="primary"
+                :options="[
+                  {label: 'Manual', value: 'manual', icon: 'pan_tool'},
+                  {label: 'Assisted', value: 'assisted', icon: 'assistant'},
+                  {label: 'Auto', value: 'auto', icon: 'smart_toy'}
+                ]"
+              />
+            </div>
 
-    <div class="row q-col-gutter-md">
-      <!-- Status Column -->
-      <div class="col-12 col-lg-8">
-        <VehicleStatus class="q-mb-md" />
-
-        <q-tabs
-          v-model="tab"
-          dense
-          active-color="primary"
-          indicator-color="primary"
-          align="left"
-          class="q-mb-md"
-        >
-          <q-tab name="control" label="Basic Control" />
-          <q-tab name="console" label="Command Console" />
-          <q-tab name="telemetry" label="Telemetry" />
-        </q-tabs>
-
-        <q-tab-panels v-model="tab" animated>
-          <q-tab-panel name="control">
-            <div class="row q-col-gutter-md">
-              <div class="col-12 col-md-6">
-                <ArmControl />
+            <!-- Joystick Control -->
+            <div class="joystick-container">
+              <div class="joystick-wrapper">
+                <div class="joystick-pad" @touchmove="handleJoystick">
+                  <div class="joystick-stick" :style="joystickStyle">
+                    <q-icon name="control_camera" size="24px" />
+                  </div>
+                </div>
               </div>
-              <div class="col-12 col-md-6">
-                <FlightModeSelector />
+              <div class="speed-control q-ml-md">
+                <q-slider
+                  v-model="speed"
+                  :min="0"
+                  :max="100"
+                  vertical
+                  reverse
+                  label
+                  label-always
+                  color="primary"
+                  style="height: 200px"
+                />
+                <div class="text-caption q-mt-sm">Speed</div>
               </div>
             </div>
-          </q-tab-panel>
 
-          <q-tab-panel name="console">
-            <CommandConsole />
-          </q-tab-panel>
-
-          <q-tab-panel name="telemetry">
-            <TelemetryDisplay />
-          </q-tab-panel>
-        </q-tab-panels>
-      </div>
-
-      <!-- Side Column -->
-      <div class="col-12 col-lg-4">
-        <EmergencyStop class="q-mb-md" />
-
-        <q-card>
-          <q-card-section>
-            <div class="text-h6 q-mb-md">Quick Actions</div>
-
-            <div class="q-gutter-sm">
+            <!-- Quick Actions -->
+            <div class="row q-gutter-sm q-mt-md">
               <q-btn
-                label="Set Home Here"
-                color="primary"
-                icon="mdi-home-map-marker"
-                class="full-width"
-                @click="setHomeHere"
+                color="positive"
+                icon="play_arrow"
+                label="Start"
+                @click="handleStart"
               />
               <q-btn
-                label="Request Data Streams"
-                color="primary"
-                icon="mdi-download"
-                class="full-width"
-                @click="requestDataStreams"
-              />
-              <q-btn
-                label="Calibrate Compass"
-                color="primary"
-                icon="mdi-compass"
-                class="full-width"
-                @click="calibrateCompass"
-              />
-              <q-btn
-                label="Reboot Flight Controller"
                 color="warning"
-                icon="mdi-restart"
-                class="full-width"
-                @click="rebootFC"
+                icon="pause"
+                label="Pause"
+                @click="handlePause"
+              />
+              <q-btn
+                color="negative"
+                icon="stop"
+                label="Stop"
+                @click="handleStop"
+              />
+              <q-btn
+                color="primary"
+                icon="home"
+                label="Return Home"
+                @click="handleReturnHome"
               />
             </div>
           </q-card-section>
         </q-card>
-      </div>
+      </section>
+
+      <!-- Status Section -->
+      <section class="status-section">
+        <q-card class="nature-card q-mb-md">
+          <q-card-section>
+            <div class="text-h6 text-primary q-mb-sm">
+              <q-icon name="info" class="q-mr-sm" />
+              Machine Status
+            </div>
+            <q-list dense>
+              <q-item>
+                <q-item-section>
+                  <q-item-label>Mode</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-chip color="primary" text-color="white">
+                    {{ flightMode }}
+                  </q-chip>
+                </q-item-section>
+              </q-item>
+              <q-item>
+                <q-item-section>
+                  <q-item-label>Armed</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-chip :color="isArmed ? 'positive' : 'grey'" text-color="white">
+                    {{ isArmed ? 'Yes' : 'No' }}
+                  </q-chip>
+                </q-item-section>
+              </q-item>
+              <q-item>
+                <q-item-section>
+                  <q-item-label>Battery</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-linear-progress
+                    :value="battery / 100"
+                    :color="battery > 30 ? 'positive' : 'warning'"
+                    size="25px"
+                    class="q-mt-sm"
+                  >
+                    <div class="absolute-full flex flex-center">
+                      <q-badge color="white" text-color="accent" :label="`${battery}%`" />
+                    </div>
+                  </q-linear-progress>
+                </q-item-section>
+              </q-item>
+              <q-item>
+                <q-item-section>
+                  <q-item-label>GPS Fix</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-chip :color="gpsFixed ? 'positive' : 'warning'" text-color="white">
+                    {{ gpsFixed ? `3D (${satelliteCount} sats)` : 'No Fix' }}
+                  </q-chip>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
+
+        <!-- Battery Indicator -->
+        <q-card class="nature-card">
+          <q-card-section>
+            <div class="text-h6 text-primary q-mb-sm">
+              <q-icon name="battery_charging_full" class="q-mr-sm" />
+              Power Status
+            </div>
+            <q-circular-progress
+              show-value
+              font-size="12px"
+              :value="battery"
+              size="100px"
+              :thickness="0.2"
+              :color="battery > 30 ? 'positive' : 'warning'"
+              track-color="grey-3"
+              class="q-ma-md"
+            >
+              {{ battery }}%
+            </q-circular-progress>
+            <div class="text-caption text-grey">
+              Voltage: {{ voltage.toFixed(1) }}V<br>
+              Current: {{ current.toFixed(1) }}A<br>
+              Est. Time: {{ estimatedTime }}
+            </div>
+          </q-card-section>
+        </q-card>
+      </section>
+
+      <!-- Map Section -->
+      <section class="map-section">
+        <q-card class="nature-card full-height">
+          <q-card-section class="full-height">
+            <div class="text-h6 text-primary q-mb-sm">
+              <q-icon name="map" class="q-mr-sm" />
+              Live Position
+            </div>
+            <div class="map-placeholder">
+              <div class="text-center text-grey">
+                <q-icon name="map" size="64px" />
+                <p>Map view will display here</p>
+                <p class="text-caption">
+                  Lat: {{ latitude.toFixed(6) }}<br>
+                  Lon: {{ longitude.toFixed(6) }}
+                </p>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
+      </section>
     </div>
-  </BasePage>
+  </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useQuasar } from 'quasar';
-import { useMAVLinkStore } from '../stores/mavlink';
-import BasePage from '../components/layout/BasePage.vue';
-import VehicleStatus from '../components/mavlink/VehicleStatus.vue';
-import ArmControl from '../components/mavlink/ArmControl.vue';
-import FlightModeSelector from '../components/mavlink/FlightModeSelector.vue';
-import CommandConsole from '../components/mavlink/CommandConsole.vue';
-import EmergencyStop from '../components/mavlink/EmergencyStop.vue';
-import TelemetryDisplay from '../components/mavlink/TelemetryDisplay.vue';
+import { ref, computed, reactive } from 'vue';
+import { useConnectionStore } from '@/stores/connection';
+import { useTelemetryStore } from '@/stores/telemetry';
+import ConnectionStatus from '@/components/common/ConnectionStatus.vue';
 
-const $q = useQuasar();
-const mavlinkStore = useMAVLinkStore();
+const connectionStore = useConnectionStore();
+const telemetryStore = useTelemetryStore();
 
-const tab = ref('control');
-let telemetryInterval: number | null = null;
+// Control state
+const controlMode = ref('manual');
+const speed = ref(50);
+const joystickX = ref(0);
+const joystickY = ref(0);
 
-const loading = computed(() => mavlinkStore.loading);
-const error = computed(() => mavlinkStore.error);
-const isConnected = computed(() => mavlinkStore.isConnected);
+// Machine state (from telemetry)
+const flightMode = computed(() => telemetryStore.telemetry.flight_mode || 'MANUAL');
+const isArmed = computed(() => telemetryStore.telemetry.armed || false);
+const battery = computed(() => telemetryStore.telemetry.battery?.percentage || 0);
+const voltage = computed(() => telemetryStore.telemetry.battery?.voltage || 0);
+const current = computed(() => telemetryStore.telemetry.battery?.current || 0);
+const gpsFixed = computed(() => telemetryStore.telemetry.gps?.fix_type === 3);
+const satelliteCount = computed(() => telemetryStore.telemetry.gps?.satellites_visible || 0);
+const latitude = computed(() => telemetryStore.telemetry.gps?.lat || 0);
+const longitude = computed(() => telemetryStore.telemetry.gps?.lon || 0);
 
-async function loadData() {
-  try {
-    // Use environment variable or fallback to localhost
-    const deviceUrl = import.meta.env.VITE_DEFAULT_DEVICE_URL || 'http://localhost:8080';
-    await mavlinkStore.connect(deviceUrl);
-    await mavlinkStore.requestDataStreams();
-    mavlinkStore.setupWebSocketHandlers();
-    mavlinkStore.initializePreflightChecks();
-  } catch (error) {
-    console.error('Failed to load MAVLink data:', error);
-  }
-}
-
-function setHomeHere() {
-  $q.dialog({
-    title: 'Set Home Position',
-    message: 'Set the home position to the current vehicle location?',
-    cancel: true,
-    persistent: true,
-  }).onOk(() => {
-    void (async () => {
-      try {
-        await mavlinkStore.setHomePosition();
-        $q.notify({
-          type: 'positive',
-          message: 'Home position set',
-          position: 'top',
-        });
-      } catch (error: unknown) {
-        $q.notify({
-          type: 'negative',
-          message: 'Failed to set home position',
-          caption: error instanceof Error ? error.message : 'Unknown error',
-          position: 'top',
-        });
-      }
-    })();
-  });
-}
-
-async function requestDataStreams() {
-  try {
-    await mavlinkStore.requestDataStreams();
-    $q.notify({
-      type: 'positive',
-      message: 'Data streams requested',
-      position: 'top',
-    });
-  } catch (error: unknown) {
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to request data streams',
-      caption: error instanceof Error ? error.message : 'Unknown error',
-      position: 'top',
-    });
-  }
-}
-
-function calibrateCompass() {
-  $q.dialog({
-    title: 'Calibrate Compass',
-    message: 'Start compass calibration? You will need to rotate the vehicle in all axes.',
-    cancel: true,
-    persistent: true,
-  }).onOk(() => {
-    void (async () => {
-      try {
-        await mavlinkStore.startCompassCalibration();
-        $q.notify({
-          type: 'info',
-          message: 'Compass calibration started',
-          caption: 'Rotate the vehicle in all axes',
-          position: 'top',
-          timeout: 0,
-          actions: [{ label: 'OK', color: 'white' }],
-        });
-      } catch (error: unknown) {
-        $q.notify({
-          type: 'negative',
-          message: 'Failed to start calibration',
-          caption: error instanceof Error ? error.message : 'Unknown error',
-          position: 'top',
-        });
-      }
-    })();
-  });
-}
-
-function rebootFC() {
-  $q.dialog({
-    title: 'Reboot Flight Controller',
-    message: 'This will reboot the flight controller. The connection will be lost temporarily.',
-    cancel: true,
-    persistent: true,
-    color: 'warning',
-  }).onOk(() => {
-    void (async () => {
-      try {
-        await mavlinkStore.rebootFlightController();
-        $q.notify({
-          type: 'warning',
-          message: 'Flight controller rebooting',
-          caption: 'Connection will be restored automatically',
-          position: 'top',
-        });
-      } catch (error: unknown) {
-        $q.notify({
-          type: 'negative',
-          message: 'Failed to reboot',
-          caption: error instanceof Error ? error.message : 'Unknown error',
-          position: 'top',
-        });
-      }
-    })();
-  });
-}
-
-onMounted(() => {
-  void loadData();
-
-  // Set up telemetry updates
-  telemetryInterval = window.setInterval(() => {
-    if (isConnected.value) {
-      mavlinkStore.updateTelemetry();
-    }
-  }, 1000);
+// Computed
+const estimatedTime = computed(() => {
+  const minutes = Math.floor((battery.value / 100) * 60);
+  return `${minutes} min`;
 });
 
-onUnmounted(() => {
-  if (telemetryInterval) {
-    clearInterval(telemetryInterval);
+const joystickStyle = computed(() => ({
+  transform: `translate(${joystickX.value}px, ${joystickY.value}px)`,
+}));
+
+// Methods
+function handleJoystick(event: TouchEvent) {
+  const touch = event.touches[0];
+  const rect = (event.target as HTMLElement).getBoundingClientRect();
+  const centerX = rect.width / 2;
+  const centerY = rect.height / 2;
+  const maxDistance = Math.min(centerX, centerY) - 20;
+
+  let x = touch.clientX - rect.left - centerX;
+  let y = touch.clientY - rect.top - centerY;
+
+  const distance = Math.sqrt(x * x + y * y);
+  if (distance > maxDistance) {
+    x = (x / distance) * maxDistance;
+    y = (y / distance) * maxDistance;
   }
-  // Stop mock telemetry when component unmounts
-  mavlinkStore.stopMockTelemetry();
-});
+
+  joystickX.value = x;
+  joystickY.value = y;
+}
+
+function handleStart() {
+  console.log('Start command');
+}
+
+function handlePause() {
+  console.log('Pause command');
+}
+
+function handleStop() {
+  console.log('Stop command');
+}
+
+function handleReturnHome() {
+  console.log('Return home command');
+}
 </script>
+
+<style lang="scss" scoped>
+@import '@/assets/styles/variables';
+
+.control-page {
+  min-height: 100vh;
+}
+
+.control-layout {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  grid-template-rows: auto 1fr;
+  gap: $spacing-md;
+  max-width: 1400px;
+  margin: 0 auto;
+
+  @media (max-width: $breakpoint-md) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.control-section {
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+.status-section {
+  grid-column: 2;
+  grid-row: 1;
+  
+  @media (max-width: $breakpoint-md) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}
+
+.map-section {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 300px;
+  
+  @media (max-width: $breakpoint-md) {
+    grid-column: 1;
+    grid-row: 3;
+  }
+}
+
+.joystick-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: $spacing-lg 0;
+}
+
+.joystick-wrapper {
+  position: relative;
+}
+
+.joystick-pad {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #f0f0f0, #e0e0e0);
+  box-shadow: 
+    inset 5px 5px 10px #d0d0d0,
+    inset -5px -5px 10px #ffffff;
+  position: relative;
+  touch-action: none;
+}
+
+.joystick-stick {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: $primary;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: transform 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: $shadow-md;
+}
+
+.speed-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.map-placeholder {
+  height: 250px;
+  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+  border-radius: $radius-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.full-height {
+  height: 100%;
+}
+</style>

@@ -6,6 +6,7 @@
 #include <WebSocketServer/WebSocketServer.h>
 #include <EventManager/EventManager.h>
 #include <ConfigManager/ConfigManager.h>
+#include <NVSManager/NVSManager.h>
 #include <ConfigEndpoints/ConfigEndpoints.h>
 #include <WiFiManager/WiFiManager.h>
 #include <WiFiEndpoints/WiFiEndpoints.h>
@@ -17,6 +18,7 @@
 #include <IntegrationTest/IntegrationTest.h>
 #include <MDNSManager/MDNSManager.h>
 #include <MDNSEndpoints/MDNSEndpoints.h>
+#include <RTCMEndpoints/RTCMEndpoints.h>
 
 #if ENABLE_COMMUNICATION_SYSTEM
 #include <USBOTGManager/USBOTGManager.h>
@@ -31,6 +33,7 @@ HttpServer *httpServer = nullptr;
 WebSocketServer *wsServer = nullptr;
 EventManager *eventManager = nullptr;
 ConfigManager *configManager = nullptr;
+NVSManager *nvsManager = nullptr;
 WiFiManager *wifiManager = nullptr;
 Storage *storage = nullptr;
 HealthMonitor *healthMonitor = nullptr;
@@ -65,6 +68,7 @@ void setupMemoryEndpoints();
 void setupErrorEndpoints();
 void setupTaskEndpoints();
 void setupTestEndpoints();
+void startRTCMClientIfEnabled();
 
 #if ENABLE_COMMUNICATION_SYSTEM
 void setupCommunicationSystem();
@@ -103,6 +107,17 @@ void setup()
     configManager->begin();
     configManager->setChangeHandler(onConfigChanged);
     Serial.println("✓ Configuration Manager initialized with persistence");
+
+    // Initialize NVS Manager (required by WiFi Manager)
+    nvsManager = NVSManager::getInstance();
+    if (nvsManager->begin() != NVSResult::SUCCESS)
+    {
+        Serial.println("⚠️  NVS Manager initialization failed - WiFi credentials will use ConfigManager only");
+    }
+    else
+    {
+        Serial.println("✓ NVS Manager initialized");
+    }
 
     // Initialize WiFi Manager
     wifiManager = WiFiManager::getInstance();
@@ -157,7 +172,6 @@ void setup()
         
         serializeJson(doc, res.body); });
 
-
     // Register health monitoring endpoints
     setupHealthEndpoints();
     setupMemoryEndpoints();
@@ -177,6 +191,11 @@ void setup()
     Serial.println("DEBUG: Registering WiFiEndpoints...");
     WiFiEndpoints::registerRoutes(httpServer);
     Serial.println("DEBUG: WiFiEndpoints registered");
+
+    // Register RTCM endpoints
+    Serial.println("DEBUG: Registering RTCMEndpoints...");
+    RTCMEndpoints::registerRoutes(httpServer, configManager);
+    Serial.println("DEBUG: RTCMEndpoints registered");
 
     // Start the HTTP server AFTER registering all routes
     httpServer->begin(80);
@@ -258,6 +277,10 @@ void setup()
     Serial.printf("  POST   /api/memory/cleanup - Emergency cleanup\n");
     Serial.printf("  POST   /api/memory/defrag  - Defragment memory\n");
     Serial.printf("  POST   /api/test/run       - Run integration tests\n");
+    Serial.printf("  POST   /api/rtcm/start     - Start RTCM client\n");
+    Serial.printf("  POST   /api/rtcm/stop      - Stop RTCM client\n");
+    Serial.printf("  GET    /api/rtcm/status    - RTCM client status\n");
+    Serial.printf("  GET    /api/rtcm/config    - RTCM configuration\n");
 #if ENABLE_COMMUNICATION_SYSTEM
     Serial.printf("  GET    /api/communication/status     - Communication status\n");
     Serial.printf("  GET    /api/communication/statistics - Communication stats\n");
@@ -267,15 +290,15 @@ void setup()
     IPAddress currentIP = (wifiManager->getState() == WiFiManager::CONNECTED) ? wifiManager->getConnectionInfo().ip : WiFi.softAPIP();
     Serial.printf("  WebSocket: ws://%s/ws - Real-time events\n", currentIP.toString().c_str());
     Serial.println("");
-    Serial.println("Features: Config ✓ WiFi ✓ Events ✓ Communication ✓ Health ✓ Memory ✓ Tasks ✓ Errors ✓");
+    Serial.println("Features: Config ✓ WiFi ✓ Events ✓ Communication ✓ Health ✓ Memory ✓ Tasks ✓ Errors ✓ RTCM ✓");
 }
 
 void loop()
 {
     // Main loop - keep system running
     static unsigned long lastHealthReport = 0;
+    static unsigned long lastRTCMCheck = 0;
     unsigned long now = millis();
-
 
     // Update mDNS manager
     if (mdnsManager)
@@ -296,6 +319,25 @@ void loop()
         eventManager->publishAsync(EventType::HEALTH_UPDATE, payload.as<JsonObjectConst>());
 
         lastHealthReport = now;
+    }
+
+    // Check RTCM connection every 60 seconds
+    if (now - lastRTCMCheck > 60000)
+    {
+        const RTCMConfig &rtcmConfig = configManager->getRTCMConfig();
+        RTCMClient *rtcmClient = RTCMEndpoints::getCurrentClient();
+
+        // If RTCM is enabled but not connected, attempt reconnection
+        if (rtcmConfig.enabled && wifiManager->getState() == WiFiManager::CONNECTED)
+        {
+            if (!rtcmClient || rtcmClient->getState() != RTCMClient::CONNECTED)
+            {
+                Serial.println("🔄 RTCM should be connected but isn't - attempting reconnection...");
+                startRTCMClientIfEnabled();
+            }
+        }
+
+        lastRTCMCheck = now;
     }
 
     delay(1000);
@@ -322,9 +364,9 @@ void wsTask(void *parameter)
 void setupCommunicationRoutes()
 {
     Serial.println("DEBUG: setupCommunicationRoutes() called");
-    
+
     // Configuration and WiFi endpoints are now registered before server starts
-    
+
     // Register communication endpoints
     Serial.println("DEBUG: Registering CommunicationEndpoints...");
     CommunicationEndpoints::setupEndpoints(*httpServer->getAsyncServer());
@@ -511,9 +553,34 @@ void handleHealthCheck(const HttpRequest &req, HttpResponse &res)
     doc["config"]["version"] = config.version;
     doc["config"]["isDirty"] = configManager->isDirtyConfig();
 
+    // RTCM client status
+    RTCMClient *rtcmClient = RTCMEndpoints::getCurrentClient();
+    JsonObject rtcm = doc["rtcm"].to<JsonObject>();
+    if (rtcmClient)
+    {
+        RTCMClient::State state = rtcmClient->getState();
+        rtcm["connected"] = (state == RTCMClient::CONNECTED);
+        rtcm["state"] = state == RTCMClient::CONNECTED ? "connected" : state == RTCMClient::CONNECTING ? "connecting"
+                                                                     : state == RTCMClient::ERROR        ? "error"
+                                                                                                         : "disconnected";
+        rtcm["type"] = rtcmClient->getTypeName();
+
+        RTCMClient::Statistics stats = rtcmClient->getStatistics();
+        rtcm["messagesReceived"] = stats.messagesReceived;
+        rtcm["bytesReceived"] = stats.bytesReceived;
+        rtcm["dataRate"] = stats.dataRate;
+        rtcm["crcErrors"] = stats.crcErrors;
+    }
+    else
+    {
+        rtcm["connected"] = false;
+        rtcm["state"] = "not_running";
+    }
+
     // Storage health
     bool storageInitialized = storage && storage->isHealthy();
-    if (storageInitialized) {
+    if (storageInitialized)
+    {
         size_t freeStorage = storage->getFreeSpace();
         size_t totalStorage = storage->getTotalSpace();
         doc["storage"]["freeBytes"] = freeStorage;
@@ -521,7 +588,9 @@ void handleHealthCheck(const HttpRequest &req, HttpResponse &res)
         doc["storage"]["usedBytes"] = storage->getUsedSpace();
         // Only mark as unhealthy if storage is initialized but low on space
         doc["storage"]["healthy"] = (totalStorage == 0) || (freeStorage > 1024); // More than 1KB free
-    } else {
+    }
+    else
+    {
         // Storage not initialized - not a critical failure
         doc["storage"]["freeBytes"] = 0;
         doc["storage"]["totalBytes"] = 0;
@@ -654,6 +723,10 @@ void onWiFiEvent(WiFiEvent_t event)
                 mdnsManager->begin();
             }
         }
+
+        // Auto-start RTCM client if enabled
+        Serial.println("WiFi connected, checking RTCM configuration...");
+        startRTCMClientIfEnabled();
         break;
 
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
@@ -662,6 +735,10 @@ void onWiFiEvent(WiFiEvent_t event)
         {
             mdnsManager->end();
         }
+
+        // Stop RTCM client on WiFi disconnect
+        Serial.println("WiFi disconnected, stopping RTCM client...");
+        RTCMEndpoints::stopCurrentClient();
         break;
 
     default:
@@ -871,11 +948,14 @@ void setupMemoryEndpoints()
         doc["freeHeap"] = stats.freeHeap;
         doc["minFreeHeap"] = stats.minFreeHeap;
         doc["largestFreeBlock"] = stats.largestFreeBlock;
+        doc["maxAllocHeap"] = stats.largestFreeBlock;  // Same as largestFreeBlock for consistency
         doc["allocations"] = stats.allocations;
         doc["frees"] = stats.frees;
         doc["fragmentation"] = stats.fragmentation;
         doc["poolAllocations"] = stats.poolAllocations;
         doc["poolFrees"] = stats.poolFrees;
+        doc["poolHits"] = 0;  // Add missing fields from interface
+        doc["poolMisses"] = 0;
         
         serializeJson(doc, res.body);
         res.statusCode = 200; });
@@ -1059,7 +1139,91 @@ void setupTestEndpoints()
             suiteObj["failedTests"] = suite.failedTests;
             suiteObj["totalDuration"] = suite.totalDuration;
         }
-        
+
         serializeJson(doc, res.body);
         res.statusCode = 200; });
+}
+
+void startRTCMClientIfEnabled()
+{
+    if (!configManager)
+    {
+        Serial.println("⚠️  ConfigManager not available, cannot start RTCM client");
+        return;
+    }
+
+    const RTCMConfig &rtcmConfig = configManager->getRTCMConfig();
+
+    if (!rtcmConfig.enabled)
+    {
+        Serial.println("ℹ️  RTCM client is disabled in configuration");
+        return;
+    }
+
+    Serial.printf("✓ RTCM client is enabled, will attempt to connect to %s:%d\n",
+                  rtcmConfig.source.host.c_str(), rtcmConfig.source.port);
+
+    // Give WiFi stack time to fully initialize (2 seconds)
+    Serial.println("⏱️  Waiting 2 seconds for network stack to stabilize...");
+    delay(2000);
+
+    // Build JSON request for starting RTCM client
+    DynamicJsonDocument startRequest(1024);
+    startRequest["enabled"] = true;
+    startRequest["source"]["type"] = rtcmConfig.source.type;
+    startRequest["source"]["host"] = rtcmConfig.source.host;
+    startRequest["source"]["port"] = rtcmConfig.source.port;
+
+    if (!rtcmConfig.source.mountpoint.isEmpty())
+    {
+        startRequest["source"]["mountpoint"] = rtcmConfig.source.mountpoint;
+    }
+    if (!rtcmConfig.source.username.isEmpty())
+    {
+        startRequest["source"]["username"] = rtcmConfig.source.username;
+    }
+    if (!rtcmConfig.source.password.isEmpty())
+    {
+        startRequest["source"]["password"] = rtcmConfig.source.password;
+    }
+
+    // Serialize request
+    String requestBody;
+    serializeJson(startRequest, requestBody);
+
+    // Retry logic: 3 attempts with exponential backoff
+    const int maxAttempts = 3;
+    const int baseDelay = 1000; // 1 second
+
+    for (int attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        Serial.printf("🔄 RTCM connection attempt %d/%d...\n", attempt, maxAttempts);
+
+        // Use thread-safe startClient method (doesn't save config)
+        bool success = RTCMEndpoints::startClient(startRequest.as<JsonObjectConst>());
+
+        if (success)
+        {
+            Serial.println("✓ RTCM client started successfully");
+            // Note: Events are automatically emitted by RTCMEndpoints::startClient()
+            return; // Success - exit function
+        }
+        else
+        {
+            Serial.printf("⚠️  RTCM connection attempt %d failed\n", attempt);
+
+            // If not the last attempt, wait with exponential backoff
+            if (attempt < maxAttempts)
+            {
+                int delayMs = baseDelay * (1 << (attempt - 1)); // 1s, 2s, 4s
+                Serial.printf("⏱️  Retrying in %d ms...\n", delayMs);
+                delay(delayMs);
+            }
+        }
+    }
+
+    // All attempts failed
+    Serial.printf("❌ Failed to start RTCM client after %d attempts\n", maxAttempts);
+    // Note: Don't call wsServer->broadcast() from WiFi event task (thread-safety)
+    // Error events are handled by the RTCM client state callbacks
 }

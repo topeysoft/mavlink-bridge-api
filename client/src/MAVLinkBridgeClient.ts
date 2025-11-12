@@ -52,7 +52,7 @@ export class MAVLinkBridgeClient {
    */
   constructor(deviceUrl: string, options: MAVLinkBridgeClientOptions = {}) {
     this.options = {
-      httpTimeout: options.httpTimeout ?? 5000,
+      httpTimeout: options.httpTimeout ?? 15000,
       maxReconnectAttempts: options.maxReconnectAttempts ?? 5,
       reconnectDelay: options.reconnectDelay ?? 1000,
       autoConnectWebSocket: options.autoConnectWebSocket ?? true
@@ -75,22 +75,22 @@ export class MAVLinkBridgeClient {
 
     // Initialize RTCM client
     this.rtcmClient = new RTCMClient(this.httpClient, this.wsClient);
-    
+
     // Initialize health client
     this.healthClient = new HealthClient(this.httpClient, this.wsClient);
-    
+
     // Initialize communication client
     this.commClient = new CommunicationClient(this.httpClient, this.wsClient);
-    
+
     // Initialize MAVLink command client
     this.mavlinkClient = new MAVLinkCommandClient(this.httpClient);
-    
+
     // Initialize MAVLink mission client
     this.missionClient = new MAVLinkMissionClient(this.httpClient, this.wsClient);
-    
+
     // Initialize MAVLink parameter client
     this.parameterClient = new MAVLinkParameterClient(this.httpClient);
-    
+
     // Initialize task client
     this.taskClient = new TaskClient(this.httpClient, this.wsClient);
   }
@@ -98,7 +98,7 @@ export class MAVLinkBridgeClient {
   /**
    * Initialize the client and establish connections
    */
-  async connect(): Promise<void> {
+  async connect (): Promise<void> {
     if (this.options.autoConnectWebSocket) {
       await this.wsClient.connect();
     }
@@ -107,14 +107,14 @@ export class MAVLinkBridgeClient {
   /**
    * Disconnect from the device
    */
-  disconnect(): void {
+  disconnect (): void {
     this.wsClient.disconnect();
   }
 
   /**
    * Check if WebSocket is connected
    */
-  isConnected(): boolean {
+  isConnected (): boolean {
     return this.wsClient.isConnected();
   }
 
@@ -123,42 +123,42 @@ export class MAVLinkBridgeClient {
   /**
    * Get the current device configuration
    */
-  async getConfiguration(): Promise<Configuration> {
+  async getConfiguration (): Promise<Configuration> {
     return this.configClient.getConfiguration();
   }
 
   /**
    * Set the complete device configuration
    */
-  async setConfiguration(config: Configuration): Promise<void> {
+  async setConfiguration (config: Configuration): Promise<void> {
     return this.configClient.setConfiguration(config);
   }
 
   /**
    * Update a specific configuration value
    */
-  async updateConfigValue(path: string, value: unknown): Promise<void> {
+  async updateConfigValue (path: string, value: unknown): Promise<void> {
     return this.configClient.updateConfigValue(path, value);
   }
 
   /**
    * Update device name
    */
-  async updateDeviceName(name: string): Promise<void> {
+  async updateDeviceName (name: string): Promise<void> {
     return this.configClient.updateDeviceName(name);
   }
 
   /**
    * Update device mode
    */
-  async updateDeviceMode(mode: 'usb_otg' | 'uart'): Promise<void> {
+  async updateDeviceMode (mode: 'usb_otg' | 'uart'): Promise<void> {
     return this.configClient.updateDeviceMode(mode);
   }
 
   /**
    * Reset configuration to defaults
    */
-  async resetConfiguration(): Promise<void> {
+  async resetConfiguration (): Promise<void> {
     return this.configClient.resetToDefaults();
   }
 
@@ -167,7 +167,7 @@ export class MAVLinkBridgeClient {
   /**
    * Get device health status
    */
-  async getHealth(): Promise<HealthCheckResponse> {
+  async getHealth (): Promise<HealthCheckResponse> {
     return this.healthClient.getHealthCheck();
   }
 
@@ -176,112 +176,92 @@ export class MAVLinkBridgeClient {
   /**
    * Get WiFi client for advanced WiFi operations
    */
-  get wifi(): WiFiClient {
+  get wifi (): WiFiClient {
     return this.wifiClient;
   }
 
   /**
    * Get RTCM client for advanced RTCM operations
    */
-  get rtcm(): RTCMClient {
+  get rtcm (): RTCMClient {
     return this.rtcmClient;
   }
 
   /**
    * Get health client for system monitoring
    */
-  get health(): HealthClient {
+  get health (): HealthClient {
     return this.healthClient;
   }
 
   /**
    * Get communication client for USB/UART operations
    */
-  get communication(): CommunicationClient {
+  get communication (): CommunicationClient {
     return this.commClient;
   }
 
   /**
    * Get MAVLink command client for flight controller commands
    */
-  get mavlink(): MAVLinkCommandClient {
+  get mavlink (): MAVLinkCommandClient {
     return this.mavlinkClient;
   }
 
   /**
    * Get MAVLink mission client for mission management
    */
-  get mission(): MAVLinkMissionClient {
+  get mission (): MAVLinkMissionClient {
     return this.missionClient;
   }
 
   /**
    * Get MAVLink parameter client for parameter management
    */
-  get parameters(): MAVLinkParameterClient {
+  get parameters (): MAVLinkParameterClient {
     return this.parameterClient;
   }
 
   /**
    * Get task client for task management
    */
-  get tasks(): TaskClient {
+  get tasks (): TaskClient {
     return this.taskClient;
   }
 
   /**
    * Connect to a WiFi network
    */
-  async connectToWiFi(credentials: WiFiCredentials): Promise<void> {
+  async connectToWiFi (credentials: WiFiCredentials): Promise<void> {
     await this.wifiClient.connect(credentials);
   }
 
   /**
    * Disconnect from WiFi
    */
-  async disconnectFromWiFi(): Promise<void> {
+  async disconnectFromWiFi (): Promise<void> {
     await this.wifiClient.disconnect();
   }
 
   /**
    * Get current WiFi status
    */
-  async getWiFiStatus(): Promise<WiFiStatus> {
+  async getWiFiStatus (): Promise<WiFiStatus> {
     return this.wifiClient.getStatus();
   }
 
   /**
    * Scan for WiFi networks
    */
-  async scanWiFiNetworks(force: boolean = false): Promise<WiFiNetwork[]> {
+  async scanWiFiNetworks (force: boolean = false): Promise<WiFiNetwork[]> {
     return this.wifiClient.scan({ force });
   }
 
-  /**
-   * Add a saved WiFi network
-   */
-  async addSavedWiFiNetwork(ssid: string, password: string, priority: number = 0): Promise<void> {
-    await this.wifiClient.addSavedNetwork(ssid, password, priority);
-  }
-
-  /**
-   * Remove a saved WiFi network
-   */
-  async removeSavedWiFiNetwork(ssid: string): Promise<void> {
-    await this.wifiClient.removeSavedNetwork(ssid);
-  }
-
-  /**
-   * Get saved WiFi networks
-   */
-  async getSavedWiFiNetworks(): Promise<any[]> {
-    return this.wifiClient.getSavedNetworks();
-  }
 
   /**
    * Update WiFi settings
    */
-  async updateWiFiSettings(ssid: string, autoConnect: boolean = true): Promise<void> {
+  async updateWiFiSettings (ssid: string, autoConnect: boolean = true): Promise<void> {
     await this.configClient.updateWiFiSSID(ssid);
     await this.configClient.updateWiFiAutoConnect(autoConnect);
   }
@@ -291,10 +271,10 @@ export class MAVLinkBridgeClient {
   /**
    * Start RTCM client
    */
-  async startRTCM(): Promise<void> {
+  async startRTCM (): Promise<void> {
     // First enable RTCM in config
     await this.configClient.updateRTCMEnabled(true);
-    
+
     // Then start the client
     const config = await this.getConfiguration();
     await this.httpClient.post<void>('/api/rtcm/start', config.rtcm);
@@ -303,9 +283,9 @@ export class MAVLinkBridgeClient {
   /**
    * Stop RTCM client
    */
-  async stopRTCM(): Promise<void> {
+  async stopRTCM (): Promise<void> {
     await this.httpClient.post<void>('/api/rtcm/stop');
-    
+
     // Also disable in config
     await this.configClient.updateRTCMEnabled(false);
   }
@@ -313,7 +293,7 @@ export class MAVLinkBridgeClient {
   /**
    * Configure RTCM source
    */
-  async configureRTCMSource(
+  async configureRTCMSource (
     type: 'ntrip' | 'tcp' | 'udp',
     host: string,
     port: number,
@@ -331,70 +311,70 @@ export class MAVLinkBridgeClient {
   /**
    * Get comprehensive system health information
    */
-  async getSystemHealth(): Promise<SystemHealth> {
+  async getSystemHealth (): Promise<SystemHealth> {
     return this.healthClient.getSystemHealth();
   }
 
   /**
    * Get system metrics with caching
    */
-  async getSystemMetrics(useCache: boolean = true): Promise<SystemMetrics> {
+  async getSystemMetrics (useCache: boolean = true): Promise<SystemMetrics> {
     return this.healthClient.getSystemMetrics(useCache);
   }
 
   /**
    * Check if system is healthy
    */
-  async isSystemHealthy(): Promise<boolean> {
+  async isSystemHealthy (): Promise<boolean> {
     return this.healthClient.isSystemHealthy();
   }
 
   /**
    * Get memory usage percentage
    */
-  async getMemoryUsage(): Promise<number> {
+  async getMemoryUsage (): Promise<number> {
     return this.healthClient.getMemoryUsage();
   }
 
   /**
    * Get CPU usage percentage
    */
-  async getCPUUsage(): Promise<number> {
+  async getCPUUsage (): Promise<number> {
     return this.healthClient.getCPUUsage();
   }
 
   /**
    * Set health monitoring thresholds
    */
-  async setHealthThresholds(thresholds: HealthThresholds): Promise<void> {
+  async setHealthThresholds (thresholds: HealthThresholds): Promise<void> {
     return this.healthClient.setThresholds(thresholds);
   }
 
   /**
    * Trigger emergency memory cleanup
    */
-  async emergencyCleanup(): Promise<void> {
+  async emergencyCleanup (): Promise<void> {
     await this.healthClient.emergencyMemoryCleanup();
   }
 
   /**
    * Listen for system health updates
    */
-  onHealthUpdate(handler: (health: any) => void): () => void {
+  onHealthUpdate (handler: (health: any) => void): () => void {
     return this.healthClient.onHealthUpdate(handler);
   }
 
   /**
    * Listen for low memory warnings
    */
-  onLowMemoryWarning(handler: (freeHeap: number) => void): () => void {
+  onLowMemoryWarning (handler: (freeHeap: number) => void): () => void {
     return this.healthClient.onLowMemoryWarning(handler);
   }
 
   /**
    * Listen for critical errors
    */
-  onCriticalError(handler: (error: any) => void): () => void {
+  onCriticalError (handler: (error: any) => void): () => void {
     return this.healthClient.onCriticalError(handler);
   }
 
@@ -403,84 +383,84 @@ export class MAVLinkBridgeClient {
   /**
    * Listen for status updates
    */
-  onStatus(handler: (payload: StatusPayload) => void): void {
+  onStatus (handler: (payload: StatusPayload) => void): void {
     this.wsClient.on(EventType.STATUS, handler as any);
   }
 
   /**
    * Listen for configuration changes
    */
-  onConfigChanged(handler: (payload: ConfigChangedPayload) => void): void {
+  onConfigChanged (handler: (payload: ConfigChangedPayload) => void): void {
     this.wsClient.on(EventType.CONFIG_CHANGED, handler as any);
   }
 
   /**
    * Listen for RTCM data
    */
-  onRTCMData(handler: (payload: RTCMDataPayload) => void): void {
+  onRTCMData (handler: (payload: RTCMDataPayload) => void): void {
     this.wsClient.on(EventType.RTCM_DATA, handler as any);
   }
 
   /**
    * Listen for errors
    */
-  onError(handler: (payload: ErrorPayload) => void): void {
+  onError (handler: (payload: ErrorPayload) => void): void {
     this.wsClient.on(EventType.ERROR, handler as any);
   }
 
   /**
    * Listen for log messages
    */
-  onLog(handler: (payload: LogPayload) => void): void {
+  onLog (handler: (payload: LogPayload) => void): void {
     this.wsClient.on(EventType.LOG, handler as any);
   }
 
   /**
    * Listen for WiFi connection events
    */
-  onWiFiConnected(handler: (payload: WiFiConnectedPayload) => void): void {
+  onWiFiConnected (handler: (payload: WiFiConnectedPayload) => void): void {
     this.wsClient.on(EventType.WIFI_CONNECTED, handler as any);
   }
 
   /**
    * Listen for WiFi disconnection events
    */
-  onWiFiDisconnected(handler: (payload: WiFiDisconnectedPayload) => void): void {
+  onWiFiDisconnected (handler: (payload: WiFiDisconnectedPayload) => void): void {
     this.wsClient.on(EventType.WIFI_DISCONNECTED, handler as any);
   }
 
   /**
    * Listen for WiFi signal updates
    */
-  onWiFiSignalUpdate(handler: (payload: WiFiSignalUpdatePayload) => void): void {
+  onWiFiSignalUpdate (handler: (payload: WiFiSignalUpdatePayload) => void): void {
     this.wsClient.on(EventType.WIFI_SIGNAL_UPDATE, handler as any);
   }
 
   /**
    * Listen for WiFi state changes (convenience method)
    */
-  onWiFiStateChange(handler: (state: WiFiState) => void): () => void {
+  onWiFiStateChange (handler: (state: WiFiState) => void): () => void {
     return this.wifiClient.onStateChange(handler);
   }
 
   /**
    * Listen for WiFi connection status changes (convenience method)
    */
-  onWiFiStatusChange(handler: (status: WiFiStatus) => void): () => void {
+  onWiFiStatusChange (handler: (status: WiFiStatus) => void): () => void {
     return this.wifiClient.onConnectionChange(handler);
   }
 
   /**
    * Remove event handler
    */
-  removeEventListener(event: EventType, handler: any): void {
+  removeEventListener (event: EventType, handler: any): void {
     this.wsClient.off(event, handler);
   }
 
   /**
    * Remove all event listeners for a specific event type
    */
-  removeAllListeners(event?: EventType): void {
+  removeAllListeners (event?: EventType): void {
     this.wsClient.removeAllListeners(event);
   }
 
@@ -489,7 +469,7 @@ export class MAVLinkBridgeClient {
   /**
    * Get the device base URL
    */
-  getDeviceUrl(): string {
+  getDeviceUrl (): string {
     return this.httpClient.getBaseUrl();
   }
 
@@ -498,21 +478,21 @@ export class MAVLinkBridgeClient {
   /**
    * Get WebSocket connection state
    */
-  getConnectionState(): 'connecting' | 'open' | 'closing' | 'closed' {
+  getConnectionState (): 'connecting' | 'open' | 'closing' | 'closed' {
     return this.wsClient.getConnectionState();
   }
 
   /**
    * Manually connect WebSocket if not auto-connecting
    */
-  async connectWebSocket(): Promise<void> {
+  async connectWebSocket (): Promise<void> {
     await this.wsClient.connect();
   }
 
   /**
    * Ping the device to check connectivity
    */
-  async ping(): Promise<boolean> {
+  async ping (): Promise<boolean> {
     try {
       await this.getHealth();
       return true;
@@ -524,21 +504,21 @@ export class MAVLinkBridgeClient {
   /**
    * Get client configuration options
    */
-  getOptions(): Required<MAVLinkBridgeClientOptions> {
+  getOptions (): Required<MAVLinkBridgeClientOptions> {
     return { ...this.options };
   }
-  
+
   /**
    * Abort all active HTTP requests
    */
-  abortAllRequests(): void {
+  abortAllRequests (): void {
     this.httpClient.abortAllRequests();
   }
-  
+
   /**
    * Get count of active HTTP requests
    */
-  getActiveRequestCount(): number {
+  getActiveRequestCount (): number {
     return this.httpClient.getActiveRequestCount();
   }
 }

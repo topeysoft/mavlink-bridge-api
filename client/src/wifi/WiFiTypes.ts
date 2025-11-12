@@ -4,8 +4,6 @@
 export interface WiFiCredentials {
   ssid: string;
   password: string;
-  save?: boolean;
-  priority?: number;
 }
 
 /**
@@ -59,22 +57,6 @@ export interface WiFiScanResult {
   cached: boolean;
 }
 
-/**
- * Saved WiFi network
- */
-export interface SavedWiFiNetwork {
-  ssid: string;
-  priority: number;
-}
-
-/**
- * Saved networks response
- */
-export interface SavedNetworksResult {
-  networks: SavedWiFiNetwork[];
-  count: number;
-  maxNetworks: number;
-}
 
 /**
  * WiFi signal quality information
@@ -94,9 +76,6 @@ export enum WiFiErrorCode {
   CONNECTION_IN_PROGRESS = 'CONNECTION_IN_PROGRESS',
   CONNECTION_FAILED = 'CONNECTION_FAILED',
   NOT_CONNECTED = 'NOT_CONNECTED',
-  SAVE_FAILED = 'SAVE_FAILED',
-  MISSING_SSID = 'MISSING_SSID',
-  NETWORK_NOT_FOUND = 'NETWORK_NOT_FOUND',
 }
 
 /**
@@ -132,22 +111,6 @@ export interface WiFiDisconnectResponse {
   message: string;
 }
 
-/**
- * Add network response
- */
-export interface AddNetworkResponse {
-  ssid: string;
-  priority: number;
-  message: string;
-}
-
-/**
- * Remove network response
- */
-export interface RemoveNetworkResponse {
-  ssid: string;
-  message: string;
-}
 
 /**
  * WiFi connection options
@@ -164,3 +127,4 @@ export interface WiFiScanOptions {
   force?: boolean; // Force new scan vs use cached results
   timeout?: number; // milliseconds
 }
+

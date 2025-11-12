@@ -66,16 +66,16 @@ void ErrorHandler::logError(ErrorLevel level, const char* component,
     // Log to ESP32 logger with appropriate level
     switch (level) {
         case INFO:
-            ESP_LOGI(component, "[%lu] %s", code, message);
+            ESP_LOGI(component, "[%u] %s", code, message);
             break;
         case WARNING:
-            ESP_LOGW(component, "[%lu] %s", code, message);
+            ESP_LOGW(component, "[%u] %s", code, message);
             break;
         case ERROR:
-            ESP_LOGE(component, "[%lu] %s", code, message);
+            ESP_LOGE(component, "[%u] %s", code, message);
             break;
         case CRITICAL:
-            ESP_LOGE(component, "[CRITICAL][%lu] %s", code, message);
+            ESP_LOGE(component, "[CRITICAL][%u] %s", code, message);
             handleCriticalError(error);
             break;
     }
@@ -166,14 +166,14 @@ ErrorHandler::ErrorInfo ErrorHandler::getLastError() const {
 
 void ErrorHandler::registerRecoveryAction(uint32_t errorCode, RecoveryAction action) {
     recoveryActions[errorCode] = action;
-    ESP_LOGI(TAG, "Registered recovery action for error code %lu", errorCode);
+    ESP_LOGI(TAG, "Registered recovery action for error code %u", errorCode);
 }
 
 void ErrorHandler::unregisterRecoveryAction(uint32_t errorCode) {
     auto it = recoveryActions.find(errorCode);
     if (it != recoveryActions.end()) {
         recoveryActions.erase(it);
-        ESP_LOGI(TAG, "Unregistered recovery action for error code %lu", errorCode);
+        ESP_LOGI(TAG, "Unregistered recovery action for error code %u", errorCode);
     }
 }
 
@@ -181,13 +181,13 @@ bool ErrorHandler::executeRecoveryAction(uint32_t errorCode) {
     auto it = recoveryActions.find(errorCode);
     if (it != recoveryActions.end()) {
         try {
-            ESP_LOGI(TAG, "Executing recovery action for error code %lu", errorCode);
+            ESP_LOGI(TAG, "Executing recovery action for error code %u", errorCode);
             it->second();
             return true;
         } catch (const std::exception& e) {
-            ESP_LOGE(TAG, "Recovery action failed for code %lu: %s", errorCode, e.what());
+            ESP_LOGE(TAG, "Recovery action failed for code %u: %s", errorCode, e.what());
         } catch (...) {
-            ESP_LOGE(TAG, "Recovery action failed for code %lu: unknown exception", errorCode);
+            ESP_LOGE(TAG, "Recovery action failed for code %u: unknown exception", errorCode);
         }
     }
     return false;
@@ -322,12 +322,12 @@ void ErrorHandler::clearErrorsOlderThan(uint32_t ageMs) {
 
 void ErrorHandler::printErrorSummary() const {
     ESP_LOGI(TAG, "=== Error Summary ===");
-    ESP_LOGI(TAG, "Total errors: %lu", totalErrors);
-    ESP_LOGI(TAG, "Info: %lu", errorsByLevel[INFO]);
-    ESP_LOGI(TAG, "Warning: %lu", errorsByLevel[WARNING]);
-    ESP_LOGI(TAG, "Error: %lu", errorsByLevel[ERROR]);
-    ESP_LOGI(TAG, "Critical: %lu", errorsByLevel[CRITICAL]);
-    ESP_LOGI(TAG, "Time since last error: %lu ms", getTimeSinceLastError());
+    ESP_LOGI(TAG, "Total errors: %u", totalErrors);
+    ESP_LOGI(TAG, "Info: %u", errorsByLevel[INFO]);
+    ESP_LOGI(TAG, "Warning: %u", errorsByLevel[WARNING]);
+    ESP_LOGI(TAG, "Error: %u", errorsByLevel[ERROR]);
+    ESP_LOGI(TAG, "Critical: %u", errorsByLevel[CRITICAL]);
+    ESP_LOGI(TAG, "Time since last error: %u ms", getTimeSinceLastError());
     ESP_LOGI(TAG, "Error log size: %zu/%zu", errorLog.size(), errorLog.capacity());
     
     if (!errorCounts.empty()) {
@@ -335,7 +335,7 @@ void ErrorHandler::printErrorSummary() const {
         auto frequent = getFrequentErrors(5);
         for (size_t i = 0; i < frequent.size(); i++) {
             uint32_t code = frequent[i];
-            ESP_LOGI(TAG, "  %lu: %lu occurrences", code, getErrorCount(code));
+            ESP_LOGI(TAG, "  %u: %u occurrences", code, getErrorCount(code));
         }
     }
 }

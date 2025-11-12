@@ -175,12 +175,12 @@ async function testSingleHost(
         apMacAddress: healthData.network.apMacAddress,
         wifi: {
           status: healthData.network.wifi.status,
-          ssid: healthData.network.wifi.ssid,
-          rssi: healthData.network.wifi.rssi
+          ...(healthData.network.wifi.ssid && { ssid: healthData.network.wifi.ssid }),
+          ...(healthData.network.wifi.rssi !== undefined && { rssi: healthData.network.wifi.rssi })
         },
         ap: {
           enabled: healthData.network.ap.enabled,
-          clients: healthData.network.ap.clients
+          ...(healthData.network.ap.clients !== undefined && { clients: healthData.network.ap.clients })
         }
       },
       lastSeen: Date.now()

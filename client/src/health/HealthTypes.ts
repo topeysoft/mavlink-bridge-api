@@ -179,6 +179,16 @@ export interface StorageHealth {
   healthy: boolean;
 }
 
+export interface RTCMHealth {
+  connected: boolean;
+  state: 'connected' | 'connecting' | 'error' | 'disconnected' | 'not_running';
+  type?: string;
+  messagesReceived?: number;
+  bytesReceived?: number;
+  dataRate?: number;
+  crcErrors?: number;
+}
+
 export interface EnhancedSystemHealth {
   systemHealthy: boolean;
   cpuUsage: number;
@@ -200,5 +210,6 @@ export interface HealthCheckResponse {
   system?: EnhancedSystemHealth;
   config: ConfigHealth;
   storage: StorageHealth;
+  rtcm?: RTCMHealth;
   issues?: Array<'system_unhealthy' | 'low_storage' | 'low_memory'>;
 }

@@ -6,15 +6,11 @@ import {
   WiFiStatus,
   WiFiNetwork,
   WiFiScanResult,
-  SavedWiFiNetwork,
-  SavedNetworksResult,
   WiFiState,
   SignalQuality,
   WiFiResponse,
   WiFiConnectResponse,
   WiFiDisconnectResponse,
-  AddNetworkResponse,
-  RemoveNetworkResponse,
   WiFiConnectOptions,
   WiFiScanOptions,
 } from './WiFiTypes';
@@ -113,68 +109,6 @@ export class WiFiClient {
       return response.data!.networks;
     } catch (error) {
       throw new Error(`Failed to scan WiFi networks: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Add a saved WiFi network
-   */
-  async addSavedNetwork(
-    ssid: string,
-    password: string,
-    priority: number = 0
-  ): Promise<AddNetworkResponse> {
-    try {
-      const response = await this.httpClient.post<WiFiResponse<AddNetworkResponse>>(
-        '/api/wifi/networks',
-        { ssid, password, priority }
-      );
-
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to save network');
-      }
-
-      return response.data!;
-    } catch (error) {
-      throw new Error(`Failed to add saved network: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Remove a saved WiFi network
-   */
-  async removeSavedNetwork(ssid: string): Promise<RemoveNetworkResponse> {
-    try {
-      const response = await this.httpClient.delete<WiFiResponse<RemoveNetworkResponse>>(
-        `/api/wifi/networks?ssid=${encodeURIComponent(ssid)}`
-      );
-
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to remove network');
-      }
-
-      return response.data!;
-    } catch (error) {
-      throw new Error(`Failed to remove saved network: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * Get list of saved WiFi networks
-   */
-  async getSavedNetworks(): Promise<SavedWiFiNetwork[]> {
-    try {
-      const response = await this.httpClient.get<WiFiResponse<SavedNetworksResult>>(
-        '/api/wifi/networks'
-      );
-
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to get saved networks');
-      }
-
-      return response.data!.networks;
-    } catch (error) {
-      throw new Error(`Failed to get saved networks: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -360,4 +294,5 @@ export class WiFiClient {
       }
     });
   }
+
 }

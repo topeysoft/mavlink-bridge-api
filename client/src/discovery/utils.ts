@@ -7,6 +7,9 @@
  */
 export function parseCIDR(cidr: string): string[] {
   const [network, prefixLength] = cidr.split('/');
+  if (!network || !prefixLength) {
+    throw new Error('Invalid CIDR notation');
+  }
   const prefix = parseInt(prefixLength, 10);
   
   if (prefix < 0 || prefix > 32) {
@@ -14,11 +17,11 @@ export function parseCIDR(cidr: string): string[] {
   }
   
   const networkParts = network.split('.').map(part => parseInt(part, 10));
-  if (networkParts.length !== 4 || networkParts.some(part => part < 0 || part > 255)) {
+  if (networkParts.length !== 4 || networkParts.some(part => isNaN(part) || part < 0 || part > 255)) {
     throw new Error(`Invalid network address: ${network}`);
   }
   
-  const networkInt = (networkParts[0] << 24) + (networkParts[1] << 16) + (networkParts[2] << 8) + networkParts[3];
+  const networkInt = (networkParts[0]! << 24) + (networkParts[1]! << 16) + (networkParts[2]! << 8) + networkParts[3]!;
   const hostBits = 32 - prefix;
   const hostCount = Math.pow(2, hostBits);
   const networkBase = networkInt & (0xFFFFFFFF << hostBits);

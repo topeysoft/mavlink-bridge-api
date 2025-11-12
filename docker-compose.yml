@@ -1,0 +1,36 @@
+services:
+  esp32-qemu:
+    build:
+      context: .
+      dockerfile: ${DOCKERFILE:-Dockerfile.esp-idf}
+    image: yardrover-esp32-qemu:latest
+    container_name: yardrover-qemu
+    volumes:
+      - ./src:/workspace/src
+      - ./lib:/workspace/lib
+      - ./test:/workspace/test
+      - ./scripts:/workspace/scripts
+      - ./.pio:/workspace/.pio
+      - ./platformio.ini:/workspace/platformio.ini
+      - ./partitions.csv:/workspace/partitions.csv
+    environment:
+      - PLATFORMIO_CORE_DIR=/workspace/.platformio
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    networks:
+      - esp32-net
+
+  # Test runner service
+  esp32-test:
+    extends: esp32-qemu
+    command: >
+      bash -c "
+        platformio test -e qemu --verbose
+      "
+    profiles:
+      - test
+
+networks:
+  esp32-net:
+    driver: bridge

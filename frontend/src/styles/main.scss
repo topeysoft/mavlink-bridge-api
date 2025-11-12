@@ -1,0 +1,315 @@
+// YardRover Main Stylesheet
+// Import order is important - variables and mixins first, then base styles, then components
+
+// ===================================
+// DESIGN SYSTEM FOUNDATION
+// ===================================
+
+// Import variables first (required by other files)
+@import 'variables';
+
+// Import mixins (uses variables)
+@import 'mixins';
+
+// ===================================
+// BASE STYLES
+// ===================================
+
+// Typography system
+@import 'typography';
+
+// Animation system
+@import 'animations';
+
+// ===================================
+// COMPONENT STYLES
+// ===================================
+
+// Component base styles
+@import 'components';
+
+// ===================================
+// UTILITIES
+// ===================================
+
+// Utility classes
+@import 'utilities';
+
+// ===================================
+// THEME VARIATIONS
+// ===================================
+
+// Dark theme (must come after other styles)
+@import 'dark-theme';
+
+// ===================================
+// GLOBAL STYLES
+// ===================================
+
+// CSS Reset and normalization
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+// Root element
+html {
+  line-height: 1.15;
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+// Body defaults
+body {
+  margin: 0;
+  font-family: $font-family-primary;
+  font-size: $font-size-md;
+  font-weight: $font-weight-regular;
+  line-height: $line-height-normal;
+  color: $text-primary;
+  background-color: $bg-primary;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+// Focus management
+:focus {
+  outline: 2px solid $primary;
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+// Selection styling
+::selection {
+  background: rgba($primary, 0.2);
+  color: $text-primary;
+}
+
+// Scrollbar styling (webkit browsers)
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: $frost-white;
+}
+
+::-webkit-scrollbar-thumb {
+  background: $storm-gray;
+  border-radius: $border-radius-sm;
+
+  &:hover {
+    background: darken($storm-gray, 10%);
+  }
+}
+
+// ===================================
+// NATURE-THEMED LAYOUT HELPERS
+// ===================================
+
+// Main application container
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(
+    135deg,
+    rgba($grass-green, 0.02) 0%,
+    rgba($sky-blue, 0.02) 50%,
+    rgba($earth-brown, 0.02) 100%
+  );
+}
+
+// Header styling
+.app-header {
+  background: $cloud-white;
+  border-bottom: 1px solid $separator-color;
+  box-shadow: $shadow-sm;
+  position: sticky;
+  top: 0;
+  z-index: $z-index-sticky;
+}
+
+// Main content area
+.app-main {
+  flex: 1;
+  padding: $spacing-lg;
+
+  @include mobile-only {
+    padding: $spacing-md;
+  }
+}
+
+// Sidebar styling
+.app-sidebar {
+  background: $frost-white;
+  border-right: 1px solid $separator-color;
+  width: $sidebar-width;
+  transition: width $transition-normal;
+
+  &.collapsed {
+    width: $sidebar-width-collapsed;
+  }
+
+  @include mobile-only {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: $z-index-modal;
+    transform: translateX(-100%);
+
+    &.open {
+      transform: translateX(0);
+    }
+  }
+}
+
+// Footer styling
+.app-footer {
+  background: $earth-brown;
+  color: white;
+  padding: $spacing-lg;
+  text-align: center;
+}
+
+// ===================================
+// RESPONSIVE GRID SYSTEM
+// ===================================
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 $spacing-md;
+
+  @include tablet-up {
+    padding: 0 $spacing-lg;
+  }
+
+  @include desktop-up {
+    padding: 0 $spacing-xl;
+  }
+}
+
+.container-fluid {
+  width: 100%;
+  padding: 0 $spacing-md;
+
+  @include tablet-up {
+    padding: 0 $spacing-lg;
+  }
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 (-$spacing-sm);
+}
+
+.col {
+  flex: 1;
+  padding: 0 $spacing-sm;
+
+  &.col-auto {
+    flex: 0 0 auto;
+  }
+}
+
+// Column system (12-column grid)
+@for $i from 1 through 12 {
+  .col-#{$i} {
+    flex: 0 0 percentage($i / 12);
+    max-width: percentage($i / 12);
+    padding: 0 $spacing-sm;
+  }
+}
+
+// Responsive column system
+@include tablet-up {
+  @for $i from 1 through 12 {
+    .col-md-#{$i} {
+      flex: 0 0 percentage($i / 12);
+      max-width: percentage($i / 12);
+    }
+  }
+}
+
+@include desktop-up {
+  @for $i from 1 through 12 {
+    .col-lg-#{$i} {
+      flex: 0 0 percentage($i / 12);
+      max-width: percentage($i / 12);
+    }
+  }
+}
+
+// ===================================
+// PRINT STYLES
+// ===================================
+
+@media print {
+  * {
+    background: transparent !important;
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  a,
+  a:visited {
+    text-decoration: underline;
+  }
+
+  .btn,
+  .nav,
+  .sidebar {
+    display: none !important;
+  }
+
+  .container {
+    max-width: none !important;
+  }
+}
+
+// ===================================
+// ACCESSIBILITY IMPROVEMENTS
+// ===================================
+
+// Reduced motion support
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .sway,
+  .pulse,
+  .spin {
+    animation: none !important;
+  }
+}
+
+// High contrast mode support
+@media (prefers-contrast: high) {
+  .card {
+    border: 2px solid currentColor;
+  }
+
+  .btn {
+    border: 2px solid currentColor;
+  }
+
+  .form-input {
+    border: 2px solid currentColor;
+  }
+}

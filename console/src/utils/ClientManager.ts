@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import ora from 'ora';
-import { MAVLinkBridgeClient, createClient, discoverDevices } from '@mavlinkbridge/api-client';
+import { MAVLinkBridgeClient, createClient, discoverMAVLinkBridgeDevices } from '@mavlinkbridge/api-client';
+import type { DiscoveryOptions, DiscoveryResult, MAVLinkBridgeDevice } from '@mavlinkbridge/api-client';
 import { ConsoleContext } from '../types/index.js';
 
 export class ClientManager {
@@ -10,30 +11,65 @@ export class ClientManager {
     this.context = context;
   }
 
-  public async discoverDevices(timeout: number = 5000): Promise<string[]> {
-    const spinner = ora('Discovering devices...').start();
+  public async discoverDevices(
+    options: DiscoveryOptions = {},
+    onProgress?: (message: string) => void
+  ): Promise<DiscoveryResult> {
+    const spinner = ora('Initializing device discovery...').start();
     
     try {
-      const devices = await discoverDevices(timeout);
-      
-      if (devices.length === 0) {
-        spinner.warn('No devices found');
-        console.log(chalk.yellow('Try these common addresses:'));
-        console.log(chalk.gray('  • http://192.168.4.1 (AP mode)'));
-        console.log(chalk.gray('  • http://192.168.1.100 (Station mode)'));
-        console.log(chalk.gray('  • http://yardrover.local (mDNS)'));
-        
-        // Return common addresses as fallback
-        return ['http://192.168.4.1', 'http://192.168.1.100', 'http://yardrover.local'];
+      // Set default options if not provided
+      const discoveryOptions: DiscoveryOptions = {
+        timeout: 5000,
+        concurrent: 20,
+        ...options
+      };
+
+      // Log discovery configuration
+      if (discoveryOptions.subnets && discoveryOptions.subnets.length > 0) {
+        spinner.text = `Scanning subnets: ${discoveryOptions.subnets.join(', ')}`;
+        onProgress?.(`Scanning subnets: ${discoveryOptions.subnets.join(', ')}`);
+      } else {
+        spinner.text = 'Auto-detecting network subnets...';
+        onProgress?.('Auto-detecting network subnets...');
       }
       
-      spinner.succeed(`Found ${devices.length} device(s)`);
-      return devices;
+      const result = await discoverMAVLinkBridgeDevices(discoveryOptions);
+      
+      if (result.devices.length === 0) {
+        spinner.warn('No devices found');
+        console.log(chalk.yellow('\n💡 Discovery tips:'));
+        console.log(chalk.gray('  • Check if devices are powered on'));
+        console.log(chalk.gray('  • Verify network connectivity'));
+        console.log(chalk.gray('  • Try AP mode: http://192.168.4.1'));
+        console.log(chalk.gray('  • Try mDNS: http://yardrover.local'));
+        console.log(chalk.gray('  • Specify custom subnets to scan'));
+      } else {
+        spinner.succeed(`Found ${result.devices.length} device(s) in ${(result.duration / 1000).toFixed(1)}s`);
+      }
+      
+      return result;
     } catch (error) {
       spinner.fail('Discovery failed');
       console.log(chalk.red('Error:'), error);
-      return [];
+      return {
+        devices: [],
+        duration: 0,
+        hostsScanned: 0,
+        successfulResponses: 0
+      };
     }
+  }
+
+  /**
+   * Quick helper method for backward compatibility
+   */
+  public async discoverDeviceUrls(timeout: number = 5000): Promise<string[]> {
+    const result = await this.discoverDevices({ timeout });
+    return result.devices.map(device => {
+      const port = device.network.wifi.status === 'connected' ? 80 : 80;
+      return `http://${device.ip}:${port}`;
+    });
   }
 
   public async connect(deviceUrl: string): Promise<boolean> {

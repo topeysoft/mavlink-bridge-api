@@ -59,7 +59,7 @@ bool HealthMonitor::begin(uint32_t intervalMs) {
     }
 
     isRunning = true;
-    ESP_LOGI(TAG, "Health monitor started (interval: %lums)", intervalMs);
+    ESP_LOGI(TAG, "Health monitor started (interval: %ums)", intervalMs);
     return true;
 }
 
@@ -126,7 +126,7 @@ void HealthMonitor::updateTaskInfo() {
         taskInfo.stackHighWaterMark = taskArray[i].usStackHighWaterMark;
         taskInfo.runtime = taskArray[i].ulRunTimeCounter;
         taskInfo.priority = taskArray[i].uxCurrentPriority;
-        taskInfo.state = taskArray[i].eCurrentState;
+        taskInfo.state = (eTaskState)taskArray[i].eCurrentState;
         taskInfo.handle = taskArray[i].xHandle;
         
         health.tasks.push_back(taskInfo);
@@ -270,7 +270,7 @@ void HealthMonitor::unregisterComponent(const char* name) {
 
 void HealthMonitor::setMemoryThreshold(uint32_t minFreeBytes) {
     memoryThreshold = minFreeBytes;
-    ESP_LOGI(TAG, "Memory threshold set to %lu bytes", minFreeBytes);
+    ESP_LOGI(TAG, "Memory threshold set to %u bytes", minFreeBytes);
 }
 
 void HealthMonitor::setCPUThreshold(float maxUsage) {

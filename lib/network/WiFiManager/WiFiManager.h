@@ -8,6 +8,7 @@
 #include <vector>
 #include "../../core/EventManager/EventManager.h"
 #include "../../core/ConfigManager/ConfigManager.h"
+#include "../../core/NVSManager/NVSManager.h"
 
 struct WiFiNetwork {
     String ssid;
@@ -60,6 +61,7 @@ private:
     
     EventManager* eventManager;
     ConfigManager* configManager;
+    NVSManager* nvsManager;
     
     String connectingSsid;
     bool isScanning;
@@ -76,16 +78,18 @@ public:
     void disconnect();
     State getState() const { return currentState; }
     State getPreviousState() const { return previousState; }
-    ConnectionInfo getConnectionInfo() const { return connectionInfo; }
+    ConnectionInfo getConnectionInfo();
     void startAccessPoint();
     void startAccessPoint(const String& ssid, const String& password = "");
     void stopAccessPoint();
     std::vector<WiFiNetwork> scan(bool forceNew = false);
     std::vector<WiFiNetwork> getLastScanResults() const { return lastScanResults; }
     
-    // Configuration integration
-    bool addSavedNetwork(const String& ssid, const String& password, uint8_t priority = 0);
-    bool removeSavedNetwork(const String& ssid);
+    // Network management
+    bool saveNetwork(const String& ssid, const String& password);
+    bool clearSavedNetwork();
+    bool hasSavedNetwork() const;
+    WiFiCredential getSavedCredential() const;
     void tryAutoConnect();
     
 private:
@@ -100,8 +104,8 @@ private:
     void publishConnectionEvent(const String& ssid, const String& reason = "");
     void publishSignalUpdate();
     unsigned long getReconnectDelay(uint8_t attempt);
-    SavedNetwork* findBestSavedNetwork();
     bool connectToNetwork(const String& ssid, const String& password);
+    void checkAndStartAP();
     
     // WiFi event handlers
     static void onWiFiEvent(WiFiEvent_t event);

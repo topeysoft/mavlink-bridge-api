@@ -115,6 +115,7 @@ paths:
   /api/wifi/connect:
     post:
       summary: Connect to WiFi network
+      description: Connect to a WiFi network. The network credentials are automatically saved and will be used for auto-connect on boot. AP mode is disabled upon successful connection.
       requestBody:
         required: true
         content:
@@ -124,8 +125,14 @@ paths:
       responses:
         '200':
           description: WiFi connection initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WiFiConnectResponse'
         '400':
           description: Invalid credentials
+        '409':
+          description: Already connected or connection in progress
 
   /api/wifi/disconnect:
     post:
@@ -133,6 +140,35 @@ paths:
       responses:
         '200':
           description: WiFi disconnected
+
+  /api/wifi/status:
+    get:
+      summary: Get WiFi connection status
+      responses:
+        '200':
+          description: Current WiFi status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WiFiStatus'
+
+  /api/wifi/scan:
+    get:
+      summary: Scan for available WiFi networks
+      parameters:
+        - in: query
+          name: force
+          schema:
+            type: boolean
+            default: false
+          description: Force new scan instead of using cached results
+      responses:
+        '200':
+          description: List of available networks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WiFiScanResult'
 
   /api/rtcm/start:
     post:
@@ -1079,9 +1115,29 @@ components:
         ssid:
           type: string
           maxLength: 32
+          description: SSID of saved network (if any)
+        password:
+          type: string
+          maxLength: 64
+          description: Password of saved network (if any)
         autoConnect:
           type: boolean
           default: true
+          description: Automatically connect to saved network on boot
+        apModeEnabled:
+          type: boolean
+          default: true
+          description: Enable AP mode when not connected
+        apSSID:
+          type: string
+          maxLength: 32
+          default: "MAVLinkBridge-Setup"
+          description: Access Point SSID
+        apPassword:
+          type: string
+          maxLength: 64
+          default: "mavlinkbridge123"
+          description: Access Point password
 
     WiFiCredentials:
       type: object
@@ -1095,6 +1151,129 @@ components:
         password:
           type: string
           maxLength: 64
+
+    WiFiStatus:
+      type: object
+      required:
+        - state
+        - connected
+      properties:
+        state:
+          type: string
+          enum: [disconnected, connecting, connected, ap_mode, error]
+          description: Current WiFi state
+        connected:
+          type: boolean
+          description: Whether WiFi is connected
+        ssid:
+          type: string
+          description: Connected network SSID (when connected)
+        ip:
+          type: string
+          format: ipv4
+          description: Device IP address (when connected)
+        gateway:
+          type: string
+          format: ipv4
+          description: Gateway IP address (when connected)
+        subnet:
+          type: string
+          format: ipv4
+          description: Subnet mask (when connected)
+        rssi:
+          type: integer
+          description: Signal strength in dBm (when connected)
+        quality:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Signal quality percentage (when connected)
+        bssid:
+          type: string
+          pattern: '^([0-9A-F]{2}:){5}[0-9A-F]{2}$'
+          description: Router MAC address (when connected)
+        apMode:
+          type: boolean
+          description: Whether device is in AP mode
+        apIP:
+          type: string
+          format: ipv4
+          description: Access Point IP address (when in AP mode)
+        apSSID:
+          type: string
+          description: Access Point SSID (when in AP mode)
+        connectedClients:
+          type: integer
+          description: Number of connected clients (when in AP mode)
+
+    WiFiScanResult:
+      type: object
+      required:
+        - networks
+        - count
+        - cached
+      properties:
+        networks:
+          type: array
+          items:
+            $ref: '#/components/schemas/WiFiNetwork'
+        count:
+          type: integer
+          description: Number of networks found
+        cached:
+          type: boolean
+          description: Whether results are from cache
+
+    WiFiNetwork:
+      type: object
+      required:
+        - ssid
+        - rssi
+        - secure
+        - authMode
+        - channel
+      properties:
+        ssid:
+          type: string
+          description: Network SSID
+        rssi:
+          type: integer
+          description: Signal strength in dBm
+        secure:
+          type: boolean
+          description: Whether network is password protected
+        authMode:
+          type: string
+          enum: [open, wep, wpa, wpa2, wpa/wpa2, wpa2-enterprise, wpa3, wpa2/wpa3]
+          description: Authentication mode
+        channel:
+          type: integer
+          minimum: 1
+          maximum: 14
+          description: WiFi channel
+        quality:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Signal quality percentage
+
+    WiFiConnectResponse:
+      type: object
+      required:
+        - ssid
+        - state
+        - message
+      properties:
+        ssid:
+          type: string
+          description: SSID being connected to
+        state:
+          type: string
+          enum: [connecting]
+          description: Connection state
+        message:
+          type: string
+          description: Status message
 
     RTCMConfig:
       type: object

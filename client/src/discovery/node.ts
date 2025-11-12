@@ -99,7 +99,7 @@ async function getLocalNetworkSubnets(): Promise<string[]> {
       const ipParts = addr.address.split('.').map(p => parseInt(p, 10));
       const maskParts = addr.netmask.split('.').map(p => parseInt(p, 10));
       
-      const networkParts = ipParts.map((ip, i) => ip & maskParts[i]);
+      const networkParts = ipParts.map((ip, i) => ip & maskParts[i]!);
       const networkAddr = networkParts.join('.');
       
       // Convert netmask to CIDR prefix length
@@ -161,7 +161,7 @@ async function resolveHostname(hostname: string): Promise<string[]> {
   if (!dns) return [];
   
   return new Promise((resolve) => {
-    dns.resolve4(hostname, (err, addresses) => {
+    dns!.resolve4(hostname, (err, addresses) => {
       if (err) {
         resolve([]);
       } else {
@@ -246,12 +246,12 @@ async function testSingleHost(
         apMacAddress: healthData.network.apMacAddress,
         wifi: {
           status: healthData.network.wifi.status,
-          ssid: healthData.network.wifi.ssid,
-          rssi: healthData.network.wifi.rssi
+          ...(healthData.network.wifi.ssid && { ssid: healthData.network.wifi.ssid }),
+          ...(healthData.network.wifi.rssi !== undefined && { rssi: healthData.network.wifi.rssi })
         },
         ap: {
           enabled: healthData.network.ap.enabled,
-          clients: healthData.network.ap.clients
+          ...(healthData.network.ap.clients !== undefined && { clients: healthData.network.ap.clients })
         }
       },
       lastSeen: Date.now()
@@ -295,7 +295,7 @@ async function makeHttpRequest(url: string, timeout: number): Promise<HealthResp
     const urlObj = new URL(url);
     const httpModule = urlObj.protocol === 'https:' ? https : http;
     
-    const request = httpModule.request({
+    const request = httpModule!.request({
       hostname: urlObj.hostname,
       port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
       path: urlObj.pathname + urlObj.search,

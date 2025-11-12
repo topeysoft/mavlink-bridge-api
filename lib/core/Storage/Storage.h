@@ -2,8 +2,15 @@
 
 #include <Arduino.h>
 #include <FS.h>
-#include <FFat.h>
+#include <LittleFS.h>
 #include <functional>
+#ifdef ARDUINO_ARCH_NATIVE
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#else
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#endif
 
 enum class StorageResult {
     SUCCESS,

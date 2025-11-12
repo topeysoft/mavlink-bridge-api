@@ -8,6 +8,14 @@
 export { MAVLinkBridgeClient } from './MAVLinkBridgeClient';
 export type { MAVLinkBridgeClientOptions } from './MAVLinkBridgeClient';
 
+// Discovery exports
+export { discoverMAVLinkBridgeDevices, startContinuousDiscovery } from './discovery/index';
+export type { 
+  MAVLinkBridgeDevice, 
+  DiscoveryOptions, 
+  DiscoveryResult
+} from './discovery/types';
+
 // Core exports
 export { HttpClient, HttpError } from './core/HttpClient';
 export { WebSocketClient } from './core/WebSocketClient';
@@ -57,16 +65,12 @@ export {
   WiFiStatus,
   WiFiNetwork,
   WiFiScanResult,
-  SavedWiFiNetwork,
-  SavedNetworksResult,
   SignalQuality,
   WiFiErrorCode,
   WiFiError,
   WiFiResponse,
   WiFiConnectResponse,
   WiFiDisconnectResponse,
-  AddNetworkResponse,
-  RemoveNetworkResponse,
   WiFiConnectOptions,
   WiFiScanOptions
 } from './wifi/WiFiTypes';
@@ -99,7 +103,16 @@ export {
   HealthEventPayload,
   MemoryEventPayload,
   TaskEventPayload,
-  ErrorEventPayload
+  ErrorEventPayload,
+  DeviceInfo,
+  WiFiInfo,
+  AccessPointInfo,
+  NetworkInfo,
+  ConfigHealth,
+  StorageHealth,
+  RTCMHealth,
+  EnhancedSystemHealth,
+  HealthCheckResponse
 } from './health/HealthTypes';
 
 // Communication exports
@@ -135,6 +148,7 @@ export {
   TaskTemplate,
   TaskTemplateListResponse
 } from './tasks/TaskTypes';
+
 
 // Version info
 export const VERSION = '1.0.0';
@@ -201,20 +215,44 @@ export function createClient (
 /**
  * Discover MAVLinkBridge devices on the local network
  * 
- * Note: This is a placeholder for future implementation.
- * The actual implementation would depend on the discovery mechanism
- * (mDNS, broadcast, etc.)
+ * This function uses mDNS and network scanning to find MAVLinkBridge devices.
+ * It will automatically detect local network interfaces and scan appropriate subnets.
  * 
- * @param timeout Discovery timeout in milliseconds
+ * @param timeout Discovery timeout in milliseconds (default: 5000ms)
  * @returns Promise that resolves to array of discovered device URLs
+ * 
+ * @example
+ * ```typescript
+ * import { discoverDevices } from '@mavlinkbridge/api-client';
+ * 
+ * // Simple discovery with default timeout
+ * const deviceUrls = await discoverDevices();
+ * console.log('Found devices:', deviceUrls);
+ * 
+ * // Discovery with custom timeout
+ * const deviceUrls = await discoverDevices(10000); // 10 seconds
+ * 
+ * // Use discovered devices
+ * for (const url of deviceUrls) {
+ *   const client = createClient(url);
+ *   await client.connect();
+ *   const health = await client.getHealth();
+ *   console.log(`Device at ${url}: ${health.device.name}`);
+ * }
+ * ```
  */
 export async function discoverDevices (timeout: number = 5000): Promise<string[]> {
-  // Placeholder implementation
-  // In a real implementation, this would:
-  // 1. Use mDNS to discover _http._tcp services
-  // 2. Or scan common IP ranges for MAVLinkBridge devices
-  // 3. Or use broadcast discovery
-
-  console.warn('Device discovery not yet implemented');
-  return [];
+  const { discoverMAVLinkBridgeDevices } = await import('./discovery/node');
+  
+  const result = await discoverMAVLinkBridgeDevices({
+    timeout,
+    concurrent: 20
+  });
+  
+  // Convert discovered devices to URLs
+  return result.devices.map(device => {
+    const protocol = 'http'; // MAVLinkBridge uses HTTP
+    const port = 80; // Default HTTP port
+    return `${protocol}://${device.ip}:${port}`;
+  });
 }

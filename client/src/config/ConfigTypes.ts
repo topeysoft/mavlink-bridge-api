@@ -14,8 +14,12 @@ export interface DeviceConfig {
  * WiFi configuration
  */
 export interface WiFiConfig {
-  ssid: string;
+  ssid?: string;          // SSID of saved network (if any)
+  password?: string;      // Password of saved network (if any)
   autoConnect: boolean;
+  apModeEnabled: boolean;
+  apSSID: string;
+  apPassword: string;
 }
 
 /**

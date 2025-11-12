@@ -38,16 +38,72 @@ void ConfigEndpoints::handleGetConfig(const HttpRequest& req, HttpResponse& res)
         sendErrorResponse(res, 500, "Configuration manager not initialized");
         return;
     }
-    
-    String configJson = configManager->saveToJson();
+
+    // Get the current configuration
+    Configuration config = configManager->getConfiguration();
+
+    // If WiFi SSID is empty in config, check NVS for actual credentials
+    if (config.connection.wifi.ssid.isEmpty()) {
+        NVSManager* nvsManager = NVSManager::getInstance();
+        if (nvsManager != nullptr) {
+            WiFiCredential cred;
+            if (nvsManager->getWiFiCredential(cred) == NVSResult::SUCCESS && !cred.ssid.isEmpty()) {
+                // Inject the actual WiFi credentials from NVS into the response
+                config.connection.wifi.ssid = cred.ssid;
+                config.connection.wifi.password = cred.password;
+            }
+        }
+    }
+
+    // Serialize the updated configuration
+    DynamicJsonDocument tempDoc(2048);
+    JsonObject obj = tempDoc.to<JsonObject>();
+    obj["version"] = config.version;
+
+    JsonObject deviceObj = obj.createNestedObject("device");
+    deviceObj["name"] = config.device.name;
+    deviceObj["mode"] = config.device.mode;
+
+    JsonObject connectionObj = obj.createNestedObject("connection");
+    connectionObj["type"] = config.connection.type;
+    JsonObject wifiObj = connectionObj.createNestedObject("wifi");
+    wifiObj["ssid"] = config.connection.wifi.ssid;
+    wifiObj["password"] = config.connection.wifi.password;
+    wifiObj["autoConnect"] = config.connection.wifi.autoConnect;
+    wifiObj["apModeEnabled"] = config.connection.wifi.apModeEnabled;
+    wifiObj["apSSID"] = config.connection.wifi.apSSID;
+    wifiObj["apPassword"] = config.connection.wifi.apPassword;
+
+    JsonObject rtcmObj = obj.createNestedObject("rtcm");
+    rtcmObj["enabled"] = config.rtcm.enabled;
+    JsonObject sourceObj = rtcmObj.createNestedObject("source");
+    sourceObj["type"] = config.rtcm.source.type;
+    sourceObj["host"] = config.rtcm.source.host;
+    sourceObj["port"] = config.rtcm.source.port;
+    if (!config.rtcm.source.mountpoint.isEmpty()) {
+        sourceObj["mountpoint"] = config.rtcm.source.mountpoint;
+    }
+    if (!config.rtcm.source.username.isEmpty()) {
+        sourceObj["username"] = config.rtcm.source.username;
+    }
+    if (!config.rtcm.source.password.isEmpty()) {
+        sourceObj["password"] = config.rtcm.source.password;
+    }
+
+    JsonObject mdnsObj = obj.createNestedObject("mdns");
+    mdnsObj["enabled"] = config.mdns.enabled;
+    mdnsObj["hostname"] = config.mdns.hostname;
+    mdnsObj["discoveryEnabled"] = config.mdns.discoveryEnabled;
+
+    String configJson;
+    serializeJson(tempDoc, configJson);
+
     if (configJson.length() == 0) {
         sendErrorResponse(res, 500, "Failed to serialize configuration");
         return;
     }
-    
-    const Configuration& config = configManager->getConfiguration();
+
     setVersionHeaders(res, config.version);
-    
     sendSuccessResponse(res, configJson);
 }
 

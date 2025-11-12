@@ -5,6 +5,7 @@
 #include "../../core/ConfigManager/ConfigManager.h"
 #include "../../core/JsonPatch/JsonPatch.h"
 #include "../../core/EventManager/EventManager.h"
+#include "../../core/NVSManager/NVSManager.h"
 
 class ConfigEndpoints {
 private:

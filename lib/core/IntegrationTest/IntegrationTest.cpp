@@ -26,7 +26,7 @@ IntegrationTest::IntegrationTest()
 
 void IntegrationTest::begin(uint32_t timeoutMs) {
     this->timeoutMs = timeoutMs;
-    ESP_LOGI(TAG, "Integration test framework initialized (timeout: %lums)", timeoutMs);
+    ESP_LOGI(TAG, "Integration test framework initialized (timeout: %ums)", timeoutMs);
 }
 
 void IntegrationTest::runAllTests() {

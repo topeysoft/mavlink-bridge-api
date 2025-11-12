@@ -7,7 +7,7 @@
 static const char *TAG = "MAVLinkProcessor";
 
 // MAVLink channel for this processor
-static const uint8_t MAVLINK_CHANNEL = 0;
+static const uint8_t MAVLINK_COMM_CHANNEL_IMPL = 0;
 
 // Removed custom CRC table - using official implementation
 
@@ -25,7 +25,7 @@ MAVLinkProcessor::MAVLinkProcessor() : statsTimer(NULL),
     memset(expectedSeq, 0, sizeof(expectedSeq));
 
     // Reset MAVLink channel status
-    mavlink_reset_channel_status(MAVLINK_CHANNEL);
+    mavlink_reset_channel_status(MAVLINK_COMM_CHANNEL_IMPL);
 
     // Initialize statistics properly (cannot use memset on structures with STL containers)
     stats.totalMessages = 0;
@@ -80,7 +80,7 @@ std::vector<MAVLinkMessage> MAVLinkProcessor::processData(const uint8_t *data, s
         mavlink_status_t status;
 
         // Use official MAVLink parser
-        uint8_t result = mavlink_parse_char(MAVLINK_CHANNEL, data[i], &message, &status);
+        uint8_t result = mavlink_parse_char(MAVLINK_COMM_CHANNEL_IMPL, data[i], &message, &status);
 
         if (result == MAVLINK_FRAMING_OK)
         {
@@ -372,7 +372,7 @@ void MAVLinkProcessor::startStatsLogging(uint32_t intervalMs)
     {
         if (xTimerStart(statsTimer, 0) == pdPASS)
         {
-            ESP_LOGI(TAG, "Stats logging started (interval: %lums)", intervalMs);
+            ESP_LOGI(TAG, "Stats logging started (interval: %ums)", intervalMs);
         }
         else
         {

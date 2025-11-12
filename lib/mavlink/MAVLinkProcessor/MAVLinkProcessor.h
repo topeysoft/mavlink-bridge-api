@@ -54,7 +54,7 @@ private:
     static MAVLinkProcessor* instance;
     
     // Official MAVLink parsing state for each channel
-    static const uint8_t MAVLINK_CHANNEL = 0;  // Single channel for now
+    static const uint8_t MAVLINK_COMM_CHANNEL = 0;  // Single channel for now
     mavlink_message_t rxMessage;
     mavlink_status_t rxStatus;
     

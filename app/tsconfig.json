@@ -1,13 +1,47 @@
 {
-  "extends": "./.quasar/tsconfig.json",
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./../src/*"],
-      "@components/*": ["./../src/components/*"],
-      "@stores/*": ["./../src/stores/*"],
-      "@composables/*": ["./../src/composables/*"],
-      "@utils/*": ["./../src/utils/*"],
-      "@types/*": ["./../src/types/*"]
-    }
-  }
+      "@/*": ["./src/*"],
+      "src/*": ["./src/*"],
+      "components/*": ["./src/components/*"],
+      "layouts/*": ["./src/layouts/*"],
+      "pages/*": ["./src/pages/*"],
+      "assets/*": ["./src/assets/*"],
+      "stores/*": ["./src/stores/*"],
+      "services/*": ["./src/services/*"],
+      "utils/*": ["./src/utils/*"]
+    },
+    "types": [
+      "vite/client",
+      "@types/node"
+    ]
+  },
+  "include": [
+    "client/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "src/**/*.json",
+    "src/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".quasar",
+    "src-capacitor",
+    "src-electron"
+  ]
 }

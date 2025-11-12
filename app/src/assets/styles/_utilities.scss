@@ -1,0 +1,60 @@
+// Utility classes
+
+// Spacing utilities
+.u-spacing-xs { margin: $spacing-xs; }
+.u-spacing-sm { margin: $spacing-sm; }
+.u-spacing-md { margin: $spacing-md; }
+.u-spacing-lg { margin: $spacing-lg; }
+.u-spacing-xl { margin: $spacing-xl; }
+
+.u-padding-xs { padding: $spacing-xs; }
+.u-padding-sm { padding: $spacing-sm; }
+.u-padding-md { padding: $spacing-md; }
+.u-padding-lg { padding: $spacing-lg; }
+.u-padding-xl { padding: $spacing-xl; }
+
+// Text utilities
+.u-text-primary { color: $text-primary; }
+.u-text-secondary { color: $text-secondary; }
+.u-text-disabled { color: $text-disabled; }
+
+// Background utilities
+.u-bg-surface { background-color: $surface; }
+.u-bg-surface-variant { background-color: $surface-variant; }
+
+// Border radius utilities
+.u-rounded-sm { border-radius: $radius-sm; }
+.u-rounded-md { border-radius: $radius-md; }
+.u-rounded-lg { border-radius: $radius-lg; }
+.u-rounded-full { border-radius: $radius-round; }
+
+// Shadow utilities
+.u-shadow-sm { box-shadow: $shadow-sm; }
+.u-shadow-md { box-shadow: $shadow-md; }
+.u-shadow-lg { box-shadow: $shadow-lg; }
+
+// Display utilities
+.u-flex { display: flex; }
+.u-flex-column { flex-direction: column; }
+.u-flex-center { justify-content: center; align-items: center; }
+.u-flex-between { justify-content: space-between; }
+.u-flex-wrap { flex-wrap: wrap; }
+
+// Grid utilities
+.u-grid { display: grid; }
+.u-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.u-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.u-grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+// Responsive utilities
+.u-mobile-only {
+  @media (min-width: 600px) {
+    display: none !important;
+  }
+}
+
+.u-desktop-only {
+  @media (max-width: 599px) {
+    display: none !important;
+  }
+}

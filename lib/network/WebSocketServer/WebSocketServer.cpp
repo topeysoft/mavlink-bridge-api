@@ -132,7 +132,7 @@ void WebSocketServer::handleClientMessage(uint32_t clientId, uint8_t* data, size
         return;
     }
     
-    String typeStr = messageDoc["type"];
+    String typeStr = String(messageDoc["type"].as<const char*>());
     WebSocketEventType eventType = stringToEventType(typeStr);
     
     if (messageHandler != nullptr) {

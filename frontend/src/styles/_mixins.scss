@@ -1,0 +1,361 @@
+// YardRover Design System Mixins
+// Reusable SCSS mixins for consistent styling
+
+// ===================================
+// LAYOUT MIXINS
+// ===================================
+
+// Flexbox utilities
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+@mixin flex-row {
+  display: flex;
+  flex-direction: row;
+}
+
+// Grid utilities
+@mixin grid-center {
+  display: grid;
+  place-items: center;
+}
+
+// ===================================
+// SPACING MIXINS
+// ===================================
+
+@mixin padding($size) {
+  @if $size == 'xs' {
+    padding: $spacing-xs;
+  } @else if $size == 'sm' {
+    padding: $spacing-sm;
+  } @else if $size == 'md' {
+    padding: $spacing-md;
+  } @else if $size == 'lg' {
+    padding: $spacing-lg;
+  } @else if $size == 'xl' {
+    padding: $spacing-xl;
+  } @else if $size == 'xxl' {
+    padding: $spacing-xxl;
+  }
+}
+
+@mixin margin($size) {
+  @if $size == 'xs' {
+    margin: $spacing-xs;
+  } @else if $size == 'sm' {
+    margin: $spacing-sm;
+  } @else if $size == 'md' {
+    margin: $spacing-md;
+  } @else if $size == 'lg' {
+    margin: $spacing-lg;
+  } @else if $size == 'xl' {
+    margin: $spacing-xl;
+  } @else if $size == 'xxl' {
+    margin: $spacing-xxl;
+  }
+}
+
+// ===================================
+// TYPOGRAPHY MIXINS
+// ===================================
+
+@mixin font-size($size) {
+  @if $size == 'xs' {
+    font-size: $font-size-xs;
+  } @else if $size == 'sm' {
+    font-size: $font-size-sm;
+  } @else if $size == 'md' {
+    font-size: $font-size-md;
+  } @else if $size == 'lg' {
+    font-size: $font-size-lg;
+  } @else if $size == 'xl' {
+    font-size: $font-size-xl;
+  } @else if $size == 'xxl' {
+    font-size: $font-size-xxl;
+  }
+}
+
+@mixin text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin text-clamp($lines: 2) {
+  display: -webkit-box;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+// ===================================
+// NATURE THEME MIXINS
+// ===================================
+
+// Nature gradient backgrounds
+@mixin nature-gradient($direction: 'horizontal', $color1: $grass-green, $color2: $forest-green) {
+  @if $direction == 'horizontal' {
+    background: linear-gradient(90deg, $color1 0%, $color2 100%);
+  } @else if $direction == 'vertical' {
+    background: linear-gradient(180deg, $color1 0%, $color2 100%);
+  } @else if $direction == 'diagonal' {
+    background: linear-gradient(135deg, $color1 0%, $color2 100%);
+  }
+}
+
+// Seasonal theme variations
+@mixin spring-theme {
+  --primary-color: #{$grass-green};
+  --accent-color: #{$moss-green};
+  --bg-color: #{lighten($grass-green, 45%)};
+}
+
+@mixin summer-theme {
+  --primary-color: #{$sky-blue};
+  --accent-color: #{$ocean-blue};
+  --bg-color: #{lighten($sky-blue, 45%)};
+}
+
+@mixin autumn-theme {
+  --primary-color: #{$leaf-orange};
+  --accent-color: #{$sunset-orange};
+  --bg-color: #{lighten($leaf-orange, 45%)};
+}
+
+@mixin winter-theme {
+  --primary-color: #{$storm-gray};
+  --accent-color: #{$shadow-gray};
+  --bg-color: #{$snow-white};
+}
+
+// ===================================
+// COMPONENT MIXINS
+// ===================================
+
+// Card styling
+@mixin nature-card($elevation: 'md') {
+  background: $cloud-white;
+  border-radius: $card-border-radius;
+  padding: $spacing-lg;
+
+  @if $elevation == 'sm' {
+    box-shadow: $shadow-sm;
+  } @else if $elevation == 'md' {
+    box-shadow: $shadow-md;
+  } @else if $elevation == 'lg' {
+    box-shadow: $shadow-lg;
+  } @else if $elevation == 'xl' {
+    box-shadow: $shadow-xl;
+  }
+
+  transition: box-shadow $transition-normal;
+
+  &:hover {
+    @if $elevation == 'sm' {
+      box-shadow: $shadow-md;
+    } @else if $elevation == 'md' {
+      box-shadow: $shadow-lg;
+    } @else if $elevation == 'lg' {
+      box-shadow: $shadow-xl;
+    }
+  }
+}
+
+// Button styling
+@mixin nature-button($style: 'primary', $size: 'md') {
+  border: none;
+  border-radius: $border-radius-md;
+  cursor: pointer;
+  transition: all $transition-normal;
+  font-weight: $font-weight-medium;
+
+  @if $size == 'sm' {
+    height: $button-height-sm;
+    padding: 0 $spacing-md;
+    @include font-size('sm');
+  } @else if $size == 'md' {
+    height: $button-height-md;
+    padding: 0 $spacing-lg;
+    @include font-size('md');
+  } @else if $size == 'lg' {
+    height: $button-height-lg;
+    padding: 0 $spacing-xl;
+    @include font-size('lg');
+  }
+
+  @if $style == 'primary' {
+    background: $primary;
+    color: white;
+
+    &:hover {
+      background: darken($primary, 20%);
+    }
+
+    &:active {
+      background: darken($primary, 30%);
+    }
+  } @else if $style == 'secondary' {
+    background: $secondary;
+    color: white;
+
+    &:hover {
+      background: darken($secondary, 20%);
+    }
+
+    &:active {
+      background: darken($secondary, 30%);
+    }
+  } @else if $style == 'outline' {
+    background: transparent;
+    color: $primary;
+    border: 2px solid $primary;
+
+    &:hover {
+      background: $primary;
+      color: white;
+    }
+  }
+}
+
+// Input field styling
+@mixin nature-input($size: 'md') {
+  border: 2px solid lighten($storm-gray, 20%);
+  border-radius: $border-radius-md;
+  padding: 0 $spacing-md;
+  background: white;
+  transition: border-color $transition-normal;
+
+  @if $size == 'sm' {
+    height: $input-height-sm;
+    @include font-size('sm');
+  } @else if $size == 'md' {
+    height: $input-height-md;
+    @include font-size('md');
+  } @else if $size == 'lg' {
+    height: $input-height-lg;
+    @include font-size('lg');
+  }
+
+  &:focus {
+    outline: none;
+    border-color: $primary;
+    box-shadow: 0 0 0 3px rgba($primary, 0.1);
+  }
+
+  &::placeholder {
+    color: $text-secondary;
+  }
+}
+
+// ===================================
+// ANIMATION MIXINS
+// ===================================
+
+@mixin fade-in($duration: $transition-normal) {
+  animation: fadeIn $duration ease-in-out;
+}
+
+@mixin slide-up($duration: $transition-normal) {
+  animation: slideUp $duration ease-out;
+}
+
+@mixin pulse($color: $primary) {
+  animation: pulse 2s infinite;
+
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba($color, 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgba($color, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba($color, 0);
+    }
+  }
+}
+
+// ===================================
+// RESPONSIVE MIXINS
+// ===================================
+
+@mixin mobile-only {
+  @media (max-width: #{$breakpoint-sm - 1px}) {
+    @content;
+  }
+}
+
+@mixin tablet-up {
+  @media (min-width: $breakpoint-sm) {
+    @content;
+  }
+}
+
+@mixin desktop-up {
+  @media (min-width: $breakpoint-md) {
+    @content;
+  }
+}
+
+@mixin large-desktop-up {
+  @media (min-width: $breakpoint-lg) {
+    @content;
+  }
+}
+
+// ===================================
+// UTILITY MIXINS
+// ===================================
+
+@mixin visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@mixin clearfix {
+  &::after {
+    content: '';
+    display: table;
+    clear: both;
+  }
+}
+
+@mixin aspect-ratio($width, $height) {
+  position: relative;
+
+  &::before {
+    content: '';
+    display: block;
+    padding-top: percentage($height / $width);
+  }
+
+  > * {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+}

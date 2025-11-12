@@ -234,7 +234,10 @@ export class ConfigClient {
         type: 'wifi',
         wifi: {
           ssid: '',
-          autoConnect: true
+          autoConnect: true,
+          apModeEnabled: false,
+          apSSID: 'ESP32-YardRover-AP',
+          apPassword: 'yardrover'
         }
       },
       rtcm: {

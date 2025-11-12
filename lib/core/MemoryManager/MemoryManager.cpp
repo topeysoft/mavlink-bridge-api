@@ -27,10 +27,10 @@ MemoryManager::MemoryManager()
 void MemoryManager::begin() {
     updateStats();
     ESP_LOGI(TAG, "Memory manager initialized");
-    ESP_LOGI(TAG, "Total heap: %lu bytes", stats.totalHeap);
-    ESP_LOGI(TAG, "Free heap: %lu bytes", stats.freeHeap);
-    ESP_LOGI(TAG, "Min free heap: %lu bytes", stats.minFreeHeap);
-    ESP_LOGI(TAG, "Largest free block: %lu bytes", stats.largestFreeBlock);
+    ESP_LOGI(TAG, "Total heap: %u bytes", stats.totalHeap);
+    ESP_LOGI(TAG, "Free heap: %u bytes", stats.freeHeap);
+    ESP_LOGI(TAG, "Min free heap: %u bytes", stats.minFreeHeap);
+    ESP_LOGI(TAG, "Largest free block: %u bytes", stats.largestFreeBlock);
 }
 
 MemoryManager::MemoryStats MemoryManager::getStats() {
@@ -45,7 +45,9 @@ void MemoryManager::updateStats() {
     stats.largestFreeBlock = ESP.getMaxAllocHeap();
     stats.poolAllocations = poolAllocations;
     stats.poolFrees = poolFrees;
-    
+    stats.poolHits = 0;  // Initialize pool tracking stats
+    stats.poolMisses = 0;
+
     calculateFragmentation();
 }
 
@@ -60,21 +62,21 @@ void MemoryManager::calculateFragmentation() {
 
 void MemoryManager::printMemoryMap() const {
     ESP_LOGI(TAG, "=== Memory Map ===");
-    ESP_LOGI(TAG, "Total heap: %lu bytes (%.1f KB)", stats.totalHeap, stats.totalHeap / 1024.0f);
-    ESP_LOGI(TAG, "Free heap: %lu bytes (%.1f KB)", stats.freeHeap, stats.freeHeap / 1024.0f);
-    ESP_LOGI(TAG, "Min free heap: %lu bytes (%.1f KB)", stats.minFreeHeap, stats.minFreeHeap / 1024.0f);
-    ESP_LOGI(TAG, "Largest free block: %lu bytes (%.1f KB)", stats.largestFreeBlock, stats.largestFreeBlock / 1024.0f);
+    ESP_LOGI(TAG, "Total heap: %u bytes (%.1f KB)", stats.totalHeap, stats.totalHeap / 1024.0f);
+    ESP_LOGI(TAG, "Free heap: %u bytes (%.1f KB)", stats.freeHeap, stats.freeHeap / 1024.0f);
+    ESP_LOGI(TAG, "Min free heap: %u bytes (%.1f KB)", stats.minFreeHeap, stats.minFreeHeap / 1024.0f);
+    ESP_LOGI(TAG, "Largest free block: %u bytes (%.1f KB)", stats.largestFreeBlock, stats.largestFreeBlock / 1024.0f);
     ESP_LOGI(TAG, "Fragmentation: %.1f%%", stats.fragmentation);
     ESP_LOGI(TAG, "Memory usage: %.1f%%", (float)(stats.totalHeap - stats.freeHeap) / stats.totalHeap * 100.0f);
     
     if (trackingEnabled) {
         ESP_LOGI(TAG, "Tracked allocations: %zu", allocations.size());
-        ESP_LOGI(TAG, "Total allocations: %lu", stats.allocations);
-        ESP_LOGI(TAG, "Total frees: %lu", stats.frees);
+        ESP_LOGI(TAG, "Total allocations: %u", stats.allocations);
+        ESP_LOGI(TAG, "Total frees: %u", stats.frees);
     }
     
-    ESP_LOGI(TAG, "Pool allocations: %lu", stats.poolAllocations);
-    ESP_LOGI(TAG, "Pool frees: %lu", stats.poolFrees);
+    ESP_LOGI(TAG, "Pool allocations: %u", stats.poolAllocations);
+    ESP_LOGI(TAG, "Pool frees: %u", stats.poolFrees);
     
     // Check memory health
     if (isLowMemory()) {
@@ -220,12 +222,12 @@ void MemoryManager::trackDeallocation(void* ptr) {
 
 void MemoryManager::setLowMemoryThreshold(uint32_t threshold) {
     lowMemoryThreshold = threshold;
-    ESP_LOGI(TAG, "Low memory threshold set to %lu bytes", threshold);
+    ESP_LOGI(TAG, "Low memory threshold set to %u bytes", threshold);
 }
 
 void MemoryManager::setCriticalMemoryThreshold(uint32_t threshold) {
     criticalMemoryThreshold = threshold;
-    ESP_LOGI(TAG, "Critical memory threshold set to %lu bytes", threshold);
+    ESP_LOGI(TAG, "Critical memory threshold set to %u bytes", threshold);
 }
 
 bool MemoryManager::isLowMemory() const {

@@ -3,6 +3,7 @@ import ora from 'ora';
 import { ConsoleContext } from '../types/index.js';
 import { ClientManager } from '../utils/ClientManager.js';
 import { UIHelpers } from '../core/UIHelpers.js';
+import { TaskStatus } from '../../../client/dist/index.js';
 
 export class TaskCommands {
   constructor(
@@ -35,21 +36,21 @@ export class TaskCommands {
         return;
       }
       
-      console.log(chalk.green(`\n📚 Tasks (${taskList.tasks.length}):`);
+      console.log(chalk.green(`\n📚 Tasks (${taskList.tasks.length}):`));
       const table = this.uiHelpers.createTable(['ID', 'Name', 'Type', 'Status', 'Priority', 'Created']);
       
       taskList.tasks.forEach(task => {
-        const typeIcon = this.getTaskTypeIcon(task.type);
-        const statusIcon = this.getTaskStatusIcon(task.status);
-        const priorityIcon = this.getTaskPriorityIcon(task.priority);
-        
+        const typeIcon = this.getTaskTypeIcon(task.metadata.type);
+        const statusIcon = this.getTaskStatusIcon(task.metadata.status);
+        const priorityIcon = this.getTaskPriorityIcon(task.metadata.priority);
+
         table.push([
-          task.id.substring(0, 8) + '...',
-          task.name,
-          `${typeIcon} ${task.type}`,
-          `${statusIcon} ${task.status}`,
-          `${priorityIcon} ${task.priority}`,
-          new Date(task.createdAt).toLocaleDateString()
+          task.metadata.id.substring(0, 8) + '...',
+          task.metadata.name,
+          `${typeIcon} ${task.metadata.type}`,
+          `${statusIcon} ${task.metadata.status}`,
+          `${priorityIcon} ${task.metadata.priority}`,
+          new Date(task.metadata.createdTime).toLocaleDateString()
         ]);
       });
       
@@ -151,7 +152,7 @@ export class TaskCommands {
     const spinner = ora('Loading available tasks...').start();
     
     try {
-      const taskList = await client.tasks.listTasks({ status: 'created' });
+      const taskList = await client.tasks.listTasks({ status: TaskStatus.CREATED });
       
       if (taskList.tasks.length === 0) {
         spinner.warn('No tasks available for execution');
@@ -188,8 +189,8 @@ export class TaskCommands {
     
     try {
       // Get running and paused tasks
-      const runningTasks = await client.tasks.listTasks({ status: 'executing' });
-      const pausedTasks = await client.tasks.listTasks({ status: 'paused' });
+      const runningTasks = await client.tasks.listTasks({ status: TaskStatus.EXECUTING });
+      const pausedTasks = await client.tasks.listTasks({ status: TaskStatus.PAUSED });
       
       spinner.succeed('Task status retrieved');
       
@@ -202,31 +203,28 @@ export class TaskCommands {
         return;
       }
       
-      console.log(chalk.green(`\n🏃 Active Tasks (${activeTasks.length}):`);
+      console.log(chalk.green(`\n🏃 Active Tasks (${activeTasks.length}):`));
       
       for (const task of activeTasks) {
         try {
-          const status = await client.tasks.getTaskExecutionStatus(task.id);
-          
-          console.log(chalk.blue(`\n📍 ${task.name} (${task.id.substring(0, 8)}...):`));
+          const status = await client.tasks.getTaskExecutionStatus(task.metadata.id);
+
+          console.log(chalk.blue(`\n📍 ${task.metadata.name} (${task.metadata.id.substring(0, 8)}...):`));
           this.uiHelpers.displayKeyValuePairs({
             'Status': status.status,
             'Progress': `${Math.round(status.progress || 0)}%`,
-            'Current Waypoint': `${status.currentWaypoint || 0} of ${status.totalWaypoints || 0}`,
-            'Elapsed Time': this.uiHelpers.formatDuration(status.elapsedTime || 0),
+            'Current Waypoint': `${status.currentWaypointIndex || 0} of ${status.totalWaypoints || 0}`,
             'Estimated Remaining': status.estimatedTimeRemaining ?
               this.uiHelpers.formatDuration(status.estimatedTimeRemaining) : 'Unknown'
           });
-          
-          if (status.errors && status.errors.length > 0) {
-            console.log(chalk.red('\n⚠️  Errors:'));
-            status.errors.forEach(error => {
-              console.log(chalk.red(`  • ${error}`));
-            });
+
+          if (status.lastError) {
+            console.log(chalk.red('\n⚠️  Last Error:'));
+            console.log(chalk.red(`  • ${status.lastError}`));
           }
-          
+
         } catch (error) {
-          this.uiHelpers.displayError(`Failed to get status for task ${task.name}`, error);
+          this.uiHelpers.displayError(`Failed to get status for task ${task.metadata.name}`, error);
         }
       }
       
@@ -243,10 +241,10 @@ export class TaskCommands {
       
       switch (action) {
         case 'pause':
-          await this.pauseActiveTask(client, activeTasks.filter(t => t.status === 'executing'));
+          await this.pauseActiveTask(client, activeTasks.filter(t => t.metadata.status === TaskStatus.EXECUTING));
           break;
         case 'resume':
-          await this.resumePausedTask(client, activeTasks.filter(t => t.status === 'paused'));
+          await this.resumePausedTask(client, activeTasks.filter(t => t.metadata.status === TaskStatus.PAUSED));
           break;
         case 'cancel':
           await this.cancelActiveTask(client, activeTasks);
@@ -290,15 +288,14 @@ export class TaskCommands {
         return;
       }
       
-      console.log(chalk.green(`\n📋 Templates (${templates.templates.length}):`);
-      const table = this.uiHelpers.createTable(['Name', 'Type', 'Description', 'Created']);
-      
+      console.log(chalk.green(`\n📋 Templates (${templates.templates.length}):`));
+      const table = this.uiHelpers.createTable(['Name', 'Type', 'Description']);
+
       templates.templates.forEach(template => {
         table.push([
           template.name,
           template.type,
-          template.description?.substring(0, 50) + (template.description && template.description.length > 50 ? '...' : '') || 'No description',
-          new Date(template.createdAt).toLocaleDateString()
+          template.description?.substring(0, 50) + (template.description && template.description.length > 50 ? '...' : '') || 'No description'
         ]);
       });
       
@@ -351,11 +348,14 @@ export class TaskCommands {
     
     try {
       // Get completed and failed tasks
-      const completedTasks = await client.tasks.listTasks({ status: 'completed' });
-      const failedTasks = await client.tasks.listTasks({ status: 'failed' });
-      
+      const completedTasks = await client.tasks.listTasks({ status: TaskStatus.COMPLETED });
+      const failedTasks = await client.tasks.listTasks({ status: TaskStatus.FAILED });
+
       const historyTasks = [...completedTasks.tasks, ...failedTasks.tasks]
-        .sort((a, b) => new Date(b.completedAt || b.updatedAt).getTime() - new Date(a.completedAt || a.updatedAt).getTime());
+        .sort((a, b) =>
+          new Date(b.metadata.executionEndTime || b.metadata.modifiedTime).getTime() -
+          new Date(a.metadata.executionEndTime || a.metadata.modifiedTime).getTime()
+        );
       
       spinner.succeed(`Found ${historyTasks.length} completed task(s)`);
       
@@ -366,22 +366,23 @@ export class TaskCommands {
         return;
       }
       
-      console.log(chalk.green(`\n📊 Task History (${historyTasks.length}):`);
+      console.log(chalk.green(`\n📊 Task History (${historyTasks.length}):`));
       const table = this.uiHelpers.createTable(['Date', 'Task', 'Type', 'Duration', 'Result', 'Progress']);
       
       historyTasks.forEach(task => {
-        const completedDate = task.completedAt ? new Date(task.completedAt).toLocaleDateString() :
-          new Date(task.updatedAt).toLocaleDateString();
+        const completedDate = task.metadata.executionEndTime ?
+          new Date(task.metadata.executionEndTime).toLocaleDateString() :
+          new Date(task.metadata.modifiedTime).toLocaleDateString();
         const duration = this.calculateTaskDuration(task);
-        const resultIcon = task.status === 'completed' ? '✅' : '❌';
-        const progressText = task.status === 'completed' ? '100%' : 'Incomplete';
-        
+        const resultIcon = task.metadata.status === TaskStatus.COMPLETED ? '✅' : '❌';
+        const progressText = task.metadata.status === TaskStatus.COMPLETED ? '100%' : 'Incomplete';
+
         table.push([
           completedDate,
-          task.name,
-          task.type,
+          task.metadata.name,
+          task.metadata.type,
           duration,
-          `${resultIcon} ${task.status}`,
+          `${resultIcon} ${task.metadata.status}`,
           progressText
         ]);
       });
@@ -1066,11 +1067,9 @@ export class TaskCommands {
           'Altitude': status.currentAltitude ? `${status.currentAltitude.toFixed(1)} m` : 'N/A'
         });
         
-        if (status.errors && status.errors.length > 0) {
-          console.log(chalk.red('\n⚠️ Errors:'));
-          status.errors.forEach(error => {
-            console.log(chalk.red(`  • ${error}`));
-          });
+        if (status.lastError) {
+          console.log(chalk.red('\n⚠️  Last Error:'));
+          console.log(chalk.red(`  • ${status.lastError}`));
         }
         
         console.log(chalk.gray('\nPress Ctrl+C to stop monitoring...'));
@@ -1362,32 +1361,55 @@ export class TaskCommands {
   }
 
   private calculateTaskDuration(task: any): string {
-    if (!task.createdAt) return 'N/A';
-    
-    const start = new Date(task.createdAt).getTime();
-    const end = task.completedAt ? new Date(task.completedAt).getTime() : Date.now();
+    if (!task.metadata?.executionStartTime) return 'N/A';
+
+    const start = task.metadata.executionStartTime;
+    const end = task.metadata.executionEndTime || Date.now();
     const duration = end - start;
-    
+
     return this.uiHelpers.formatDuration(duration);
   }
 
   private calculateTaskDurationMs(task: any): number {
-    if (!task.createdAt) return 0;
-    
-    const start = new Date(task.createdAt).getTime();
-    const end = task.completedAt ? new Date(task.completedAt).getTime() : Date.now();
-    
+    if (!task.metadata?.executionStartTime) return 0;
+
+    const start = task.metadata.executionStartTime;
+    const end = task.metadata.executionEndTime || Date.now();
+
     return end - start;
   }
 
   private estimateTaskDuration(task: any): string {
     if (!task.waypoints || task.waypoints.length < 2) return 'Unknown';
-    
-    const distance = this.calculateTotalDistance(task.waypoints);
+
+    const distance = this.calculateTotalDistanceMeters(task.waypoints);
     const avgSpeed = task.parameters?.speed || 2.0; // Default 2 m/s
     const estimatedSeconds = distance / avgSpeed;
-    
+
     return this.uiHelpers.formatDuration(estimatedSeconds * 1000);
+  }
+
+  private calculateTotalDistanceMeters(waypoints: any[]): number {
+    if (!waypoints || waypoints.length < 2) return 0;
+
+    let totalDistance = 0;
+
+    for (let i = 1; i < waypoints.length; i++) {
+      const prev = waypoints[i - 1];
+      const curr = waypoints[i];
+
+      if (prev && curr) {
+        const distance = this.calculateDistance(
+          prev.latitude || prev.lat,
+          prev.longitude || prev.lng,
+          curr.latitude || curr.lat,
+          curr.longitude || curr.lng
+        );
+        totalDistance += distance;
+      }
+    }
+
+    return totalDistance;
   }
 
   private calculateTotalDistance(waypoints: any[]): string {

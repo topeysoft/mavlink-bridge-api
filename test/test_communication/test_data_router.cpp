@@ -1,5 +1,5 @@
 #include <unity.h>
-#include "../../lib/DataRouter/DataRouter.h"
+#include "DataRouter/DataRouter.h"
 
 void setUp(void) {
     // Set up test

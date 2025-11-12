@@ -1,0 +1,46 @@
+// Nature-inspired color palette
+$primary: #2C5F2D;          // Forest Green
+$secondary: #87CEEB;        // Sky Blue
+$accent: #FF6B35;           // Sunset Orange
+$positive: #21BA45;         // Success Green
+$negative: #C10015;         // Error Red
+$info: #31CCEC;            // Info Blue
+$warning: #F2C037;          // Warning Yellow
+
+// Background colors
+$background: #F5F5DC;       // Soft Beige
+$surface: #FFFFFF;          // White
+$surface-variant: #F8F8F3;  // Light Beige
+
+// Text colors
+$text-primary: #3E2723;     // Dark Earth
+$text-secondary: #5D4E37;   // Medium Brown
+$text-disabled: #A89F91;    // Light Brown
+
+// Grey colors
+$grey-3: #E0E0E0;          // Light Grey
+$grey-6: #757575;          // Medium Grey
+$grey-8: #424242;          // Dark Grey
+
+// Spacing
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+
+// Border radius
+$radius-sm: 4px;
+$radius-md: 8px;
+$radius-lg: 16px;
+$radius-round: 9999px;
+
+// Shadows
+$shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+$shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
+$shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.1);
+
+// Transitions
+$transition-fast: 150ms ease-in-out;
+$transition-normal: 300ms ease-in-out;
+$transition-slow: 500ms ease-in-out;
