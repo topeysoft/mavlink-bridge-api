@@ -1,82 +1,84 @@
-import { route } from 'quasar/wrappers';
-import {
-  createMemoryHistory,
-  createRouter,
-  createWebHashHistory,
-  createWebHistory,
-  NavigationGuardNext,
-  RouteLocationNormalized
-} from 'vue-router';
-import routes, { RouteMeta } from './routes';
+import { createRouter, createWebHistory } from 'vue-router'
 
-declare module 'vue-router' {
-  interface RouteMeta extends RouteMeta {}
-}
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    {
+      path: '/',
+      name: 'dashboard',
+      component: () => import('../views/DashboardView.vue'),
+    },
+    {
+      path: '/attachments',
+      name: 'attachments',
+      component: () => import('../views/AttachmentsView.vue'),
+    },
+    {
+      path: '/zones',
+      name: 'zones',
+      component: () => import('../views/ZonesView.vue'),
+    },
+    {
+      path: '/missions',
+      name: 'missions',
+      component: () => import('../views/MissionsView.vue'),
+    },
+    {
+      path: '/missions/create',
+      name: 'mission-editor',
+      component: () => import('../views/MissionEditorView.vue'),
+    },
+    {
+      path: '/missions/planner',
+      name: 'mission-planner',
+      component: () => import('../views/MissionPlannerView.vue'),
+    },
+    {
+      path: '/control',
+      name: 'control',
+      component: () => import('../views/ControlView.vue'),
+    },
+    {
+      path: '/monitoring',
+      name: 'monitoring',
+      component: () => import('../views/MonitoringView.vue'),
+    },
+    {
+      path: '/schedule',
+      name: 'schedule',
+      component: () => import('../views/ScheduleView.vue'),
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('../views/SettingsView.vue'),
+    },
+    {
+      path: '/parameters',
+      name: 'parameters',
+      component: () => import('../views/ParametersView.vue'),
+    },
+    {
+      path: '/logs',
+      name: 'logs',
+      component: () => import('../views/LogsView.vue'),
+    },
+    {
+      path: '/battery',
+      name: 'battery',
+      component: () => import('../views/BatteryView.vue'),
+    },
+    {
+      path: '/weather',
+      name: 'weather',
+      component: () => import('../views/WeatherView.vue'),
+    },
+    {
+      path: '/connect',
+      name: 'connect',
+      component: () => import('../views/ConnectionView.vue'),
+    },
+  ],
+})
 
-export default route(function ({ store }) {
-  const createHistory = process.env.SERVER
-    ? createMemoryHistory
-    : (process.env.VUE_ROUTER_MODE === 'history' ? createWebHistory : createWebHashHistory);
-
-  const Router = createRouter({
-    scrollBehavior: () => ({ left: 0, top: 0 }),
-    routes,
-    history: createHistory(process.env.VUE_ROUTER_BASE)
-  });
-
-  // Add route guards
-  Router.beforeEach(async (
-    to: RouteLocationNormalized,
-    from: RouteLocationNormalized,
-    next: NavigationGuardNext
-  ) => {
-    // Import stores dynamically to avoid circular dependencies
-    const { useUserStore } = await import('@/stores/user');
-    const { useConnectionStore } = await import('@/stores/connection');
-    
-    const userStore = useUserStore(store);
-    const connectionStore = useConnectionStore(store);
-
-    // Update document title
-    if (to.meta?.title) {
-      document.title = `${to.meta.title} - YardRover Control`;
-    } else {
-      document.title = 'YardRover Control';
-    }
-
-    // Check authentication
-    if (to.meta?.requiresAuth && !userStore.isAuthenticated) {
-      // Redirect to login with return URL
-      return next({ 
-        name: 'login', 
-        query: { redirect: to.fullPath } 
-      });
-    }
-
-    // Check connection requirement
-    if (to.meta?.requiresConnection && !connectionStore.isConnected) {
-      // Show notification and redirect to connection page
-      const { Notify } = await import('quasar');
-      Notify.create({
-        type: 'warning',
-        message: 'Device connection required',
-        caption: 'Please connect to a device first',
-        position: 'top'
-      });
-      return next({ name: 'connection' });
-    }
-    
-    next();
-  });
-
-  // Add route transition animations
-  Router.afterEach((to) => {
-    if (to.meta?.transition) {
-      document.documentElement.setAttribute('data-route-transition', to.meta.transition);
-    }
-  });
-
-  return Router;
-});
-
-export { routes };
+export default router

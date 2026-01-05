@@ -53,6 +53,11 @@ app/src/
 - **Styling**: SCSS with `@import '@/assets/styles/variables'` for custom colors
 - **State**: Pinia stores with composition API pattern
 - **Imports**: Use `../../../client/dist/index` for MAVLinkBridge types
+- **API Integration**:
+  - **ALWAYS use the client library** (`../../../client/dist/index`) for all device REST and WebSocket API access
+  - **NEVER make direct fetch/axios calls** to device endpoints - use the `MAVLinkBridge` class instead
+  - **If the client library lacks required features**: Recommend or implement changes to the client library first, then use those features in the app
+  - All device communication must go through the type-safe client library to ensure consistency and maintainability
 
 ### Key Architecture Decisions
 - **Theme**: Nature-inspired colors (`$primary: #2C5F2D`, `$secondary: #87CEEB`)

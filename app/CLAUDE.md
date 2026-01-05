@@ -1,0 +1,317 @@
+# YardRover Web App - Development Guide
+
+## ⚠️ CRITICAL: NO QUASAR COMPONENTS
+
+**This app does NOT use Quasar components.** All UI components must be implemented using:
+- ✅ Native HTML elements (`<input>`, `<button>`, `<select>`, `<div>`, etc.)
+- ✅ Pure Vue 3 with Composition API (`<script setup lang="ts">`)
+- ✅ Custom CSS/SCSS styling
+- ✅ Emoji icons or SVG icons (NO Material Icons from Quasar)
+
+**DO NOT USE:**
+- ❌ `q-btn`, `q-input`, `q-select`, `q-dialog`, `q-card`, `q-icon`, `q-list`, `q-item`, `q-page`, etc.
+- ❌ `useQuasar()` composable
+- ❌ Any imports from `'quasar'`
+
+**For common UI patterns:**
+- **Buttons**: Use `<button class="btn btn-primary">` with custom CSS
+- **Inputs**: Use `<input>` with custom styling
+- **Dialogs/Modals**: Use conditional rendering with `v-if` and CSS overlays
+- **Icons**: Use emoji (🔍, ⚙️, 📊) or inline SVG
+- **Notifications**: Use browser `alert()` or custom toast components
+- **Forms**: Use native HTML form elements with Vue bindings
+
+## Technology Stack
+
+- **Framework**: Vue 3 with Composition API
+- **Language**: TypeScript (strict mode)
+- **State Management**: Pinia stores
+- **Styling**: SCSS with custom variables
+- **Build Tool**: Vite
+- **Charts**: Chart.js + vue-chartjs
+
+## Project Structure
+
+```
+app/src/
+├── components/
+│   ├── [feature]/           # Feature-based organization
+│   └── common/              # Shared components
+├── views/                   # Route/page components
+├── stores/                  # Pinia stores (composition API)
+├── types/                   # TypeScript type definitions
+├── assets/
+│   └── styles/
+│       ├── variables.scss   # Color palette & design tokens
+│       ├── mixins.scss      # Reusable SCSS mixins
+│       └── index.scss       # Global styles
+└── router/                  # Vue Router configuration
+```
+
+## Code Conventions
+
+### Vue Components
+```vue
+<template>
+  <div class="my-component">
+    <!-- Use native HTML elements -->
+    <button class="btn btn-primary" @click="handleClick">
+      <span class="icon">✓</span>
+      Save
+    </button>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue';
+import { useMyStore } from '@/stores/myStore';
+
+// Use Composition API
+const myStore = useMyStore();
+const count = ref(0);
+
+function handleClick() {
+  count.value++;
+}
+</script>
+
+<style scoped lang="scss">
+@import '@/assets/styles/variables';
+
+.my-component {
+  padding: $spacing-md;
+  background: $grey-1;
+}
+
+.btn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &.btn-primary {
+    background: $primary;
+    color: white;
+
+    &:hover {
+      background: darken($primary, 5%);
+    }
+  }
+}
+</style>
+```
+
+### Pinia Stores
+```typescript
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+
+export const useMyStore = defineStore('myStore', () => {
+  // State
+  const items = ref<Item[]>([]);
+
+  // Computed
+  const itemCount = computed(() => items.value.length);
+
+  // Actions
+  function addItem(item: Item) {
+    items.value.push(item);
+  }
+
+  return {
+    items,
+    itemCount,
+    addItem,
+  };
+});
+```
+
+## SCSS Variables
+
+Available color variables (from `@/assets/styles/variables`):
+
+```scss
+// Primary colors
+$primary: #2C5F2D;        // Primary green
+$secondary: #87CEEB;      // Sky blue
+$accent: #7CB342;         // Grass green
+
+// Status colors
+$positive: #28a745;
+$negative: #dc3545;
+$warning: #ffc107;
+$info: #17a2b8;
+
+// Grey scale
+$grey-1: #f8f9fa;
+$grey-2: #e9ecef;
+$grey-3: #dee2e6;
+$grey-4: #ced4da;
+$grey-5: #adb5bd;
+$grey-6: #6c757d;
+$grey-7: #495057;
+$grey-8: #343a40;
+$grey-9: #212529;
+
+// Text colors
+$dark: #212529;
+
+// Spacing
+$spacing-xs: 0.25rem;
+$spacing-sm: 0.5rem;
+$spacing-md: 1rem;
+$spacing-lg: 1.5rem;
+$spacing-xl: 2rem;
+```
+
+## Feature Flags
+
+Features are controlled via the `useFeaturesStore()`:
+
+```typescript
+import { useFeaturesStore } from '@/stores/features';
+
+const featuresStore = useFeaturesStore();
+
+// Check if feature is enabled
+if (featuresStore.isFeatureEnabled('activityLogs')) {
+  // Show activity logs
+}
+```
+
+Available user modes:
+- **Consumer**: Basic features only
+- **Power User**: Advanced features
+- **Developer**: All features including debugging tools
+
+## Common UI Patterns
+
+### Modal Dialog
+```vue
+<template>
+  <div v-if="showModal" class="modal-overlay" @click="showModal = false">
+    <div class="modal" @click.stop>
+      <div class="modal-header">
+        <h2>Title</h2>
+        <button @click="showModal = false" class="close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        Content here
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showModal = false">Cancel</button>
+        <button class="btn btn-primary" @click="handleSave">Save</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped lang="scss">
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 100%;
+}
+</style>
+```
+
+### Dropdown Menu
+```vue
+<template>
+  <div class="dropdown">
+    <button @click="toggle" class="dropdown-trigger">Menu ⋮</button>
+    <div v-if="isOpen" class="dropdown-menu">
+      <button @click="handleAction1">Action 1</button>
+      <button @click="handleAction2">Action 2</button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue';
+
+const isOpen = ref(false);
+
+function toggle() {
+  isOpen.value = !isOpen.value;
+}
+
+function handleClickOutside(event: MouseEvent) {
+  const target = event.target as HTMLElement;
+  if (!target.closest('.dropdown')) {
+    isOpen.value = false;
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
+</script>
+```
+
+## Completed Features
+
+### ✅ Stage 6: Parameter Management
+- Parameter editor with validation
+- Parameter sets (save/load)
+- Group-based organization
+- Export/import functionality
+
+### ✅ Stage 7: Activity Logs (Formerly Flight Logs)
+- Session log viewer with timeline
+- Statistics dashboard
+- Data visualization charts
+- Export to CSV, KML, GeoJSON, JSON
+- Filter and search functionality
+- **100% Quasar-free implementation**
+
+## Development Commands
+
+```bash
+# Start dev server
+npm run dev
+
+# Type check
+npm run type-check
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## Important Notes
+
+1. **No Quasar**: This bears repeating - DO NOT use any Quasar components
+2. **Type Safety**: Always use TypeScript with proper typing
+3. **SCSS Variables**: Use the centralized variable system for consistency
+4. **Composition API**: Use `<script setup>` for all components
+5. **Feature Flags**: Check feature flags before showing advanced features
+6. **Emoji Icons**: Prefer emoji for simple icons (faster, no dependencies)
+7. **Accessibility**: Use semantic HTML and proper ARIA labels
+8. **Responsive**: Test on mobile viewports
+
+## Need Help?
+
+Check existing implementations:
+- **Modal dialogs**: See [LogsView.vue](src/views/LogsView.vue)
+- **Forms**: See [ParametersView.vue](src/views/ParametersView.vue)
+- **Timeline**: See [LogTimeline.vue](src/components/logs/LogTimeline.vue)
+- **Charts**: See [LogCharts.vue](src/components/logs/LogCharts.vue)
+- **Cards/Grids**: See [LogSummary.vue](src/components/logs/LogSummary.vue)

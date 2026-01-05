@@ -1,0 +1,153 @@
+// YardRover UI - SCSS Variables & CSS Custom Properties
+
+// SCSS Variables for static values
+$primary-green: #2C5F2D;
+$primary-green-light: #3a7a3c;
+$primary-green-dark: #1e4220;
+$sky-blue: #87CEEB;
+$sky-blue-light: #a8dcf3;
+$earth-brown: #8B4513;
+$grass-green: #7CB342;
+
+// Quasar-compatible color aliases
+$primary: $primary-green;
+$secondary: $sky-blue;
+$accent: $grass-green;
+$dark: #212529;
+$positive: #28a745;
+$negative: #dc3545;
+$info: #17a2b8;
+$warning: #ffc107;
+
+// Grey scale
+$grey-1: #f8f9fa;
+$grey-2: #e9ecef;
+$grey-3: #dee2e6;
+$grey-4: #ced4da;
+$grey-5: #adb5bd;
+$grey-6: #6c757d;
+$grey-7: #495057;
+$grey-8: #343a40;
+$grey-9: #212529;
+
+// Status Colors
+$status-success: #28a745;
+$status-warning: #ffc107;
+$status-danger: #dc3545;
+$status-info: #17a2b8;
+
+// Spacing
+$spacing-xs: 0.25rem;
+$spacing-sm: 0.5rem;
+$spacing-md: 1rem;
+$spacing-lg: 1.5rem;
+$spacing-xl: 2rem;
+
+// Typography
+$font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+$font-size-sm: 0.875rem;
+$font-size-base: 1rem;
+$font-size-lg: 1.125rem;
+$font-size-xl: 1.25rem;
+$font-size-2xl: 1.5rem;
+
+// Layout
+$sidebar-width: 260px;
+$sidebar-collapsed-width: 70px;
+$header-height: 70px;
+
+// Border Radius
+$radius-sm: 4px;
+$radius-md: 8px;
+$radius-lg: 12px;
+$radius-xl: 16px;
+
+// Transitions
+$transition-fast: 0.15s ease;
+$transition-base: 0.2s ease;
+$transition-slow: 0.3s ease;
+
+// CSS Custom Properties for theme switching
+:root {
+  // Nature-inspired color palette
+  --primary-green: #{$primary-green};
+  --primary-green-light: #{$primary-green-light};
+  --primary-green-dark: #{$primary-green-dark};
+  --sky-blue: #{$sky-blue};
+  --sky-blue-light: #{$sky-blue-light};
+  --earth-brown: #{$earth-brown};
+  --grass-green: #{$grass-green};
+
+  // UI Colors (light mode)
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-light: #adb5bd;
+  --border-color: #dee2e6;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+
+  // Status Colors
+  --status-success: #{$status-success};
+  --status-warning: #{$status-warning};
+  --status-danger: #{$status-danger};
+  --status-info: #{$status-info};
+
+  // Spacing
+  --spacing-xs: #{$spacing-xs};
+  --spacing-sm: #{$spacing-sm};
+  --spacing-md: #{$spacing-md};
+  --spacing-lg: #{$spacing-lg};
+  --spacing-xl: #{$spacing-xl};
+
+  // Typography
+  --font-family: #{$font-family};
+  --font-size-sm: #{$font-size-sm};
+  --font-size-base: #{$font-size-base};
+  --font-size-lg: #{$font-size-lg};
+  --font-size-xl: #{$font-size-xl};
+  --font-size-2xl: #{$font-size-2xl};
+
+  // Layout
+  --sidebar-width: #{$sidebar-width};
+  --sidebar-collapsed-width: #{$sidebar-collapsed-width};
+  --header-height: #{$header-height};
+
+  // Border Radius
+  --radius-sm: #{$radius-sm};
+  --radius-md: #{$radius-md};
+  --radius-lg: #{$radius-lg};
+  --radius-xl: #{$radius-xl};
+  --radius-full: 9999px;
+  --border-radius: #{$radius-md};
+
+  // Transitions
+  --transition-fast: #{$transition-fast};
+  --transition-base: #{$transition-base};
+  --transition-slow: #{$transition-slow};
+  --transition-normal: #{$transition-base};
+
+  // Additional spacing
+  --spacing-2xl: calc(#{$spacing-xl} * 1.5);
+}
+
+// Dark Mode Theme
+body[data-theme="dark"] {
+  --bg-primary: #1a1d23;
+  --bg-secondary: #23272f;
+  --bg-tertiary: #2d323b;
+  --text-primary: #e8eaed;
+  --text-secondary: #9aa0a6;
+  --text-light: #6c757d;
+  --border-color: #3c4149;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+
+  // Adjust primary colors for dark mode
+  --primary-green-light: #4a9a4d;
+  --sky-blue: #6bb6d6;
+}

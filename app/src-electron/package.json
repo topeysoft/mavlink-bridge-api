@@ -1,9 +1,0 @@
-{
-  "name": "yardrover-app-electron",
-  "version": "1.0.0",
-  "description": "YardRover Control - Desktop App", 
-  "main": "electron-main.js",
-  "dependencies": {
-    "electron": "^32.0.0"
-  }
-}
