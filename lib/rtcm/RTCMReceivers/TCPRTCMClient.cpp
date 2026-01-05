@@ -78,10 +78,10 @@ bool TCPRTCMClient::connect() {
     ESP_LOGI(TAG, "  Remote Port: %d", tcpClient.remotePort());
     setState(CONNECTED);
 
-    // Start receive task
+    // Start receive task with priority 1 (same as HTTP/WS tasks to avoid starvation)
     if (receiveTask == nullptr) {
-        xTaskCreate(tcpTaskFunction, "TCP_RTCM_Task", 4096, this, 5, &receiveTask);
-        ESP_LOGI(TAG, "✓ TCP receive task started");
+        xTaskCreate(tcpTaskFunction, "TCP_RTCM_Task", 4096, this, 1, &receiveTask);
+        ESP_LOGI(TAG, "✓ TCP receive task started (priority: 1)");
     }
 
     return true;
@@ -208,6 +208,9 @@ void TCPRTCMClient::runReceiveTask() {
                     lastLogTime = now;
                 }
             }
+        } else {
+            // No data available - yield immediately to give HTTP/WS tasks CPU time
+            vTaskDelay(pdMS_TO_TICKS(1));
         }
 
         // Check for timeout

@@ -41,8 +41,9 @@ void WiFiManager::begin() {
     } else {
         Serial.println("WiFiManager: NVS initialized successfully");
     }
-    
-    // Set WiFi mode
+
+    // Start in AP+STA mode to allow AsyncWebServer to work on both interfaces
+    // We'll use softAPdisconnect() to disable AP when connected, not WiFi.mode()
     WiFi.mode(WIFI_AP_STA);
     
     // Register WiFi event handler
@@ -110,23 +111,24 @@ void WiFiManager::startAccessPoint() {
 
 void WiFiManager::startAccessPoint(const String& ssid, const String& password) {
     Serial.printf("Starting Access Point: %s\n", ssid.c_str());
-    
+
+    // WiFi is already in AP_STA mode from begin(), just start the AP
     bool success;
     if (password.length() > 0) {
         success = WiFi.softAP(ssid.c_str(), password.c_str());
     } else {
         success = WiFi.softAP(ssid.c_str());
     }
-    
+
     if (success) {
         setState(AP_MODE);
-        
+
         DynamicJsonDocument payload(256);
         payload["ssid"] = ssid;
         payload["ip"] = WiFi.softAPIP().toString();
         eventManager->publishAsync(EventType::WIFI_AP_MODE_STARTED, payload.as<JsonObjectConst>());
-        
-        Serial.printf("Access Point started: %s (%s)\n", 
+
+        Serial.printf("Access Point started: %s (%s)\n",
                      ssid.c_str(), WiFi.softAPIP().toString().c_str());
     } else {
         Serial.println("Failed to start Access Point");
@@ -135,11 +137,21 @@ void WiFiManager::startAccessPoint(const String& ssid, const String& password) {
 }
 
 void WiFiManager::stopAccessPoint() {
-    if (currentState == AP_MODE) {
-        WiFi.softAPdisconnect();
-        setState(DISCONNECTED);
-        eventManager->publishAsync(EventType::WIFI_AP_MODE_STOPPED);
+    if (currentState == AP_MODE || WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+        // Disconnect AP without changing WiFi mode (to avoid breaking AsyncWebServer)
+        WiFi.softAPdisconnect(true); // true = disable AP mode
         Serial.println("Access Point stopped");
+
+        if (currentState == AP_MODE) {
+            // If we were in AP_MODE state and now WiFi is connected, switch to CONNECTED
+            if (WiFi.status() == WL_CONNECTED) {
+                setState(CONNECTED);
+            } else {
+                setState(DISCONNECTED);
+            }
+        }
+
+        eventManager->publishAsync(EventType::WIFI_AP_MODE_STOPPED);
     }
 }
 
@@ -499,13 +511,18 @@ bool WiFiManager::connectToNetwork(const String& ssid, const String& password) {
 void WiFiManager::handleWiFiEvent(WiFiEvent_t event) {
     switch (event) {
         case ARDUINO_EVENT_WIFI_STA_CONNECTED:
-            Serial.printf("Connected to WiFi: %s\n", WiFi.SSID().c_str());
-            setState(CONNECTED);
+            Serial.printf("Connected to WiFi: %s (waiting for IP...)\n", WiFi.SSID().c_str());
+            Serial.printf("   WiFi Mode: %d (1=STA, 2=AP, 3=AP_STA)\n", WiFi.getMode());
+            Serial.printf("   Current IP (should be 0.0.0.0): %s\n", WiFi.localIP().toString().c_str());
+
+            // DON'T change state to CONNECTED yet - wait for IP
+            // setState(CONNECTED);
             reconnectAttempts = 0;
-            // Disable AP mode when connected
-            stopAccessPoint();
+
+            // DON'T stop AP yet - wait until we have IP to avoid breaking DHCP
+            // stopAccessPoint();
             break;
-            
+
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
             Serial.println("WiFi disconnected");
             if (currentState == CONNECTED || currentState == CONNECTING) {
@@ -515,14 +532,16 @@ void WiFiManager::handleWiFiEvent(WiFiEvent_t event) {
                 lastReconnectTime = millis();
             }
             break;
-            
+
         case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-            Serial.printf("WiFi connected, IP: %s\n", WiFi.localIP().toString().c_str());
+            Serial.printf("✓ WiFi connected: %s - IP: %s\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+            Serial.printf("   Gateway: %s, Subnet: %s\n", WiFi.gatewayIP().toString().c_str(), WiFi.subnetMask().toString().c_str());
+            Serial.printf("   RSSI: %d dBm, Channel: %d\n", WiFi.RSSI(), WiFi.channel());
             setState(CONNECTED);
-            // Disable AP mode when connected
+            // Disable AP when we have IP (don't change WiFi mode to avoid breaking AsyncWebServer)
             stopAccessPoint();
             break;
-            
+
         default:
             break;
     }

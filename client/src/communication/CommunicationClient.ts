@@ -215,16 +215,14 @@ export class CommunicationClient {
    * Get current communication status
    */
   async getStatus (): Promise<CommunicationStatus> {
-    const response: any = await this.httpClient.get('/api/communication/status');
-    return response.data as CommunicationStatus;
+    return await this.httpClient.get<CommunicationStatus>('/api/communication/status');
   }
 
   /**
    * Get current communication statistics
    */
   async getStatistics (): Promise<CommunicationStats> {
-    const response: any = await this.httpClient.get('/api/communication/statistics');
-    return response.data as CommunicationStats;
+    return await this.httpClient.get<CommunicationStats>('/api/communication/statistics');
   }
 
   /**
@@ -247,7 +245,7 @@ export class CommunicationClient {
    * Set routing mode
    */
   async setRoutingMode (mode: RoutingMode): Promise<void> {
-    await this.httpClient.post('/api/communication/routing-mode', { mode });
+    await this.httpClient.post('/api/communication/routing', { mode });
   }
 
   /**

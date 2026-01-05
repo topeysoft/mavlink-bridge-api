@@ -24,10 +24,10 @@
 #define WEBSOCKET_PATH "/ws"
 
 // Timing configuration
-#define HEALTH_REPORT_INTERVAL 30000  // 30 seconds
-#define WEBSOCKET_PING_INTERVAL 10000 // 10 seconds
+#define HEALTH_REPORT_INTERVAL 30000   // 30 seconds
+#define WEBSOCKET_PING_INTERVAL 10000  // 10 seconds
 #define WEBSOCKET_CLIENT_TIMEOUT 30000 // 30 seconds
-#define HTTP_REQUEST_TIMEOUT 5000 // 5 seconds
+#define HTTP_REQUEST_TIMEOUT 5000      // 5 seconds
 
 // Task configuration
 #define HTTP_TASK_STACK_SIZE_APP 2048
@@ -46,8 +46,13 @@
 #define ENABLE_WEBSOCKET true
 #define ENABLE_EVENT_MANAGER true
 #define ENABLE_CONFIG_PERSISTENCE true // Stage 2 feature
-#define ENABLE_WIFI_MANAGER true // Stage 3 feature
-#define ENABLE_RTCM_CLIENT false // Stage 4 feature
+#define ENABLE_WIFI_MANAGER true       // Stage 3 feature
+#define ENABLE_RTCM_CLIENT false       // Stage 4 feature
+
+// Button configuration
+#define BOOT_BUTTON_PIN 0                // GPIO0 is the BOOT button on most ESP32 boards
+#define BUTTON_LONG_PRESS_MS 3000        // 3 seconds to trigger AP mode
+#define BUTTON_DEBOUNCE_MS 50            // 50ms debounce delay
 #define ENABLE_COMMUNICATION_SYSTEM true // Stage 5 feature
 
 // Communication system configuration (Stage 5)
@@ -64,8 +69,8 @@
 #define DEFAULT_UART_NUM 1
 #define DEFAULT_UART_RX_PIN 16
 #define DEFAULT_UART_TX_PIN 17
-#define DEFAULT_UART_RTS_PIN 255  // Disabled
-#define DEFAULT_UART_CTS_PIN 255  // Disabled
+#define DEFAULT_UART_RTS_PIN 255 // Disabled
+#define DEFAULT_UART_CTS_PIN 255 // Disabled
 #define DEFAULT_UART_BAUD_RATE 57600
 #define UART_BUFFER_SIZE 4096
 #define UART_TASK_STACK_SIZE 4096
@@ -84,14 +89,14 @@
 #define DATA_ROUTER_QUEUE_SIZE 32
 #define DATA_ROUTER_TASK_STACK_SIZE 8192
 #define DATA_ROUTER_TASK_PRIORITY 7
-#define DEFAULT_ROUTING_MODE 0  // AUTO
-#define INTERFACE_HEALTH_CHECK_INTERVAL 5000  // 5 seconds
-#define INTERFACE_SWITCH_TIMEOUT 1000  // 1 second
+#define DEFAULT_ROUTING_MODE 0               // AUTO
+#define INTERFACE_HEALTH_CHECK_INTERVAL 5000 // 5 seconds
+#define INTERFACE_SWITCH_TIMEOUT 1000        // 1 second
 
 // Communication statistics
-#define COMM_STATS_UPDATE_INTERVAL 1000  // 1 second
+#define COMM_STATS_UPDATE_INTERVAL 1000 // 1 second
 #define ENABLE_COMM_STATISTICS true
 
 // Performance settings
-#define COMM_MAX_THROUGHPUT 1000000  // 1 Mbps
+#define COMM_MAX_THROUGHPUT 1000000 // 1 Mbps
 #define COMM_MAX_PACKET_SIZE 256

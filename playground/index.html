@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MAVLinkBridge API Playground</title>
+    <link rel="stylesheet" href="css/main.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"
+    />
+  </head>
+  <body>
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="logo">
+          <h1>🚁 MAVLinkBridge API Playground</h1>
+          <span class="version">v1.0.0</span>
+        </div>
+
+        <div class="device-connection">
+          <div class="connection-status" id="connectionStatus">
+            <span class="status-indicator disconnected"></span>
+            <span class="status-text">Disconnected</span>
+          </div>
+
+          <button class="btn btn-secondary" id="discoveryBtn">
+            🔍 Discover Devices
+          </button>
+
+          <div class="device-input">
+            <input
+              type="text"
+              id="deviceUrl"
+              placeholder="http://192.168.4.1"
+              value="http://192.168.4.1"
+            />
+            <button class="btn btn-primary" id="connectBtn">Connect</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+      <!-- Sidebar Navigation -->
+      <aside class="sidebar">
+        <nav class="sidebar-nav">
+          <div class="nav-section">
+            <h3>API Categories</h3>
+            <ul id="apiCategories" class="nav-list">
+              <li
+                ><a href="#health" data-category="health"
+                  >🏥 Health & Status</a
+                ></li
+              >
+              <li
+                ><a href="#config" data-category="config"
+                  >⚙️ Configuration</a
+                ></li
+              >
+              <li
+                ><a href="#wifi" data-category="wifi">📶 WiFi Management</a></li
+              >
+              <li><a href="#rtcm" data-category="rtcm">📡 RTCM Client</a></li>
+              <li
+                ><a href="#mavlink" data-category="mavlink"
+                  >✈️ MAVLink Commands</a
+                ></li
+              >
+              <li
+                ><a href="#mission" data-category="mission"
+                  >🗺️ Mission Planning</a
+                ></li
+              >
+              <li
+                ><a href="#parameters" data-category="parameters"
+                  >🎛️ Parameters</a
+                ></li
+              >
+              <li
+                ><a href="#tasks" data-category="tasks"
+                  >📋 Task Management</a
+                ></li
+              >
+              <li
+                ><a href="#communication" data-category="communication"
+                  >🔌 Communication</a
+                ></li
+              >
+            </ul>
+          </div>
+
+          <div class="nav-section">
+            <h3>Tools</h3>
+            <ul class="nav-list">
+              <li
+                ><a href="#websocket" data-view="websocket"
+                  >📊 WebSocket Console</a
+                ></li
+              >
+              <li
+                ><a href="#quick-actions" data-view="quick-actions"
+                  >⚡ Quick Actions</a
+                ></li
+              >
+              <li
+                ><a href="#history" data-view="history"
+                  >📜 Request History</a
+                ></li
+              >
+            </ul>
+          </div>
+        </nav>
+      </aside>
+
+      <!-- Main Content Area -->
+      <main class="main-content">
+        <!-- API Explorer -->
+        <div id="apiExplorer" class="content-panel active">
+          <div class="panel-header">
+            <h2>API Explorer</h2>
+            <div class="panel-actions">
+              <button class="btn btn-sm" id="expandAllBtn">Expand All</button>
+              <button class="btn btn-sm" id="collapseAllBtn"
+                >Collapse All</button
+              >
+            </div>
+          </div>
+
+          <div id="apiEndpoints" class="api-endpoints">
+            <!-- Dynamically populated from OpenAPI spec -->
+            <div class="loading">
+              <div class="spinner"></div>
+              <p>Loading API specification...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- WebSocket Console -->
+        <div id="websocketConsole" class="content-panel">
+          <div class="panel-header">
+            <h2>WebSocket Console</h2>
+            <div class="panel-actions">
+              <button class="btn btn-sm" id="clearEventsBtn">Clear</button>
+              <button class="btn btn-sm" id="pauseEventsBtn">Pause</button>
+              <label class="checkbox-label">
+                <input type="checkbox" id="autoScrollCheck" checked />
+                Auto-scroll
+              </label>
+            </div>
+          </div>
+
+          <div class="ws-controls">
+            <div class="ws-filters">
+              <input
+                type="text"
+                id="eventFilter"
+                placeholder="Filter events..."
+                class="filter-input"
+              />
+              <select id="eventTypeFilter" class="filter-select">
+                <option value="">All Event Types</option>
+              </select>
+            </div>
+            <div class="ws-stats" id="wsStats">
+              <span>Events: <strong id="eventCount">0</strong></span>
+              <span>Rate: <strong id="eventRate">0/s</strong></span>
+            </div>
+          </div>
+
+          <div id="eventsList" class="events-list"></div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div id="quickActions" class="content-panel">
+          <div class="panel-header">
+            <h2>Quick Actions</h2>
+          </div>
+
+          <div class="quick-actions-grid">
+            <!-- MAVLink Commands -->
+            <div class="action-card">
+              <h3>🎮 MAVLink Control</h3>
+              <div class="action-buttons">
+                <button class="btn btn-success" data-action="arm">Arm</button>
+                <button class="btn btn-danger" data-action="disarm"
+                  >Disarm</button
+                >
+                <button class="btn btn-primary" data-action="takeoff"
+                  >Takeoff</button
+                >
+                <button class="btn btn-warning" data-action="land">Land</button>
+                <button class="btn btn-info" data-action="rtl">RTL</button>
+              </div>
+            </div>
+
+            <!-- WiFi Quick Connect -->
+            <div class="action-card">
+              <h3>📶 WiFi Quick Connect</h3>
+              <div class="form-group">
+                <input
+                  type="text"
+                  id="quickWifiSsid"
+                  placeholder="SSID"
+                  class="form-input"
+                />
+                <input
+                  type="password"
+                  id="quickWifiPass"
+                  placeholder="Password"
+                  class="form-input"
+                />
+                <button
+                  class="btn btn-primary full-width"
+                  data-action="wifi-connect"
+                  >Connect</button
+                >
+              </div>
+            </div>
+
+            <!-- RTCM Control -->
+            <div class="action-card">
+              <h3>📡 RTCM Control</h3>
+              <div class="action-buttons">
+                <button class="btn btn-success" data-action="rtcm-start"
+                  >Start</button
+                >
+                <button class="btn btn-danger" data-action="rtcm-stop"
+                  >Stop</button
+                >
+                <button class="btn btn-info" data-action="rtcm-status"
+                  >Status</button
+                >
+              </div>
+            </div>
+
+            <!-- System Health -->
+            <div class="action-card full-width">
+              <h3>🏥 System Health</h3>
+              <div id="healthDashboard" class="health-dashboard">
+                <div class="health-metric">
+                  <span class="metric-label">Status</span>
+                  <span class="metric-value" id="healthStatus">-</span>
+                </div>
+                <div class="health-metric">
+                  <span class="metric-label">Uptime</span>
+                  <span class="metric-value" id="healthUptime">-</span>
+                </div>
+                <div class="health-metric">
+                  <span class="metric-label">Free Heap</span>
+                  <span class="metric-value" id="healthHeap">-</span>
+                </div>
+                <div class="health-metric">
+                  <span class="metric-label">WiFi</span>
+                  <span class="metric-value" id="healthWifi">-</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Request History -->
+        <div id="requestHistory" class="content-panel">
+          <div class="panel-header">
+            <h2>Request History</h2>
+            <div class="panel-actions">
+              <button class="btn btn-sm" id="clearHistoryBtn"
+                >Clear History</button
+              >
+              <button class="btn btn-sm" id="exportHistoryBtn">Export</button>
+            </div>
+          </div>
+
+          <div id="historyList" class="history-list"></div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Device Discovery Modal -->
+    <div id="discoveryModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Discover Devices</h2>
+          <button class="modal-close" id="closeModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="discovery-status">
+            <div class="spinner"></div>
+            <p>Scanning network for MAVLinkBridge devices...</p>
+          </div>
+          <div id="discoveredDevices" class="discovered-devices"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+
+    <!-- Application Scripts -->
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

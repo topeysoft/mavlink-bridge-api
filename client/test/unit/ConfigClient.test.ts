@@ -1,8 +1,8 @@
 import { ConfigClient } from '../../src/config/ConfigClient';
 import { HttpClient, HttpError } from '../../src/core/HttpClient';
-import { 
+import {
   Configuration,
-  ConfigPatchOperation, 
+  ConfigPatchOperation,
   ConfigValidationError,
   VersionConflictError,
   StorageError
@@ -35,7 +35,10 @@ describe('ConfigClient', () => {
         type: 'wifi',
         wifi: {
           ssid: 'TestNetwork',
-          autoConnect: true
+          autoConnect: true,
+          apModeEnabled: false,
+          apSSID: 'ESP32-AP',
+          apPassword: 'password123'
         }
       },
       rtcm: {
@@ -47,7 +50,7 @@ describe('ConfigClient', () => {
         }
       }
     };
-    
+
     // Reset all mocks
     jest.clearAllMocks();
   });
@@ -141,10 +144,10 @@ describe('ConfigClient', () => {
 
       await configClient.patchConfiguration(patchOps);
 
-      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config', 
+      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config',
         expect.arrayContaining([
           expect.objectContaining({ op: 'replace', path: '/device/name', value: 'NewName' })
-        ]), 
+        ]),
         { headers: {}, timeout: undefined }
       );
     });
@@ -167,8 +170,8 @@ describe('ConfigClient', () => {
 
       await configClient.patchConfiguration(patchOps, { expectedVersion: 3 });
 
-      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config', 
-        expect.any(Array), 
+      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config',
+        expect.any(Array),
         { headers: { 'X-Config-Version': '3' }, timeout: undefined }
       );
     });
@@ -306,8 +309,8 @@ describe('ConfigClient', () => {
     it('should update device name', async () => {
       await configClient.updateDeviceName('NewDevice');
 
-      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config', 
-        [{ op: 'replace', path: '/device/name', value: 'NewDevice' }], 
+      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config',
+        [{ op: 'replace', path: '/device/name', value: 'NewDevice' }],
         { headers: {}, timeout: undefined }
       );
     });
@@ -320,8 +323,8 @@ describe('ConfigClient', () => {
     it('should update device mode', async () => {
       await configClient.updateDeviceMode('uart');
 
-      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config', 
-        [{ op: 'replace', path: '/device/mode', value: 'uart' }], 
+      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config',
+        [{ op: 'replace', path: '/device/mode', value: 'uart' }],
         { headers: {}, timeout: undefined }
       );
     });
@@ -329,8 +332,8 @@ describe('ConfigClient', () => {
     it('should update WiFi SSID', async () => {
       await configClient.updateWiFiSSID('NewNetwork');
 
-      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config', 
-        [{ op: 'replace', path: '/connection/wifi/ssid', value: 'NewNetwork' }], 
+      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config',
+        [{ op: 'replace', path: '/connection/wifi/ssid', value: 'NewNetwork' }],
         { headers: {}, timeout: undefined }
       );
     });
@@ -346,7 +349,7 @@ describe('ConfigClient', () => {
         password: 'pass'
       });
 
-      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config', 
+      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/config',
         expect.arrayContaining([
           { op: 'replace', path: '/rtcm/source/type', value: 'ntrip' },
           { op: 'replace', path: '/rtcm/source/host', value: 'rtcm.example.com' },
@@ -354,7 +357,7 @@ describe('ConfigClient', () => {
           { op: 'replace', path: '/rtcm/source/mountpoint', value: 'TEST' },
           { op: 'replace', path: '/rtcm/source/username', value: 'user' },
           { op: 'replace', path: '/rtcm/source/password', value: 'pass' }
-        ]), 
+        ]),
         { headers: {}, timeout: undefined }
       );
     });

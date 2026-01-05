@@ -1,0 +1,70 @@
+# MAVLinkBridge API Playground Configuration
+
+# Device Discovery Settings
+discovery:
+  # Network subnets to scan (CIDR notation)
+  # Examples:
+  #   - '192.168.1.0/24'    # Scan 192.168.1.1 - 192.168.1.254
+  #   - '10.0.0.0/24'       # Scan 10.0.0.1 - 10.0.0.254
+  subnets:
+    - '192.168.86.0/24'
+
+  # Ports to check on each host
+  ports:
+    - 80
+    - 8080
+
+  # Known mDNS hostnames to check
+  knownHostnames:
+    - 'mavlinkbridge.local'
+    - 'esp32-mavlinkbridge.local'
+    - 'yardrover.local'
+    - 'yardrover-esp32.local'
+
+  # AP mode IP addresses (for unprovisioned devices)
+  apModeIPs:
+    - '192.168.4.1'
+
+  # Discovery interval in milliseconds
+  interval: 5000
+
+  # Connection timeout in milliseconds
+  timeout: 5000
+
+  # Maximum concurrent requests
+  concurrent: 20
+
+# Default device connection
+defaultDevice:
+  # Default URL to pre-populate in the connection field
+  url: 'http://192.168.4.1'
+
+# WebSocket Console Settings
+websocket:
+  # Auto-scroll to newest events
+  autoScroll: true
+
+  # Maximum events to keep in history
+  maxEvents: 1000
+
+  # Event types to show by default (empty = all)
+  defaultEventTypes: []
+
+# API Explorer Settings
+apiExplorer:
+  # Auto-expand endpoint sections
+  autoExpand: false
+
+  # Default HTTP timeout for requests (ms)
+  httpTimeout: 10000
+
+# Quick Actions Settings
+quickActions:
+  # Enable/disable quick action categories
+  mavlinkControl: true
+  wifiManagement: true
+  rtcmControl: true
+  systemHealth: true
+
+  # System health update interval (ms)
+  healthUpdateInterval: 5000

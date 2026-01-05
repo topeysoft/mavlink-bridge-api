@@ -3,17 +3,17 @@
  * Uses fetch API for HTTP requests - works in all modern browsers
  */
 
-import { 
-  DiscoveryOptions, 
-  DiscoveryResult, 
-  MAVLinkBridgeDevice, 
-  HealthResponse 
+import {
+  DiscoveryOptions,
+  DiscoveryResult,
+  MAVLinkBridgeDevice,
+  HealthResponse
 } from './types';
-import { 
-  parseCIDR, 
-  generateTestUrls, 
-  withTimeout, 
-  limitConcurrency, 
+import {
+  parseCIDR,
+  generateTestUrls,
+  withTimeout,
+  limitConcurrency,
   deduplicateDevices,
   isValidIP
 } from './utils';
@@ -36,21 +36,21 @@ const DEFAULT_OPTIONS: Required<DiscoveryOptions> = {
  * Discover MAVLink Bridge devices on the network
  * Browser-compatible version using fetch API
  */
-export async function discoverMAVLinkBridgeDevices(
+export async function discoverMAVLinkBridgeDevices (
   options: DiscoveryOptions = {}
 ): Promise<DiscoveryResult> {
   const startTime = Date.now();
   const config = { ...DEFAULT_OPTIONS, ...options };
-  
+
   // Generate all candidate hosts to test
   const candidates = await generateCandidates(config);
-  
+
   // Test all candidates concurrently
   const devices = await testCandidates(candidates, config);
-  
+
   // Deduplicate by MAC address
   const uniqueDevices = deduplicateDevices(devices);
-  
+
   return {
     devices: uniqueDevices,
     duration: Date.now() - startTime,
@@ -62,15 +62,15 @@ export async function discoverMAVLinkBridgeDevices(
 /**
  * Generate all candidate hosts to test
  */
-async function generateCandidates(config: Required<DiscoveryOptions>): Promise<string[]> {
+async function generateCandidates (config: Required<DiscoveryOptions>): Promise<string[]> {
   const candidates = new Set<string>();
-  
+
   // Add known hostnames (highest priority)
   config.knownHostnames.forEach(hostname => candidates.add(hostname));
-  
+
   // Add AP mode IPs (unprovisioned devices)
   config.apModeIPs.forEach(ip => candidates.add(ip));
-  
+
   // Add IPs from specified subnets
   for (const subnet of config.subnets) {
     try {
@@ -80,26 +80,26 @@ async function generateCandidates(config: Required<DiscoveryOptions>): Promise<s
       console.warn(`Invalid subnet ${subnet}:`, error);
     }
   }
-  
+
   return Array.from(candidates);
 }
 
 /**
  * Test candidate hosts for MAVLink Bridge devices
  */
-async function testCandidates(
-  candidates: string[], 
+async function testCandidates (
+  candidates: string[],
   config: Required<DiscoveryOptions>
 ): Promise<MAVLinkBridgeDevice[]> {
   const devices: MAVLinkBridgeDevice[] = [];
-  
+
   // Generate all URLs to test
   const urlsToTest: Array<{ url: string; host: string }> = [];
   for (const host of candidates) {
     const urls = generateTestUrls(host, config.ports);
     urls.forEach(url => urlsToTest.push({ url, host }));
   }
-  
+
   // Test URLs with concurrency limit
   const results = await limitConcurrency(
     urlsToTest,
@@ -117,16 +117,16 @@ async function testCandidates(
     },
     config.concurrent
   );
-  
+
   return devices;
 }
 
 /**
  * Test a single host for MAVLink Bridge device
  */
-async function testSingleHost(
-  url: string, 
-  host: string, 
+async function testSingleHost (
+  url: string,
+  host: string,
   timeout: number
 ): Promise<MAVLinkBridgeDevice | null> {
   try {
@@ -141,21 +141,29 @@ async function testSingleHost(
       }),
       timeout
     );
-    
+
     if (!response.ok) {
       return null;
     }
-    
+
     const healthData: HealthResponse = await response.json();
-    
+
     // Validate that this is actually a MAVLink Bridge device
     if (!isMAVLinkBridgeDevice(healthData)) {
       return null;
     }
-    
-    // Extract IP from health data or use host
-    const deviceIP = healthData.network?.wifi?.ip || host;
-    
+
+    // Extract IP from health data, but prioritize the host we actually connected to
+    // This handles cases where the device is in AP mode and wifi.ip is not set or is 0.0.0.0
+    let deviceIP = host;
+
+    // Only use the reported WiFi IP if it's valid and the device is connected to WiFi
+    if (healthData.network?.wifi?.ip &&
+      healthData.network.wifi.ip !== '0.0.0.0' &&
+      healthData.network.wifi.status === 'connected') {
+      deviceIP = healthData.network.wifi.ip;
+    }
+
     return {
       id: healthData.network.macAddress,
       name: healthData.device.name,
@@ -185,7 +193,7 @@ async function testSingleHost(
       },
       lastSeen: Date.now()
     };
-    
+
   } catch (error) {
     return null;
   }
@@ -194,30 +202,30 @@ async function testSingleHost(
 /**
  * Check if health response indicates a MAVLink Bridge device
  */
-function isMAVLinkBridgeDevice(health: HealthResponse): boolean {
+function isMAVLinkBridgeDevice (health: HealthResponse): boolean {
   // Check device name patterns
   const deviceName = health.device?.name?.toLowerCase() || '';
   const hostname = health.device?.hostname?.toLowerCase() || '';
-  
+
   const mavlinkPatterns = [
     'mavlink',
     'bridge',
     'yardrover',
     'esp32-mavlinkbridge'
   ];
-  
-  return mavlinkPatterns.some(pattern => 
+
+  return mavlinkPatterns.some(pattern =>
     deviceName.includes(pattern) || hostname.includes(pattern)
-  ) && 
-  // Ensure we have required device info
-  !!health.device?.chipModel &&
-  !!health.network?.macAddress;
+  ) &&
+    // Ensure we have required device info
+    !!health.device?.chipModel &&
+    !!health.network?.macAddress;
 }
 
 /**
  * Continuous discovery with callback for real-time updates
  */
-export function startContinuousDiscovery(
+export function startContinuousDiscovery (
   onDeviceFound: (device: MAVLinkBridgeDevice) => void,
   onDeviceLost: (deviceId: string) => void,
   options: DiscoveryOptions & { interval?: number } = {}
@@ -225,20 +233,20 @@ export function startContinuousDiscovery(
   const interval = options.interval || 30000; // 30 seconds
   const knownDevices = new Map<string, MAVLinkBridgeDevice>();
   let isRunning = true;
-  
+
   const discovery = async () => {
     if (!isRunning) return;
-    
+
     try {
       const result = await discoverMAVLinkBridgeDevices(options);
       const now = Date.now();
       const currentDeviceIds = new Set<string>();
-      
+
       // Process discovered devices
       for (const device of result.devices) {
         currentDeviceIds.add(device.id);
         const existing = knownDevices.get(device.id);
-        
+
         if (!existing) {
           // New device found
           knownDevices.set(device.id, device);
@@ -248,7 +256,7 @@ export function startContinuousDiscovery(
           knownDevices.set(device.id, device);
         }
       }
-      
+
       // Check for lost devices (not seen for 2 intervals)
       const lostThreshold = now - (interval * 2);
       for (const [deviceId, device] of knownDevices.entries()) {
@@ -257,18 +265,18 @@ export function startContinuousDiscovery(
           onDeviceLost(deviceId);
         }
       }
-      
+
     } catch (error) {
       console.error('Discovery error:', error);
     }
-    
+
     // Schedule next discovery
     setTimeout(discovery, interval);
   };
-  
+
   // Start initial discovery
   discovery();
-  
+
   // Return stop function
   return () => {
     isRunning = false;

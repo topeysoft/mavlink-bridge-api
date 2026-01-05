@@ -19,6 +19,7 @@
 #include <MDNSManager/MDNSManager.h>
 #include <MDNSEndpoints/MDNSEndpoints.h>
 #include <RTCMEndpoints/RTCMEndpoints.h>
+#include <ButtonHandler/ButtonHandler.h>
 
 #if ENABLE_COMMUNICATION_SYSTEM
 #include <USBOTGManager/USBOTGManager.h>
@@ -42,6 +43,7 @@ MemoryManager *memoryManager = nullptr;
 ErrorHandler *errorHandler = nullptr;
 IntegrationTest *integrationTest = nullptr;
 NetworkLib::MDNSManager *mdnsManager = nullptr;
+ButtonHandler *buttonHandler = nullptr;
 
 #if ENABLE_COMMUNICATION_SYSTEM
 USBOTGManager *usbManager = nullptr;
@@ -53,10 +55,12 @@ DataRouter *dataRouter = nullptr;
 // Task handles
 TaskHandle_t httpTaskHandle = nullptr;
 TaskHandle_t wsTaskHandle = nullptr;
+TaskHandle_t rtcmStartTaskHandle = nullptr;
 
 // Forward declarations
 void httpTask(void *parameter);
 void wsTask(void *parameter);
+void rtcmStartTask(void *parameter);
 void setupCommunicationRoutes();
 void setupEventHandlers();
 void onConfigChanged(const Configuration &oldConfig, const Configuration &newConfig);
@@ -131,6 +135,31 @@ void setup()
     mdnsManager = NetworkLib::MDNSManager::getInstance();
     // mDNS will be started when WiFi connects
     Serial.println("✓ mDNS Manager initialized");
+
+    // Button Handler - Setup physical button for AP mode control
+    buttonHandler = ButtonHandler::getInstance();
+    buttonHandler->begin(BOOT_BUTTON_PIN, true, BUTTON_DEBOUNCE_MS, BUTTON_LONG_PRESS_MS);
+    buttonHandler->setCallback([](ButtonHandler::EventType event)
+                               {
+        if (event == ButtonHandler::EventType::LONG_PRESS) {
+            Serial.println("\n🔘 BOOT Button Long Press Detected!");
+            Serial.println("   Forcing Access Point Mode...");
+            
+            WiFiManager* wifiMgr = WiFiManager::getInstance();
+            if (wifiMgr->getState() != WiFiManager::AP_MODE) {
+                wifiMgr->startAccessPoint();
+                
+                IPAddress apIP = WiFi.softAPIP();
+                Serial.printf("✓ Access Point Started\n");
+                Serial.printf("   SSID: %s\n", WiFi.softAPSSID().c_str());
+                Serial.printf("   IP: %s\n", apIP.toString().c_str());
+                Serial.printf("   Connect and visit: http://%s\n", apIP.toString().c_str());
+            } else {
+                Serial.println("   Access Point already active");
+            }
+        } });
+    Serial.printf("✓ Button Handler initialized (GPIO%d, long press: %dms)\n",
+                  BOOT_BUTTON_PIN, BUTTON_LONG_PRESS_MS);
 
     // Initialize System Monitoring
     Serial.println("Initializing system monitoring...");
@@ -299,6 +328,12 @@ void loop()
     static unsigned long lastHealthReport = 0;
     static unsigned long lastRTCMCheck = 0;
     unsigned long now = millis();
+
+    // Update button handler (checks for button presses)
+    if (buttonHandler)
+    {
+        buttonHandler->update();
+    }
 
     // Update mDNS manager
     if (mdnsManager)
@@ -510,6 +545,11 @@ void handleHealthCheck(const HttpRequest &req, HttpResponse &res)
             wifi["bssid"] = bssidStr;
             wifi["channel"] = WiFi.channel();
         }
+        else
+        {
+            // Device is not connected to WiFi, set IP to a placeholder
+            wifi["ip"] = "0.0.0.0";
+        }
     }
 
     // Access Point information
@@ -561,8 +601,8 @@ void handleHealthCheck(const HttpRequest &req, HttpResponse &res)
         RTCMClient::State state = rtcmClient->getState();
         rtcm["connected"] = (state == RTCMClient::CONNECTED);
         rtcm["state"] = state == RTCMClient::CONNECTED ? "connected" : state == RTCMClient::CONNECTING ? "connecting"
-                                                                     : state == RTCMClient::ERROR        ? "error"
-                                                                                                         : "disconnected";
+                                                                   : state == RTCMClient::ERROR        ? "error"
+                                                                                                       : "disconnected";
         rtcm["type"] = rtcmClient->getTypeName();
 
         RTCMClient::Statistics stats = rtcmClient->getStatistics();
@@ -724,9 +764,22 @@ void onWiFiEvent(WiFiEvent_t event)
             }
         }
 
-        // Auto-start RTCM client if enabled
-        Serial.println("WiFi connected, checking RTCM configuration...");
-        startRTCMClientIfEnabled();
+        // TEMPORARILY DISABLED: Auto-start RTCM client if enabled (using async task to avoid blocking WiFi event)
+        Serial.println("WiFi connected - RTCM auto-start DISABLED for debugging");
+        // Delete old task if it exists
+        // if (rtcmStartTaskHandle != nullptr)
+        // {
+        //     vTaskDelete(rtcmStartTaskHandle);
+        //     rtcmStartTaskHandle = nullptr;
+        // }
+        // // Create new task to start RTCM client asynchronously
+        // xTaskCreate(
+        //     rtcmStartTask,
+        //     "RTCMStart",
+        //     4096,
+        //     nullptr,
+        //     1,
+        //     &rtcmStartTaskHandle);
         break;
 
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
@@ -1144,6 +1197,16 @@ void setupTestEndpoints()
         res.statusCode = 200; });
 }
 
+void rtcmStartTask(void *parameter)
+{
+    // This task runs asynchronously to avoid blocking WiFi events
+    startRTCMClientIfEnabled();
+
+    // Delete this task when done
+    rtcmStartTaskHandle = nullptr;
+    vTaskDelete(nullptr);
+}
+
 void startRTCMClientIfEnabled()
 {
     if (!configManager)
@@ -1163,9 +1226,42 @@ void startRTCMClientIfEnabled()
     Serial.printf("✓ RTCM client is enabled, will attempt to connect to %s:%d\n",
                   rtcmConfig.source.host.c_str(), rtcmConfig.source.port);
 
-    // Give WiFi stack time to fully initialize (2 seconds)
-    Serial.println("⏱️  Waiting 2 seconds for network stack to stabilize...");
-    delay(2000);
+    // Verify WiFi is actually connected with valid IP
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.println("⚠️  WiFi not connected, cannot start RTCM client");
+        return;
+    }
+
+    IPAddress localIP = WiFi.localIP();
+    if (localIP == IPAddress(0, 0, 0, 0))
+    {
+        Serial.println("⚠️  No valid IP address (0.0.0.0), cannot start RTCM client");
+        return;
+    }
+
+    Serial.printf("✓ WiFi connected with IP: %s\n", localIP.toString().c_str());
+
+    // Give WiFi stack and AsyncWebServer time to fully stabilize (5 seconds)
+    // This ensures HTTP/WS services are ready before RTCM client starts
+    Serial.println("⏱️  Waiting 5 seconds for network stack and web server to stabilize...");
+    delay(5000);
+
+    // Re-verify connection after delay
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.println("⚠️  WiFi disconnected during stabilization wait");
+        return;
+    }
+
+    IPAddress verifyIP = WiFi.localIP();
+    if (verifyIP == IPAddress(0, 0, 0, 0))
+    {
+        Serial.println("⚠️  Lost IP address during stabilization wait");
+        return;
+    }
+
+    Serial.printf("✓ Network ready, IP confirmed: %s\n", verifyIP.toString().c_str());
 
     // Build JSON request for starting RTCM client
     DynamicJsonDocument startRequest(1024);

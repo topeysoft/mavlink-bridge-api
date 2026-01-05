@@ -7,7 +7,8 @@
   "types": "dist/index.d.ts",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:browser",
+    "build:browser": "node build-browser.cjs",
     "test": "jest",
     "lint": "eslint src --ext .ts",
     "docs": "typedoc src",
@@ -16,7 +17,9 @@
     "cli": "tsx cli.ts",
     "start": "npm run cli",
     "fetch-parameters": "tsx scripts/fetch-parameter-definitions.ts",
-    "update-parameters": "npm run fetch-parameters && npm run build"
+    "update-parameters": "npm run fetch-parameters && npm run build",
+    "playground:serve": "npx http-server playground -p 8080 -c-1 --cors",
+    "playground:open": "open http://localhost:8080"
   },
   "bin": {
     "mavlink-bridge": "./dist/cli.js"
@@ -49,7 +52,9 @@
     "@types/ws": "^8.5.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "esbuild": "^0.27.2",
     "eslint": "^8.0.0",
+    "http-server": "^14.1.1",
     "jest": "^29.0.0",
     "ts-jest": "^29.0.0",
     "tsx": "^4.20.4",

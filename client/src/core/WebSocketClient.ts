@@ -1,8 +1,25 @@
-import WebSocket from 'ws';
 import { EventType, EventHandler, EventHandlers, WebSocketMessage } from './EventTypes';
+
+// Get the appropriate WebSocket implementation based on environment
+function getWebSocketImpl(): typeof WebSocket {
+  if (typeof window !== 'undefined' && window.WebSocket) {
+    // Browser environment - use native WebSocket
+    return window.WebSocket as any;
+  } else {
+    // Node.js environment - use ws module
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const ws = require('ws');
+      return ws;
+    } catch (e) {
+      throw new Error('WebSocket not available. Please install ws package for Node.js environments.');
+    }
+  }
+}
 
 /**
  * WebSocket client for real-time communication with the ESP32 device
+ * Works in both browser and Node.js environments
  */
 export class WebSocketClient {
   private ws: WebSocket | null = null;
@@ -33,40 +50,78 @@ export class WebSocketClient {
    */
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
+      const WS = getWebSocketImpl();
+
       // Set a connection timeout to prevent indefinite hanging
       const connectionTimeout = setTimeout(() => {
-        if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
-          this.ws.terminate(); // Force close the connection
+        if (this.ws && this.ws.readyState === WS.CONNECTING) {
+          // Browser WebSocket doesn't have terminate(), use close() instead
+          if (typeof (this.ws as any).terminate === 'function') {
+            (this.ws as any).terminate();
+          } else {
+            this.ws.close();
+          }
           reject(new Error('WebSocket connection timeout'));
         }
       }, 10000); // 10 second timeout
 
       try {
-        this.ws = new WebSocket(this.url);
+        this.ws = new WS(this.url) as WebSocket;
 
-        this.ws.on('open', () => {
-          clearTimeout(connectionTimeout);
-          this.reconnectAttempts = 0;
-          this.isReconnecting = false;
-          resolve();
-        });
+        // Check if it's Node.js ws module (has .on method) or browser WebSocket
+        const isNodeWS = typeof (this.ws as any).on === 'function';
 
-        this.ws.on('message', (data: WebSocket.Data) => {
-          this.handleMessage(data);
-        });
+        if (isNodeWS) {
+          // Node.js ws module event handlers
+          (this.ws as any).on('open', () => {
+            clearTimeout(connectionTimeout);
+            this.reconnectAttempts = 0;
+            this.isReconnecting = false;
+            resolve();
+          });
 
-        this.ws.on('close', (code: number, reason: Buffer) => {
-          clearTimeout(connectionTimeout);
-          this.handleClose(code, reason.toString());
-        });
+          (this.ws as any).on('message', (data: any) => {
+            this.handleMessage(data);
+          });
 
-        this.ws.on('error', (error: Error) => {
-          clearTimeout(connectionTimeout);
-          this.handleError(error);
-          if (!this.isConnected()) {
-            reject(error);
-          }
-        });
+          (this.ws as any).on('close', (code: number, reason: any) => {
+            clearTimeout(connectionTimeout);
+            this.handleClose(code, reason?.toString() || '');
+          });
+
+          (this.ws as any).on('error', (error: Error) => {
+            clearTimeout(connectionTimeout);
+            this.handleError(error);
+            if (!this.isConnected()) {
+              reject(error);
+            }
+          });
+        } else {
+          // Browser WebSocket event handlers
+          this.ws.onopen = () => {
+            clearTimeout(connectionTimeout);
+            this.reconnectAttempts = 0;
+            this.isReconnecting = false;
+            resolve();
+          };
+
+          this.ws.onmessage = (event: MessageEvent) => {
+            this.handleMessage(event.data);
+          };
+
+          this.ws.onclose = (event: CloseEvent) => {
+            clearTimeout(connectionTimeout);
+            this.handleClose(event.code, event.reason);
+          };
+
+          this.ws.onerror = (event: Event) => {
+            clearTimeout(connectionTimeout);
+            this.handleError(new Error('WebSocket connection error'));
+            if (!this.isConnected()) {
+              reject(new Error('WebSocket connection failed'));
+            }
+          };
+        }
 
       } catch (error) {
         clearTimeout(connectionTimeout);
@@ -90,7 +145,8 @@ export class WebSocketClient {
    * Check if WebSocket is connected
    */
   isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
+    const WS = getWebSocketImpl();
+    return this.ws?.readyState === WS.OPEN;
   }
 
   /**
@@ -154,9 +210,9 @@ export class WebSocketClient {
   /**
    * Handle incoming WebSocket messages
    */
-  private handleMessage(data: WebSocket.Data): void {
+  private handleMessage(data: any): void {
     try {
-      const messageStr = data.toString();
+      const messageStr = typeof data === 'string' ? data : data.toString();
       const message: WebSocketMessage = JSON.parse(messageStr);
 
       if (!this.isValidMessage(message)) {
@@ -266,12 +322,13 @@ export class WebSocketClient {
    */
   getConnectionState(): 'connecting' | 'open' | 'closing' | 'closed' {
     if (!this.ws) return 'closed';
-    
+
+    const WS = getWebSocketImpl();
     switch (this.ws.readyState) {
-      case WebSocket.CONNECTING: return 'connecting';
-      case WebSocket.OPEN: return 'open';
-      case WebSocket.CLOSING: return 'closing';
-      case WebSocket.CLOSED: return 'closed';
+      case WS.CONNECTING: return 'connecting';
+      case WS.OPEN: return 'open';
+      case WS.CLOSING: return 'closing';
+      case WS.CLOSED: return 'closed';
       default: return 'closed';
     }
   }
