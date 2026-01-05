@@ -87,11 +87,13 @@
 import { ref, computed } from 'vue'
 import { useLocationStore } from '@/stores/location'
 import { useNotifications } from '@/composables/useNotifications'
+import { useDialog } from '@/composables/useDialog'
 import LocationPickerModal from './LocationPickerModal.vue'
 import { formatDistance } from 'date-fns'
 
 const locationStore = useLocationStore()
 const { success, info } = useNotifications()
+const dialog = useDialog()
 
 const showLocationPicker = ref(false)
 
@@ -119,8 +121,14 @@ const handleSaveLocation = (locationData: any) => {
   success('Home location saved successfully')
 }
 
-const handleClearLocation = () => {
-  if (confirm('Are you sure you want to clear the home location? The rover will not be able to return home automatically.')) {
+const handleClearLocation = async () => {
+  const confirmed = await dialog.confirm({
+    title: 'Clear Home Location',
+    message: 'Are you sure you want to clear the home location? The rover will not be able to return home automatically.',
+    variant: 'warning'
+  })
+
+  if (confirmed) {
     locationStore.clearHomeLocation()
     info('Home location cleared')
   }

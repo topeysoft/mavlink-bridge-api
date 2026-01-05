@@ -16,9 +16,9 @@
 **For common UI patterns:**
 - **Buttons**: Use `<button class="btn btn-primary">` with custom CSS
 - **Inputs**: Use `<input>` with custom styling
-- **Dialogs/Modals**: Use conditional rendering with `v-if` and CSS overlays
+- **Dialogs/Modals**: Use `useDialog()` composable (see Dialog System section)
 - **Icons**: Use emoji (🔍, ⚙️, 📊) or inline SVG
-- **Notifications**: Use browser `alert()` or custom toast components
+- **Notifications**: Use `useNotifications()` composable for toast messages
 - **Forms**: Use native HTML form elements with Vue bindings
 
 ## Technology Stack
@@ -184,9 +184,58 @@ Available user modes:
 - **Power User**: Advanced features
 - **Developer**: All features including debugging tools
 
+## Dialog System
+
+### Using Dialogs (Confirm/Alert)
+
+**IMPORTANT**: Always use the `useDialog()` composable instead of native browser dialogs (`confirm()`, `alert()`, `prompt()`).
+
+```typescript
+import { useDialog } from '@/composables/useDialog'
+
+const dialog = useDialog()
+
+// Confirmation dialog
+async function handleDelete() {
+  const confirmed = await dialog.confirm(
+    'Are you sure you want to delete this item?',
+    'Confirm Delete',
+    { variant: 'danger', icon: '⚠️' }
+  )
+
+  if (confirmed) {
+    // Proceed with delete
+  }
+}
+
+// Alert dialog
+async function showSuccess() {
+  await dialog.alert(
+    'Item saved successfully!',
+    'Success',
+    { variant: 'success', icon: '✓' }
+  )
+}
+```
+
+**Available variants**: `default`, `danger`, `warning`, `success`, `info`
+
+**Benefits**:
+- ✅ Consistent themed UI
+- ✅ Promise-based API (async/await)
+- ✅ Keyboard shortcuts (Esc, Enter)
+- ✅ Better mobile support
+- ✅ Accessibility improvements
+- ✅ Custom styling and icons
+
+### Components
+- `ConfirmDialog.vue` - Two-button confirmation dialogs
+- `AlertDialog.vue` - Single-button alert dialogs
+- Dialog manager is set up in [App.vue](src/App.vue)
+
 ## Common UI Patterns
 
-### Modal Dialog
+### Custom Modal/Form Dialog
 ```vue
 <template>
   <div v-if="showModal" class="modal-overlay" @click="showModal = false">
@@ -280,6 +329,13 @@ onUnmounted(() => {
 - Filter and search functionality
 - **100% Quasar-free implementation**
 
+### ✅ Dialog System Migration
+- Converted all 47 native browser dialogs to Vue components
+- Custom `ConfirmDialog` and `AlertDialog` components
+- `useDialog()` composable with promise-based API
+- Applied across 22 files throughout the application
+- Consistent theming with variants for different contexts
+
 ## Development Commands
 
 ```bash
@@ -310,7 +366,8 @@ npm run preview
 ## Need Help?
 
 Check existing implementations:
-- **Modal dialogs**: See [LogsView.vue](src/views/LogsView.vue)
+- **Confirm/Alert dialogs**: See [useDialog composable](src/composables/useDialog.ts) and any view/component
+- **Custom modals**: See [Modal.vue](src/components/common/Modal.vue)
 - **Forms**: See [ParametersView.vue](src/views/ParametersView.vue)
 - **Timeline**: See [LogTimeline.vue](src/components/logs/LogTimeline.vue)
 - **Charts**: See [LogCharts.vue](src/components/logs/LogCharts.vue)

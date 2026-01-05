@@ -1,7 +1,8 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { createClient, discoverDevices, type MAVLinkBridgeClient, type MAVLinkBridgeDevice, MAVLinkMessageType, type BatteryStatusMessage } from '@mavlinkbridge/api-client'
+import { createClient, discoverDevices, type MAVLinkBridgeClient, type MAVLinkBridgeDevice, MAVLinkMessageType, type BatteryStatusMessage, type GpsRawIntMessage, type GlobalPositionIntMessage } from '@mavlinkbridge/api-client'
 import { useBatteryStore } from './battery'
+import { useGpsStore } from './gps'
 
 export interface SavedDevice {
   id: string
@@ -109,8 +110,9 @@ export const useConnectionStore = defineStore('connection', () => {
       currentDeviceName.value = deviceName || config.device.name || 'YardRover Device'
       lastConnectionTime.value = new Date().toISOString()
 
-      // Subscribe to battery telemetry
+      // Subscribe to battery and GPS telemetry
       setupBatterySubscription(newClient)
+      setupGpsSubscription(newClient)
 
       // Persist current connection to localStorage
       const connectionData: PersistedConnection = {
@@ -319,6 +321,27 @@ export const useConnectionStore = defineStore('connection', () => {
           percent,
           temperature
         )
+      }
+    })
+  }
+
+  /**
+   * Setup GPS telemetry subscription
+   */
+  function setupGpsSubscription(clientInstance: MAVLinkBridgeClient): void {
+    const gpsStore = useGpsStore()
+
+    // Start GPS monitoring
+    gpsStore.startMonitoring()
+
+    // Subscribe to GPS_RAW_INT and GLOBAL_POSITION_INT messages
+    clientInstance.communication.onMAVLinkMessage((message) => {
+      if (message.messageId === MAVLinkMessageType.GPS_RAW_INT) {
+        const gpsMsg = message.payload as GpsRawIntMessage
+        gpsStore.updateFromGpsRawInt(gpsMsg)
+      } else if (message.messageId === MAVLinkMessageType.GLOBAL_POSITION_INT) {
+        const posMsg = message.payload as GlobalPositionIntMessage
+        gpsStore.updateFromGlobalPositionInt(posMsg)
       }
     })
   }

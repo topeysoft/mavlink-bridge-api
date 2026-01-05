@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Card from '@/components/common/Card.vue'
 import FormSelect from '@/components/common/FormSelect.vue'
 import Button from '@/components/common/Button.vue'
+import { useImuStore } from '@/stores/imu'
+
+const imuStore = useImuStore()
 
 const eStopMode = ref('immediate')
 const tiltProtection = ref(true)
@@ -15,9 +18,23 @@ const eStopOptions = [
   { value: 'return-home', label: 'Return Home' }
 ]
 
+// Current tilt angle from IMU
+const currentTilt = computed(() => Math.round(imuStore.tiltAngle))
+
+// Subscription
+let imuUnsub: (() => void) | undefined
+
 const handleSave = () => {
   console.log('Saving safety settings...')
 }
+
+onMounted(() => {
+  imuUnsub = imuStore.setupSubscription()
+})
+
+onUnmounted(() => {
+  if (imuUnsub) imuUnsub()
+})
 </script>
 
 <template>
@@ -35,7 +52,10 @@ const handleSave = () => {
           <span class="toggle-switch"></span>
           <div class="toggle-info">
             <span class="toggle-text">Tilt Protection</span>
-            <span class="toggle-description">Stops vehicle if tilt exceeds safe angle</span>
+            <span class="toggle-description">
+              Stops vehicle if tilt exceeds safe angle
+              <span v-if="currentTilt > 0" class="current-value">(Current: {{ currentTilt }}°)</span>
+            </span>
           </div>
         </label>
 
@@ -142,5 +162,11 @@ const handleSave = () => {
 .toggle-description {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
+
+  .current-value {
+    color: var(--primary-green);
+    font-weight: 500;
+    margin-left: var(--spacing-xs);
+  }
 }
 </style>

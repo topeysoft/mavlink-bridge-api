@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useFeaturesStore } from '@/stores/features'
+import { useDialog } from '@/composables/useDialog'
 import Card from '@/components/common/Card.vue'
 import Button from '@/components/common/Button.vue'
 
 const featuresStore = useFeaturesStore()
+const dialog = useDialog()
 
 interface FeatureGroup {
   title: string
@@ -147,8 +149,11 @@ function handleToggle(feature: keyof typeof featuresStore.features.value) {
   featuresStore.toggleFeature(feature)
 }
 
-function handleResetToPreset() {
-  if (confirm('Reset to preset for current user mode?\n\nAll custom feature toggles will be lost.')) {
+async function handleResetToPreset() {
+  const confirmed = await dialog.confirm(
+    'Reset to preset for current user mode?\n\nAll custom feature toggles will be lost.'
+  )
+  if (confirmed) {
     featuresStore.resetToPreset()
   }
 }
@@ -164,21 +169,21 @@ function handleExportConfig() {
   URL.revokeObjectURL(url)
 }
 
-function handleImportConfig() {
+async function handleImportConfig() {
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = '.json'
-  input.onchange = (e) => {
+  input.onchange = async (e) => {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (file) {
       const reader = new FileReader()
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const content = e.target?.result as string
         const success = featuresStore.importConfiguration(content)
         if (success) {
-          alert('Configuration imported successfully')
+          await dialog.alert('Configuration imported successfully', 'Success', { variant: 'success' })
         } else {
-          alert('Failed to import configuration. Please check the file format.')
+          await dialog.alert('Failed to import configuration. Please check the file format.', 'Import Failed', { variant: 'error' })
         }
       }
       reader.readAsText(file)

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Card from '@/components/common/Card.vue'
 import ProgressBar from '@/components/common/ProgressBar.vue'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
+import { useImuStore } from '@/stores/imu'
+import { useCompassStore } from '@/stores/compass'
 
 interface TelemetryMetric {
   label: string
@@ -12,22 +14,66 @@ interface TelemetryMetric {
   color: string
 }
 
-const metrics = ref<TelemetryMetric[]>([
-  { label: 'CPU Usage', value: 45, max: 100, unit: '%', color: 'var(--status-info)' },
-  { label: 'Memory', value: 1240, max: 2048, unit: 'MB', color: 'var(--status-success)' },
-  { label: 'Temperature', value: 52, max: 85, unit: '°C', color: 'var(--status-warning)' }
-])
+const imuStore = useImuStore()
+const compassStore = useCompassStore()
+
+// Subscriptions
+let imuUnsub: (() => void) | undefined
+let compassUnsub: (() => void) | undefined
+
+const metrics = computed<TelemetryMetric[]>(() => {
+  const vibrationPercent = Math.round(imuStore.vibrationLevel * 100)
+  const vibrationColor = vibrationPercent > 70 ? 'var(--status-danger)' :
+                         vibrationPercent > 40 ? 'var(--status-warning)' :
+                         'var(--status-success)'
+
+  const tiltColor = imuStore.tiltAngle > 45 ? 'var(--status-danger)' :
+                   imuStore.tiltAngle > 30 ? 'var(--status-warning)' :
+                   'var(--status-success)'
+
+  return [
+    {
+      label: 'Vibration',
+      value: vibrationPercent,
+      max: 100,
+      unit: '%',
+      color: vibrationColor
+    },
+    {
+      label: 'Tilt Angle',
+      value: Math.round(imuStore.tiltAngle),
+      max: 90,
+      unit: '°',
+      color: tiltColor
+    },
+    {
+      label: 'Heading',
+      value: Math.round(compassStore.heading),
+      max: 360,
+      unit: '°',
+      color: 'var(--status-info)'
+    }
+  ]
+})
 
 // Auto-refresh telemetry data
-const { formattedLastUpdated, autoRefreshEnabled, refresh } = useAutoRefresh({
+const { formattedLastUpdated, autoRefreshEnabled } = useAutoRefresh({
   interval: 5000,
   onRefresh: async () => {
-    // Simulate fetching new telemetry data
-    metrics.value = metrics.value.map(m => ({
-      ...m,
-      value: Math.max(0, Math.min(m.max, m.value + (Math.random() - 0.5) * 10))
-    }))
+    // Data is updated automatically via WebSocket subscriptions
   }
+})
+
+onMounted(() => {
+  // Setup subscriptions
+  imuUnsub = imuStore.setupSubscription()
+  compassUnsub = compassStore.setupSubscription()
+})
+
+onUnmounted(() => {
+  // Cleanup subscriptions
+  if (imuUnsub) imuUnsub()
+  if (compassUnsub) compassUnsub()
 })
 </script>
 

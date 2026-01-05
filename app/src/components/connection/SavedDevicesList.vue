@@ -2,9 +2,11 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConnectionStore } from '@/stores/connection'
+import { useDialog } from '@/composables/useDialog'
 
 const router = useRouter()
 const connectionStore = useConnectionStore()
+const dialog = useDialog()
 
 // Computed
 const savedDevices = computed(() => {
@@ -32,8 +34,13 @@ function toggleFavorite(deviceId: string) {
   connectionStore.toggleFavorite(deviceId)
 }
 
-function removeDevice(deviceId: string) {
-  if (confirm('Are you sure you want to remove this device from your saved devices?')) {
+async function removeDevice(deviceId: string) {
+  const confirmed = await dialog.confirm(
+    'Are you sure you want to remove this device from your saved devices?',
+    'Remove Device'
+  )
+
+  if (confirmed) {
     connectionStore.removeSavedDevice(deviceId)
   }
 }

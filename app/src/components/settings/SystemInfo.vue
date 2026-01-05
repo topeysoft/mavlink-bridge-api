@@ -2,6 +2,9 @@
 import { ref } from 'vue'
 import Card from '@/components/common/Card.vue'
 import Button from '@/components/common/Button.vue'
+import { useDialog } from '@/composables/useDialog'
+
+const dialog = useDialog()
 
 const systemInfo = ref({
   firmwareVersion: '2.1.3',
@@ -22,8 +25,14 @@ const handleCheckUpdates = () => {
   console.log('Checking for updates...')
 }
 
-const handleFactoryReset = () => {
-  if (confirm('Are you sure you want to reset to factory defaults? This cannot be undone.')) {
+const handleFactoryReset = async () => {
+  const confirmed = await dialog.confirm({
+    title: 'Factory Reset',
+    message: 'Are you sure you want to reset to factory defaults? This cannot be undone.',
+    variant: 'danger'
+  })
+
+  if (confirmed) {
     console.log('Factory reset...')
   }
 }

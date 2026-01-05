@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useVehicleStore } from '@/stores/vehicle'
+import { useDialog } from '@/composables/useDialog'
 import Button from '@/components/common/Button.vue'
 import Card from '@/components/common/Card.vue'
 
 const vehicleStore = useVehicleStore()
+const dialog = useDialog()
 
 const vehicleState = computed(() => vehicleStore.vehicleState)
 const canArm = computed(() => vehicleStore.canArm)
@@ -13,35 +15,54 @@ const isHealthy = computed(() => vehicleStore.isHealthy)
 const isPending = computed(() => vehicleStore.isPendingCommand)
 
 async function handleArm() {
-  if (confirm('⚠️ ARM VEHICLE\n\nAre you sure you want to arm the vehicle? The vehicle will be ready to move.')) {
+  const confirmed = await dialog.confirm(
+    'Are you sure you want to arm the vehicle? The vehicle will be ready to move.',
+    '⚠️ ARM VEHICLE',
+    { variant: 'warning', icon: '⚠️' }
+  )
+  if (confirmed) {
     await vehicleStore.arm()
   }
 }
 
 async function handleDisarm() {
-  if (confirm('⚠️ DISARM VEHICLE\n\nAre you sure you want to disarm the vehicle?')) {
+  const confirmed = await dialog.confirm(
+    'Are you sure you want to disarm the vehicle?',
+    '⚠️ DISARM VEHICLE',
+    { variant: 'warning', icon: '⚠️' }
+  )
+  if (confirmed) {
     await vehicleStore.disarm()
   }
 }
 
 async function handleReturnToLaunch() {
-  if (confirm('Return to Launch\n\nThe vehicle will return to its launch position. Continue?')) {
+  const confirmed = await dialog.confirm(
+    'The vehicle will return to its launch position. Continue?',
+    'Return to Launch'
+  )
+  if (confirmed) {
     await vehicleStore.returnToLaunch()
   }
 }
 
 async function handleSetHome() {
-  if (confirm('Set Home Position\n\nSet the current location as the home position?')) {
+  const confirmed = await dialog.confirm(
+    'Set the current location as the home position?',
+    'Set Home Position'
+  )
+  if (confirmed) {
     await vehicleStore.setHome()
   }
 }
 
 async function handleEmergencyStop() {
-  if (
-    confirm(
-      '🚨 EMERGENCY STOP\n\nThis will immediately stop the vehicle and disarm it. This should only be used in emergencies.\n\nContinue?'
-    )
-  ) {
+  const confirmed = await dialog.confirm(
+    'This will immediately stop the vehicle and disarm it. This should only be used in emergencies.\n\nContinue?',
+    '🚨 EMERGENCY STOP',
+    { variant: 'danger', icon: '🚨', confirmText: 'Emergency Stop' }
+  )
+  if (confirmed) {
     await vehicleStore.emergencyStop()
   }
 }

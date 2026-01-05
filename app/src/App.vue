@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, provide, onMounted } from 'vue'
+import { ref, provide, onMounted, computed } from 'vue'
 import { RouterView } from 'vue-router'
 import Sidebar from './components/common/Sidebar.vue'
 import Header from './components/common/Header.vue'
@@ -8,11 +8,14 @@ import ToastContainer from './components/common/ToastContainer.vue'
 import ErrorBoundary from './components/common/ErrorBoundary.vue'
 import OfflineBanner from './components/common/OfflineBanner.vue'
 import OnboardingFlow from './components/consumer/OnboardingFlow.vue'
+import ConfirmDialog from './components/common/ConfirmDialog.vue'
+import AlertDialog from './components/common/AlertDialog.vue'
 import { useThemeStore } from './stores/theme'
 import { useFeaturesStore } from './stores/features'
 import { useConnectionStore } from './stores/connection'
 import { useSidebar } from './composables/useSidebar'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
+import type { ConfirmOptions, AlertOptions } from './composables/useDialog'
 
 const themeStore = useThemeStore()
 const featuresStore = useFeaturesStore()
@@ -28,6 +31,47 @@ const shortcuts = getAllShortcuts()
 // Toast notifications
 const toastContainer = ref<InstanceType<typeof ToastContainer> | null>(null)
 provide('toast', toastContainer)
+
+// Dialog management
+const showConfirmDialog = ref(false)
+const showAlertDialog = ref(false)
+const currentConfirmOptions = ref<ConfirmOptions>({ message: '' })
+const currentAlertOptions = ref<AlertOptions>({ message: '' })
+let confirmResolve: ((value: boolean) => void) | null = null
+let alertResolve: (() => void) | null = null
+
+const dialogManager = computed(() => ({
+  showConfirm: (options: ConfirmOptions): Promise<boolean> => {
+    return new Promise((resolve) => {
+      currentConfirmOptions.value = options
+      confirmResolve = resolve
+      showConfirmDialog.value = true
+    })
+  },
+  showAlert: (options: AlertOptions): Promise<void> => {
+    return new Promise((resolve) => {
+      currentAlertOptions.value = options
+      alertResolve = resolve
+      showAlertDialog.value = true
+    })
+  }
+}))
+
+provide('dialogManager', dialogManager)
+
+const handleConfirmResult = (confirmed: boolean) => {
+  if (confirmResolve) {
+    confirmResolve(confirmed)
+    confirmResolve = null
+  }
+}
+
+const handleAlertClose = () => {
+  if (alertResolve) {
+    alertResolve()
+    alertResolve = null
+  }
+}
 
 // Onboarding
 const showOnboarding = ref(false)
@@ -91,8 +135,17 @@ setupGlobalShortcuts({
 })
 
 // Emergency stop handler
-const handleEmergencyStop = () => {
-  if (confirm('⚠️ EMERGENCY STOP\n\nAre you sure you want to trigger an emergency stop? This will immediately halt all operations.')) {
+const handleEmergencyStop = async () => {
+  const confirmed = await dialogManager.value.showConfirm({
+    title: '⚠️ EMERGENCY STOP',
+    message: 'Are you sure you want to trigger an emergency stop? This will immediately halt all operations.',
+    variant: 'danger',
+    confirmText: 'Emergency Stop',
+    cancelText: 'Cancel',
+    icon: '⚠️'
+  })
+
+  if (confirmed) {
     toastContainer.value?.addToast({
       message: 'Emergency stop activated. All operations have been halted.',
       type: 'error',
@@ -137,6 +190,28 @@ const handleEmergencyStop = () => {
 
     <!-- Toast Notifications -->
     <ToastContainer ref="toastContainer" />
+
+    <!-- Dialogs -->
+    <ConfirmDialog
+      v-model="showConfirmDialog"
+      :title="currentConfirmOptions.title"
+      :message="currentConfirmOptions.message"
+      :confirmText="currentConfirmOptions.confirmText"
+      :cancelText="currentConfirmOptions.cancelText"
+      :variant="currentConfirmOptions.variant"
+      :icon="currentConfirmOptions.icon"
+      @confirm="handleConfirmResult(true)"
+      @cancel="handleConfirmResult(false)"
+    />
+    <AlertDialog
+      v-model="showAlertDialog"
+      :title="currentAlertOptions.title"
+      :message="currentAlertOptions.message"
+      :buttonText="currentAlertOptions.buttonText"
+      :variant="currentAlertOptions.variant"
+      :icon="currentAlertOptions.icon"
+      @close="handleAlertClose"
+    />
   </div>
 </template>
 

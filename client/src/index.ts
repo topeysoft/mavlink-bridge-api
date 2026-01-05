@@ -33,6 +33,11 @@ export {
   WiFiSignalUpdatePayload,
   WiFiAPModeStartedPayload,
   WiFiScanCompletedPayload,
+  ScaledImuPayload,
+  RawImuPayload,
+  HighResImuPayload,
+  AttitudePayload,
+  VfrHudPayload,
   EventHandler,
   EventHandlers
 } from './core/EventTypes';
@@ -124,6 +129,10 @@ export { MAVLinkCommandClient } from './mavlink/MAVLinkCommandClient';
 export { MAVLinkMissionClient } from './mavlink/MAVLinkMissionClient';
 export * from './mavlink/MAVLinkTypes';
 export * from './mavlink/MAVLinkMissionTypes';
+
+// Telemetry exports
+export { TelemetryClient } from './telemetry/TelemetryClient';
+export * from './telemetry/TelemetryTypes';
 
 // Task management exports
 export { TaskClient } from './tasks/TaskClient';

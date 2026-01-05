@@ -46,7 +46,13 @@ export enum EventType {
   TASK_EXECUTION_RESUMED = 'task_execution_resumed',
   TASK_EXECUTION_COMPLETED = 'task_execution_completed',
   TASK_EXECUTION_FAILED = 'task_execution_failed',
-  TASK_EXECUTION_CANCELLED = 'task_execution_cancelled'
+  TASK_EXECUTION_CANCELLED = 'task_execution_cancelled',
+  // Telemetry events - IMU and sensors
+  SCALED_IMU = 'scaled_imu',
+  RAW_IMU = 'raw_imu',
+  HIGHRES_IMU = 'highres_imu',
+  ATTITUDE = 'attitude',
+  VFR_HUD = 'vfr_hud'
 }
 
 /**
@@ -312,4 +318,86 @@ export interface MissionProgressPayload {
   itemsReached: number;
   distanceToWaypoint?: number;
   estimatedTimeToWaypoint?: number;
+}
+
+/**
+ * Scaled IMU event payload
+ */
+export interface ScaledImuPayload {
+  timeBootMs: number;
+  xacc: number;
+  yacc: number;
+  zacc: number;
+  xgyro: number;
+  ygyro: number;
+  zgyro: number;
+  xmag: number;
+  ymag: number;
+  zmag: number;
+  temperature?: number;
+}
+
+/**
+ * Raw IMU event payload
+ */
+export interface RawImuPayload {
+  timeUsec: number;
+  xacc: number;
+  yacc: number;
+  zacc: number;
+  xgyro: number;
+  ygyro: number;
+  zgyro: number;
+  xmag: number;
+  ymag: number;
+  zmag: number;
+  id?: number;
+  temperature?: number;
+}
+
+/**
+ * High-resolution IMU event payload
+ */
+export interface HighResImuPayload {
+  timeUsec: number;
+  xacc: number;
+  yacc: number;
+  zacc: number;
+  xgyro: number;
+  ygyro: number;
+  zgyro: number;
+  xmag: number;
+  ymag: number;
+  zmag: number;
+  absPressure: number;
+  diffPressure: number;
+  pressureAlt: number;
+  temperature: number;
+  fieldsUpdated: number;
+  id?: number;
+}
+
+/**
+ * Attitude event payload
+ */
+export interface AttitudePayload {
+  timeBootMs: number;
+  roll: number;
+  pitch: number;
+  yaw: number;
+  rollspeed: number;
+  pitchspeed: number;
+  yawspeed: number;
+}
+
+/**
+ * VFR HUD event payload
+ */
+export interface VfrHudPayload {
+  airspeed: number;
+  groundspeed: number;
+  heading: number;
+  throttle: number;
+  alt: number;
+  climb: number;
 }

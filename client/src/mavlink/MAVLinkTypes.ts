@@ -391,3 +391,79 @@ export interface CommandAckMessage {
   targetSystem: number;
   targetComponent: number;
 }
+
+export interface GpsRawIntMessage {
+  timeUsec: number;  // Timestamp (microseconds since boot or Unix epoch)
+  fixType: number;   // 0-1: no fix, 2: 2D fix, 3: 3D fix, 4: DGPS, 5: RTK Float, 6: RTK Fixed
+  lat: number;       // Latitude (degrees * 1e7)
+  lon: number;       // Longitude (degrees * 1e7)
+  alt: number;       // Altitude (millimeters above MSL)
+  eph: number;       // GPS HDOP horizontal dilution of position (unitless * 100)
+  epv: number;       // GPS VDOP vertical dilution of position (unitless * 100)
+  vel: number;       // GPS ground speed (cm/s)
+  cog: number;       // Course over ground (degrees * 100)
+  satellitesVisible: number;  // Number of satellites visible
+  altEllipsoid?: number;      // Altitude (above WGS84, EGM96 ellipsoid) in mm
+  hAcc?: number;              // Position uncertainty in mm
+  vAcc?: number;              // Altitude uncertainty in mm
+  velAcc?: number;            // Speed uncertainty in mm/s
+  hdgAcc?: number;            // Heading uncertainty in degrees * 1e5
+  yaw?: number;               // Yaw in degrees * 100 (0 = north)
+}
+
+export interface GpsStatusMessage {
+  satellitesVisible: number;  // Number of satellites visible
+  satellitePrn?: number[];    // Satellite PRN numbers
+  satelliteUsed?: number[];   // Satellites used in solution
+  satelliteElevation?: number[]; // Satellite elevation
+  satelliteAzimuth?: number[];   // Satellite azimuth
+  satelliteSnr?: number[];       // Satellite signal-to-noise ratio
+}
+
+export interface ScaledImuMessage {
+  timeBootMs: number;     // Timestamp (milliseconds since system boot)
+  xacc: number;           // X acceleration (mg)
+  yacc: number;           // Y acceleration (mg)
+  zacc: number;           // Z acceleration (mg)
+  xgyro: number;          // X angular speed (millirad/s)
+  ygyro: number;          // Y angular speed (millirad/s)
+  zgyro: number;          // Z angular speed (millirad/s)
+  xmag: number;           // X magnetic field (milligauss)
+  ymag: number;           // Y magnetic field (milligauss)
+  zmag: number;           // Z magnetic field (milligauss)
+  temperature?: number;   // Temperature (centidegrees celsius)
+}
+
+export interface RawImuMessage {
+  timeUsec: number;       // Timestamp (microseconds since UNIX epoch or system boot)
+  xacc: number;           // X acceleration (raw ADC)
+  yacc: number;           // Y acceleration (raw ADC)
+  zacc: number;           // Z acceleration (raw ADC)
+  xgyro: number;          // X angular speed (raw ADC)
+  ygyro: number;          // Y angular speed (raw ADC)
+  zgyro: number;          // Z angular speed (raw ADC)
+  xmag: number;           // X magnetic field (raw ADC)
+  ymag: number;           // Y magnetic field (raw ADC)
+  zmag: number;           // Z magnetic field (raw ADC)
+  id?: number;            // IMU ID (0 for primary)
+  temperature?: number;   // Temperature (raw ADC)
+}
+
+export interface HighResImuMessage {
+  timeUsec: number;       // Timestamp (microseconds since UNIX epoch or system boot)
+  xacc: number;           // X acceleration (m/s^2)
+  yacc: number;           // Y acceleration (m/s^2)
+  zacc: number;           // Z acceleration (m/s^2)
+  xgyro: number;          // X angular speed (rad/s)
+  ygyro: number;          // Y angular speed (rad/s)
+  zgyro: number;          // Z angular speed (rad/s)
+  xmag: number;           // X magnetic field (gauss)
+  ymag: number;           // Y magnetic field (gauss)
+  zmag: number;           // Z magnetic field (gauss)
+  absPressure: number;    // Absolute pressure (millibar)
+  diffPressure: number;   // Differential pressure (millibar)
+  pressureAlt: number;    // Altitude calculated from pressure (meters)
+  temperature: number;    // Temperature (degrees celsius)
+  fieldsUpdated: number;  // Bitmap for fields that have updated since last message
+  id?: number;            // IMU ID (0 for primary)
+}

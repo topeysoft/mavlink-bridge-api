@@ -5,6 +5,7 @@ import { useZonesStore } from '@/stores/zones'
 import { useMissionsStore } from '@/stores/missions'
 import { useFeaturesStore } from '@/stores/features'
 import { useNotifications } from '@/composables/useNotifications'
+import { useDialog } from '@/composables/useDialog'
 import Breadcrumb from '@/components/common/Breadcrumb.vue'
 
 const router = useRouter()
@@ -12,6 +13,7 @@ const zonesStore = useZonesStore()
 const missionsStore = useMissionsStore()
 const featuresStore = useFeaturesStore()
 const { success, error, info } = useNotifications()
+const dialog = useDialog()
 
 // Breadcrumb items
 const breadcrumbItems = [
@@ -200,8 +202,12 @@ const createMission = () => {
   router.push('/missions')
 }
 
-const backToMissions = () => {
-  if (confirm('Are you sure you want to go back? Any unsaved changes will be lost.')) {
+const backToMissions = async () => {
+  const confirmed = await dialog.confirm(
+    'Are you sure you want to go back? Any unsaved changes will be lost.',
+    'Unsaved Changes'
+  )
+  if (confirmed) {
     router.push('/missions')
   }
 }
@@ -210,8 +216,12 @@ const goToCreateZone = () => {
   router.push('/zones')
 }
 
-const switchToMissionPlanner = () => {
-  if (confirm('Switch to Mission Planner?\n\nThe Mission Planner provides low-level waypoint-based mission planning with MAVLink commands.\n\nAny unsaved changes here will be lost.')) {
+const switchToMissionPlanner = async () => {
+  const confirmed = await dialog.confirm(
+    'The Mission Planner provides low-level waypoint-based mission planning with MAVLink commands.\n\nAny unsaved changes here will be lost.',
+    'Switch to Mission Planner?'
+  )
+  if (confirmed) {
     router.push('/missions/planner')
   }
 }

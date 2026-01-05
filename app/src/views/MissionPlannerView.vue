@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useMissionsStore } from '@/stores/missions'
 import { useVehicleStore } from '@/stores/vehicle'
 import { useNotifications } from '@/composables/useNotifications'
+import { useDialog } from '@/composables/useDialog'
 import type { Waypoint } from '@/types/waypoint'
 import WaypointEditor from '@/components/mission/WaypointEditor.vue'
 import MissionPreview from '@/components/mission/MissionPreview.vue'
@@ -17,6 +18,7 @@ const route = useRoute()
 const missionsStore = useMissionsStore()
 const vehicleStore = useVehicleStore()
 const { success, error, info } = useNotifications()
+const dialog = useDialog()
 
 // Tab state
 type TabType = 'waypoints' | 'geofences' | 'rally-points'
@@ -108,8 +110,9 @@ async function handleUpload() {
     return
   }
 
-  const confirmed = confirm(
-    `Upload mission "${currentPlan.value.name}" to vehicle?\n\nThis will replace any existing mission on the vehicle.`
+  const confirmed = await dialog.confirm(
+    `Upload mission "${currentPlan.value.name}" to vehicle?\n\nThis will replace any existing mission on the vehicle.`,
+    'Upload Mission'
   )
 
   if (!confirmed) return
@@ -133,9 +136,9 @@ function handleExport() {
   success('Mission exported successfully')
 }
 
-function handleNew() {
+async function handleNew() {
   if (waypoints.value.length > 0) {
-    const confirmed = confirm('Create a new mission? Any unsaved changes will be lost.')
+    const confirmed = await dialog.confirm('Create a new mission? Any unsaved changes will be lost.', 'New Mission')
     if (!confirmed) return
   }
 
@@ -156,7 +159,7 @@ function handleNew() {
 }
 
 async function handleDownload() {
-  const confirmed = confirm('Download mission from vehicle?\n\nThis will replace the current mission in the planner.')
+  const confirmed = await dialog.confirm('Download mission from vehicle?\n\nThis will replace the current mission in the planner.', 'Download Mission')
 
   if (!confirmed) return
 
@@ -173,9 +176,9 @@ async function handleDownload() {
   }
 }
 
-function goBack() {
+async function goBack() {
   if (waypoints.value.length > 0 && !isEditing.value) {
-    const confirmed = confirm('Are you sure? Any unsaved changes will be lost.')
+    const confirmed = await dialog.confirm('Are you sure? Any unsaved changes will be lost.', 'Unsaved Changes')
     if (!confirmed) return
   }
   router.push('/missions')

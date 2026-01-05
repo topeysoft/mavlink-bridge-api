@@ -108,6 +108,7 @@ import ModalActions from '@/components/common/ModalActions.vue'
 import { useLeafletMap } from '@/composables/useLeafletMap'
 import { geocodeAddress, reverseGeocode, getCurrentPosition, formatCoordinates } from '@/utils/geocoding'
 import { useThemeStore } from '@/stores/theme'
+import { useDialog } from '@/composables/useDialog'
 import L from 'leaflet'
 
 interface Props {
@@ -133,6 +134,7 @@ const emit = defineEmits<{
 }>()
 
 const themeStore = useThemeStore()
+const dialog = useDialog()
 
 // Dialog state
 const isOpen = computed({
@@ -257,7 +259,11 @@ const handleUseCurrentLocation = async () => {
     const position = await getCurrentPosition()
     await handleLocationSelected(position.lat, position.lng, position.accuracy)
   } catch (error) {
-    alert((error as Error).message || 'Unable to get your location')
+    await dialog.alert(
+      (error as Error).message || 'Unable to get your location',
+      'Location Error',
+      { variant: 'error' }
+    )
   } finally {
     isGettingLocation.value = false
   }

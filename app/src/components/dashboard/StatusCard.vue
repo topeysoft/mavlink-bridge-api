@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
+import { useVehicleStore } from '@/stores/vehicle'
+import { useGpsStore } from '@/stores/gps'
+import { useBatteryStore } from '@/stores/battery'
 
-const systemStatus = ref({
-  mode: 'Standby',
-  gps: '3D Fix',
-  battery: 87,
+const vehicleStore = useVehicleStore()
+const gpsStore = useGpsStore()
+const batteryStore = useBatteryStore()
+
+const systemStatus = computed(() => ({
+  mode: vehicleStore.vehicleState.mode,
+  gps: gpsStore.fixTypeString,
+  battery: Math.round(batteryStore.batteryInfo.percent),
   attachment: 'Mower Deck',
-  status: 'Ready'
-})
+  status: vehicleStore.vehicleState.armed ? 'Armed' : 'Ready'
+}))

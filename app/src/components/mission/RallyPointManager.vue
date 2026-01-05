@@ -4,6 +4,7 @@ import { useRallyStore } from '@/stores/rally'
 import { useVehicleStore } from '@/stores/vehicle'
 import { useNotifications } from '@/composables/useNotifications'
 import { useLeafletMap } from '@/composables/useLeafletMap'
+import { useDialog } from '@/composables/useDialog'
 import type { RallyPoint, RallyPointPriority } from '@/types/rally'
 import L from 'leaflet'
 import Card from '@/components/common/Card.vue'
@@ -12,6 +13,7 @@ import Button from '@/components/common/Button.vue'
 const rallyStore = useRallyStore()
 const vehicleStore = useVehicleStore()
 const { success, error: notifyError, warning } = useNotifications()
+const dialog = useDialog()
 
 // Map setup
 const { map, initializeMap, addMarker, setView } = useLeafletMap('rally-map', {
@@ -308,11 +310,15 @@ function setPrimary(id: string) {
   success('Primary rally point updated')
 }
 
-function deleteRallyPoint(id: string) {
+async function deleteRallyPoint(id: string) {
   const rallyPoint = rallyStore.rallyPoints.find(r => r.id === id)
   if (!rallyPoint) return
 
-  if (!confirm(`Are you sure you want to delete "${rallyPoint.name}"?`)) return
+  const confirmed = await dialog.confirm(
+    `Are you sure you want to delete "${rallyPoint.name}"?`,
+    'Delete Rally Point'
+  )
+  if (!confirmed) return
 
   const marker = rallyMarkers.value.get(id)
   if (marker) {
@@ -358,10 +364,14 @@ function confirmReturnToRally() {
   }
 }
 
-function cancelActiveReturn() {
+async function cancelActiveReturn() {
   if (!rallyStore.activeReturn) return
 
-  if (!confirm('Cancel active return to rally point?')) return
+  const confirmed = await dialog.confirm(
+    'Cancel active return to rally point?',
+    'Cancel Return'
+  )
+  if (!confirmed) return
 
   rallyStore.cancelReturn(rallyStore.activeReturn.id)
   renderAllRallyPoints()

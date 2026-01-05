@@ -1,6 +1,8 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { useConnectionStore } from './connection'
+import { useBatteryStore } from './battery'
+import { useGpsStore } from './gps'
 import type { MAVLinkCommandClient } from '@mavlinkbridge/api-client'
 
 // MAVLink flight modes (based on ArduPilot)
@@ -53,12 +55,16 @@ export const MAV_CMD = {
 } as const
 
 export const useVehicleStore = defineStore('vehicle', () => {
+  // Get battery and GPS stores for live telemetry data
+  const batteryStore = useBatteryStore()
+  const gpsStore = useGpsStore()
+
   const vehicleState = ref<VehicleState>({
     armed: false,
     mode: 'HOLD',
     gpsLock: false,
-    batteryVoltage: 0,
-    batteryPercent: 0,
+    batteryVoltage: 0, // Updated from battery store
+    batteryPercent: 0, // Updated from battery store
     heading: 0,
     speed: 0,
     altitude: 0,
@@ -71,25 +77,38 @@ export const useVehicleStore = defineStore('vehicle', () => {
   const commandHistory = ref<Array<{ timestamp: string; command: string; success: boolean; error?: string }>>([])
   const isPendingCommand = ref(false)
 
-  // Computed properties
+  // Computed properties with live battery and GPS data
+  const vehicleStateWithBattery = computed<VehicleState>(() => ({
+    ...vehicleState.value,
+    batteryVoltage: batteryStore.batteryInfo.voltage,
+    batteryPercent: batteryStore.batteryInfo.percent,
+    gpsLock: gpsStore.gpsInfo.hasLock,
+    latitude: gpsStore.gpsInfo.latitude,
+    longitude: gpsStore.gpsInfo.longitude,
+    altitude: gpsStore.gpsInfo.altitude,
+    satellites: gpsStore.gpsInfo.satellites,
+    heading: gpsStore.gpsInfo.heading,
+    speed: gpsStore.gpsInfo.speed
+  }))
+
   const canArm = computed(() => {
     return (
-      !vehicleState.value.armed &&
-      vehicleState.value.gpsLock &&
-      vehicleState.value.batteryPercent > 20 &&
-      vehicleState.value.satellites >= 6
+      !vehicleStateWithBattery.value.armed &&
+      vehicleStateWithBattery.value.gpsLock &&
+      vehicleStateWithBattery.value.batteryPercent > 20 &&
+      vehicleStateWithBattery.value.satellites >= 6
     )
   })
 
   const canDisarm = computed(() => {
-    return vehicleState.value.armed && vehicleState.value.mode !== 'AUTO'
+    return vehicleStateWithBattery.value.armed && vehicleStateWithBattery.value.mode !== 'AUTO'
   })
 
   const isHealthy = computed(() => {
     return (
-      vehicleState.value.batteryPercent > 20 &&
-      vehicleState.value.gpsLock &&
-      vehicleState.value.satellites >= 6
+      vehicleStateWithBattery.value.batteryPercent > 20 &&
+      vehicleStateWithBattery.value.gpsLock &&
+      vehicleStateWithBattery.value.satellites >= 6
     )
   })
 
@@ -336,8 +355,8 @@ export const useVehicleStore = defineStore('vehicle', () => {
   }
 
   return {
-    // State
-    vehicleState,
+    // State (with live battery data)
+    vehicleState: vehicleStateWithBattery,
     commandHistory,
     isPendingCommand,
 

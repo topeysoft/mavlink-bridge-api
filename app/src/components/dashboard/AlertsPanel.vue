@@ -1,26 +1,59 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
+import { useBatteryStore } from '@/stores/battery'
 
 interface Alert {
-  id: number
+  id: string
   type: 'warning' | 'error' | 'info'
   icon: string
   title: string
   message: string
 }
 
-const alerts = ref<Alert[]>([
-  {
-    id: 1,
-    type: 'warning',
-    icon: '⚠️',
-    title: 'Low Battery Warning',
-    message: 'Battery level at 15%. Mission will be paused if it drops below 10%.'
-  }
-])
+const batteryStore = useBatteryStore()
 
-const dismissAlert = (id: number) => {
-  alerts.value = alerts.value.filter(alert => alert.id !== id)
+// Generate alerts from live battery data
+const alerts = computed<Alert[]>(() => {
+  const activeAlerts: Alert[] = []
+
+  // Add unacknowledged battery alerts
+  batteryStore.unacknowledgedAlerts.forEach(alert => {
+    let type: 'warning' | 'error' | 'info' = 'warning'
+    let title = ''
+    let icon = '⚠️'
+
+    if (alert.type === 'critical') {
+      type = 'error'
+      icon = '🚨'
+      title = 'Critical Battery Alert'
+    } else if (alert.type === 'low') {
+      type = 'warning'
+      icon = '🪫'
+      title = 'Low Battery Warning'
+    } else if (alert.type === 'temperature') {
+      type = 'error'
+      icon = '🌡️'
+      title = 'Temperature Alert'
+    } else if (alert.type === 'fault') {
+      type = 'error'
+      icon = '⚠️'
+      title = 'Battery Fault'
+    }
+
+    activeAlerts.push({
+      id: alert.id,
+      type,
+      icon,
+      title,
+      message: alert.message
+    })
+  })
+
+  return activeAlerts
+})
+
+const dismissAlert = (id: string) => {
+  batteryStore.acknowledgeAlert(id)
 }
 </script>
 

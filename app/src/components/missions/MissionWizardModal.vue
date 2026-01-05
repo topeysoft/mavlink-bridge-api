@@ -275,6 +275,7 @@
 import { ref, computed } from 'vue'
 import { useMissionWizard } from '@/composables/useMissionWizard'
 import { useZonesStore } from '@/stores/zones'
+import { useDialog } from '@/composables/useDialog'
 
 const props = defineProps<{
   modelValue: boolean
@@ -287,6 +288,7 @@ const emit = defineEmits<{
 }>()
 
 const zonesStore = useZonesStore()
+const dialog = useDialog()
 
 const isOpen = computed({
   get: () => props.modelValue,
@@ -381,9 +383,13 @@ const toggleZone = (zoneId: string) => {
   }
 }
 
-const handleClose = () => {
+const handleClose = async () => {
   if (missionData.value.name || missionData.value.selectedZones.length > 0) {
-    if (confirm('Discard mission? Your progress will be saved as a draft.')) {
+    const confirmed = await dialog.confirm(
+      'Your progress will be saved as a draft.',
+      'Discard mission?'
+    )
+    if (confirmed) {
       isOpen.value = false
     }
   } else {

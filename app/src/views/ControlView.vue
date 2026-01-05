@@ -1,47 +1,25 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { useVehicleStore } from '@/stores/vehicle'
+import { useDialog } from '@/composables/useDialog'
 import VehicleControlPanel from '@/components/control/VehicleControlPanel.vue'
 import FlightModeSelector from '@/components/control/FlightModeSelector.vue'
 import Card from '@/components/common/Card.vue'
 import type { FlightMode } from '@/stores/vehicle'
 
 const vehicleStore = useVehicleStore()
+const dialog = useDialog()
 
 const commandHistory = computed(() => vehicleStore.commandHistory.slice().reverse())
 const isPending = computed(() => vehicleStore.isPendingCommand)
 
-// Simulate telemetry updates
-let telemetryInterval: number | null = null
-
-onMounted(() => {
-  // Simulate periodic telemetry updates
-  telemetryInterval = window.setInterval(() => {
-    // Simulate GPS data
-    vehicleStore.updateVehicleState({
-      gpsLock: true,
-      satellites: 12,
-      latitude: 40.7128 + (Math.random() - 0.5) * 0.001,
-      longitude: -74.006 + (Math.random() - 0.5) * 0.001,
-      altitude: 15 + (Math.random() - 0.5) * 2,
-      batteryVoltage: 16.8 - Math.random() * 0.5,
-      batteryPercent: 87 - Math.floor(Math.random() * 5),
-      heading: (vehicleStore.vehicleState.heading + Math.random() * 5) % 360,
-      speed: Math.random() * 2,
-    })
-  }, 2000)
-})
-
-onUnmounted(() => {
-  if (telemetryInterval) {
-    clearInterval(telemetryInterval)
-  }
-})
-
 async function handleModeChange(mode: FlightMode) {
   const success = await vehicleStore.setMode(mode)
   if (!success) {
-    alert('Failed to change flight mode. Check command history for details.')
+    await dialog.alert('Failed to change flight mode. Check command history for details.', 'Mode Change Failed', {
+      variant: 'danger',
+      icon: '⚠️'
+    })
   }
 }
 
@@ -49,8 +27,15 @@ function formatTimestamp(timestamp: string): string {
   return new Date(timestamp).toLocaleTimeString()
 }
 
-function clearHistory() {
-  if (confirm('Clear all command history?')) {
+async function clearHistory() {
+  const confirmed = await dialog.confirm('Clear all command history?', 'Confirm Clear History', {
+    variant: 'warning',
+    icon: '🗑️',
+    confirmText: 'Clear',
+    cancelText: 'Cancel'
+  })
+
+  if (confirmed) {
     vehicleStore.clearCommandHistory()
   }
 }

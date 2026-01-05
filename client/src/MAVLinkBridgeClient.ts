@@ -8,6 +8,7 @@ import { CommunicationClient } from './communication/CommunicationClient';
 import { MAVLinkCommandClient } from './mavlink/MAVLinkCommandClient';
 import { MAVLinkMissionClient } from './mavlink/MAVLinkMissionClient';
 import { MAVLinkParameterClient } from './mavlink/parameters/MAVLinkParameterClient';
+import { TelemetryClient } from './telemetry/TelemetryClient';
 import { TaskClient } from './tasks/TaskClient';
 import { EventType, EventHandler, StatusPayload, ConfigChangedPayload, RTCMDataPayload, ErrorPayload, LogPayload, WiFiConnectedPayload, WiFiDisconnectedPayload, WiFiSignalUpdatePayload } from './core/EventTypes';
 import { Configuration, HealthResponse, WiFiCredentials } from './config/ConfigTypes';
@@ -42,6 +43,7 @@ export class MAVLinkBridgeClient {
   private readonly mavlinkClient: MAVLinkCommandClient;
   private readonly missionClient: MAVLinkMissionClient;
   private readonly parameterClient: MAVLinkParameterClient;
+  private readonly telemetryClient: TelemetryClient;
   private readonly taskClient: TaskClient;
   private readonly options: Required<MAVLinkBridgeClientOptions>;
 
@@ -90,6 +92,9 @@ export class MAVLinkBridgeClient {
 
     // Initialize MAVLink parameter client
     this.parameterClient = new MAVLinkParameterClient(this.httpClient);
+
+    // Initialize telemetry client
+    this.telemetryClient = new TelemetryClient(this.wsClient);
 
     // Initialize task client
     this.taskClient = new TaskClient(this.httpClient, this.wsClient);
@@ -220,6 +225,13 @@ export class MAVLinkBridgeClient {
    */
   get parameters (): MAVLinkParameterClient {
     return this.parameterClient;
+  }
+
+  /**
+   * Get telemetry client for IMU, compass, and sensor data
+   */
+  get telemetry (): TelemetryClient {
+    return this.telemetryClient;
   }
 
   /**

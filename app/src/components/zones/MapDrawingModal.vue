@@ -176,6 +176,7 @@ import { useLeafletMap } from '@/composables/useLeafletMap'
 import { useZoneDrawing } from '@/composables/useZoneDrawing'
 import { formatArea, formatPerimeter } from '@/utils/geoCalculations'
 import { useThemeStore } from '@/stores/theme'
+import { useDialog } from '@/composables/useDialog'
 
 interface Props {
   modelValue: boolean
@@ -196,6 +197,7 @@ const emit = defineEmits<{
 }>()
 
 const themeStore = useThemeStore()
+const dialog = useDialog()
 
 // Dialog state
 const isOpen = computed({
@@ -291,9 +293,13 @@ const handleClearAll = () => {
   clearAll()
 }
 
-const handleCancel = () => {
+const handleCancel = async () => {
   if (zones.value.length > 0) {
-    if (confirm('Discard changes to coverage area?')) {
+    const confirmed = await dialog.confirm(
+      'Discard changes to coverage area?',
+      'Cancel Zone Creation'
+    )
+    if (confirmed) {
       resetForm()
       isOpen.value = false
       emit('cancel')

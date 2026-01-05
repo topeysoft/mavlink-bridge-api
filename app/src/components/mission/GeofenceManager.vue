@@ -4,6 +4,7 @@ import { useGeofenceStore } from '@/stores/geofence'
 import { useRallyStore } from '@/stores/rally'
 import { useVehicleStore } from '@/stores/vehicle'
 import { useNotifications } from '@/composables/useNotifications'
+import { useDialog } from '@/composables/useDialog'
 import { useLeafletMap } from '@/composables/useLeafletMap'
 import type { Geofence, GeofenceType, GeofenceShape } from '@/types/geofence'
 import L from 'leaflet'
@@ -14,6 +15,7 @@ const geofenceStore = useGeofenceStore()
 const rallyStore = useRallyStore()
 const vehicleStore = useVehicleStore()
 const { success, error: notifyError, warning } = useNotifications()
+const dialog = useDialog()
 
 // Map setup
 const { map, initializeMap, addMarker, addCircle, addPolygon, removeLayer, setView } =
@@ -378,8 +380,13 @@ function toggleGeofence(id: string) {
   renderAllGeofences()
 }
 
-function deleteGeofence(id: string) {
-  if (!confirm('Are you sure you want to delete this geofence?')) return
+async function deleteGeofence(id: string) {
+  const confirmed = await dialog.confirm(
+    'Are you sure you want to delete this geofence?',
+    'Delete Geofence'
+  )
+
+  if (!confirmed) return
 
   const layer = geofenceLayers.value.get(id)
   if (layer) {

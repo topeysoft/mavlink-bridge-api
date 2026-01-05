@@ -225,12 +225,14 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useLogsStore } from '@/stores/logs';
+import { useDialog } from '@/composables/useDialog';
 import LogSummary from '@/components/logs/LogSummary.vue';
 import LogTimeline from '@/components/logs/LogTimeline.vue';
 import LogCharts from '@/components/logs/LogCharts.vue';
 import type { LogExportFormat } from '@/types/log';
 
 const logsStore = useLogsStore();
+const dialog = useDialog();
 
 const searchTerm = ref('');
 const showFilterDialog = ref(false);
@@ -273,9 +275,9 @@ function formatDuration(ms: number): string {
 async function handleDownloadLog() {
   try {
     await logsStore.downloadLog('');
-    alert('Log downloaded successfully');
+    await dialog.alert('Log downloaded successfully', 'Success', { variant: 'success' });
   } catch (error) {
-    alert('Failed to download log');
+    await dialog.alert('Failed to download log', 'Error', { variant: 'error' });
   }
 }
 
@@ -289,7 +291,7 @@ function handleExport(logId: string) {
   activeMenu.value = null;
 }
 
-function handleConfirmExport() {
+async function handleConfirmExport() {
   if (!exportLogId.value) return;
 
   try {
@@ -312,9 +314,9 @@ function handleConfirmExport() {
     URL.revokeObjectURL(url);
 
     showExportDialog.value = false;
-    alert('Log exported successfully');
+    await dialog.alert('Log exported successfully', 'Success', { variant: 'success' });
   } catch (error) {
-    alert('Failed to export log');
+    await dialog.alert('Failed to export log', 'Error', { variant: 'error' });
   }
 }
 

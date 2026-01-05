@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useBatteryStore } from '@/stores/battery'
+import { useConnectionStore } from '@/stores/connection'
 import TaskCard from '@/components/consumer/TaskCard.vue'
 import SimpleStatusCard from '@/components/consumer/SimpleStatusCard.vue'
 import MapPreviewCard from '@/components/dashboard/MapPreviewCard.vue'
@@ -10,10 +12,12 @@ import { useNotifications } from '@/composables/useNotifications'
 
 const router = useRouter()
 const { success } = useNotifications()
+const batteryStore = useBatteryStore()
+const connectionStore = useConnectionStore()
 
-// Mock data - in real app, this would come from stores
-const batteryLevel = ref(87)
-const isConnected = ref(true)
+// Live data from stores
+const batteryLevel = computed(() => Math.round(batteryStore.batteryInfo.percent))
+const isConnected = computed(() => connectionStore.isConnected)
 const currentTask = ref<string>()
 const showJobWizard = ref(false)
 

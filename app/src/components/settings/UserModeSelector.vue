@@ -3,8 +3,10 @@ import { computed } from 'vue'
 import { useFeaturesStore } from '@/stores/features'
 import type { UserMode } from '@/stores/features'
 import Card from '@/components/common/Card.vue'
+import { useDialog } from '@/composables/useDialog'
 
 const featuresStore = useFeaturesStore()
+const dialog = useDialog()
 
 const modes: Array<{ value: UserMode; label: string; description: string; icon: string }> = [
   {
@@ -29,14 +31,13 @@ const modes: Array<{ value: UserMode; label: string; description: string; icon: 
 
 const currentMode = computed(() => featuresStore.userMode)
 
-function selectMode(mode: UserMode) {
+async function selectMode(mode: UserMode) {
   if (mode !== currentMode.value) {
     const modeLabel = modes.find(m => m.value === mode)?.label
-    if (
-      confirm(
-        `Switch to ${modeLabel}?\n\nThis will change which features are available in the interface.`
-      )
-    ) {
+    const confirmed = await dialog.confirm(
+      `Switch to ${modeLabel}?\n\nThis will change which features are available in the interface.`
+    )
+    if (confirmed) {
       featuresStore.setUserMode(mode)
     }
   }

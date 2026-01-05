@@ -6,6 +6,7 @@ import type { Waypoint, WaypointTemplate } from '@/types/waypoint'
 import { WAYPOINT_TEMPLATES, MAV_CMD, MAV_FRAME } from '@/types/waypoint'
 import Card from '@/components/common/Card.vue'
 import Button from '@/components/common/Button.vue'
+import { useDialog } from '@/composables/useDialog'
 
 interface Props {
   waypoints: Waypoint[]
@@ -19,6 +20,8 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+
+const dialog = useDialog()
 
 const mapContainer = ref<HTMLElement | null>(null)
 const map = ref<L.Map | null>(null)
@@ -200,8 +203,14 @@ function moveWaypointDown(id: string) {
   emit('update:waypoints', updated)
 }
 
-function clearWaypoints() {
-  if (confirm('Are you sure you want to clear all waypoints?')) {
+async function clearWaypoints() {
+  const confirmed = await dialog.confirm({
+    title: 'Clear All Waypoints',
+    message: 'Are you sure you want to clear all waypoints?',
+    variant: 'warning'
+  })
+
+  if (confirmed) {
     emit('update:waypoints', [])
     selectedWaypointId.value = null
   }

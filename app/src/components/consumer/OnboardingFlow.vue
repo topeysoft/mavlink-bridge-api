@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import Modal from '@/components/common/Modal.vue'
 import Button from '@/components/common/Button.vue'
+import { useDialog } from '@/composables/useDialog'
 
 interface Props {
   modelValue: boolean
@@ -12,6 +13,8 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   'complete': []
 }>()
+
+const dialog = useDialog()
 
 const currentStep = ref(1)
 const totalSteps = 4
@@ -67,8 +70,11 @@ function completeOnboarding() {
   emit('update:modelValue', false)
 }
 
-function skipOnboarding() {
-  if (confirm('Are you sure you want to skip the tour? You can always view tips later.')) {
+async function skipOnboarding() {
+  const confirmed = await dialog.confirm(
+    'Are you sure you want to skip the tour? You can always view tips later.'
+  )
+  if (confirmed) {
     completeOnboarding()
   }
 }

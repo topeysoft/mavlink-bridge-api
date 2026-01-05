@@ -1,20 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import Card from '@/components/common/Card.vue'
+import { useGpsStore } from '@/stores/gps'
+import { useBatteryStore } from '@/stores/battery'
 
-interface TelemetryData {
-  speed: number
-  battery: number
-  satellites: number
-  hdop: number
-}
+const gpsStore = useGpsStore()
+const batteryStore = useBatteryStore()
 
-const telemetry = ref<TelemetryData>({
-  speed: 2.3,
-  battery: 87,
-  satellites: 12,
-  hdop: 1.2
-})
+const telemetry = computed(() => ({
+  speed: gpsStore.gpsInfo.speed,
+  battery: Math.round(batteryStore.batteryInfo.percent),
+  satellites: gpsStore.gpsInfo.satellites,
+  hdop: gpsStore.gpsInfo.hdop
+}))
 </script>
 
 <template>

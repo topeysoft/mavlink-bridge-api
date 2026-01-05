@@ -3,7 +3,7 @@
 ## Quick Project Overview
 YardRover is an autonomous yard utility machine controlled via a Vue 3 web application. The project consists of:
 - **ESP32 Device**: C++ firmware with MAVLink integration, WiFi, RTCM, and task management
-- **Web App**: Vue 3 + Quasar 2 + TypeScript frontend for device control
+- **Web App**: Vue 3 + TypeScript frontend with custom components (NO Quasar - see [app/CLAUDE.md](app/CLAUDE.md))
 - **API Client**: TypeScript library for device communication
 - **Console Tool**: CLI for device management and testing
 
@@ -12,10 +12,11 @@ YardRover is an autonomous yard utility machine controlled via a Vue 3 web appli
 **Stages Completed**: 3/10
 
 ### ✅ Stage 1: Project Setup & Core Infrastructure (Complete)
-- Quasar 2 with Vue 3 + TypeScript setup
+- Vue 3 + TypeScript with custom components (NO Quasar)
 - Nature-inspired theme system with SCSS variables
 - Pinia state management with composition API
 - Responsive layout and routing
+- Custom dialog system with `useDialog()` composable
 
 ### ✅ Stage 2: Connection & Device Management (Complete)
 - Device discovery via mDNS
@@ -63,7 +64,8 @@ app/src/
 - **Theme**: Nature-inspired colors (`$primary: #2C5F2D`, `$secondary: #87CEEB`)
 - **Client Integration**: Local client library at `../client/dist/` for type safety
 - **State Management**: Reactive stores with computed getters and async actions
-- **Error Handling**: Quasar notifications for user feedback
+- **User Feedback**: Custom toast notifications and dialog system (see `app/CLAUDE.md`)
+- **NO Quasar**: All UI components are custom-built with Vue 3 and native HTML
 
 ## Essential Commands
 
@@ -98,6 +100,7 @@ cd console && npm start
 - ✅ Emergency stop functionality with safety confirmations
 - ✅ Activity timeline with event logging and export
 - ✅ Live data visualization charts
+- ✅ Custom dialog system (47 native dialogs converted to Vue components)
 
 ## Known Issues & Notes
 - Client library must be built before app build

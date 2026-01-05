@@ -8,9 +8,11 @@ import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import MapDrawingModalNative from '@/components/zones/MapDrawingModalNative.vue'
 import { useZonesStore } from '@/stores/zones'
 import { useNotifications } from '@/composables/useNotifications'
+import { useDialog } from '@/composables/useDialog'
 import { formatDistance } from 'date-fns'
 
 const { success, error, info } = useNotifications()
+const dialog = useDialog()
 const zonesStore = useZonesStore()
 
 // Loading state
@@ -59,20 +61,24 @@ const handleCreateZone = () => {
   showMapDrawing.value = true
 }
 
-const handleImport = () => {
+const handleImport = async () => {
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = '.json'
-  input.onchange = (e: any) => {
+  input.onchange = async (e: any) => {
     const file = e.target?.files?.[0]
     if (!file) return
 
     const reader = new FileReader()
-    reader.onload = (event: any) => {
+    reader.onload = async (event: any) => {
       try {
         const importedZones = JSON.parse(event.target.result)
         if (Array.isArray(importedZones)) {
-          if (confirm(`Import ${importedZones.length} zones? This will add to your existing zones.`)) {
+          const confirmed = await dialog.confirm(
+            `Import ${importedZones.length} zones? This will add to your existing zones.`,
+            'Confirm Import'
+          )
+          if (confirmed) {
             importedZones.forEach(zone => {
               zonesStore.createZone(zone)
             })
@@ -121,11 +127,15 @@ const handleEditZone = (id: string) => {
   }
 }
 
-const handleDeleteZone = (id: string) => {
+const handleDeleteZone = async (id: string) => {
   const zone = zonesStore.getZoneById(id)
   if (!zone) return
 
-  if (confirm(`Are you sure you want to delete zone "${zone.name}"? This action cannot be undone.`)) {
+  const confirmed = await dialog.confirm(
+    `Are you sure you want to delete zone "${zone.name}"? This action cannot be undone.`,
+    'Confirm Delete'
+  )
+  if (confirmed) {
     zonesStore.deleteZone(id)
     info(`Zone "${zone.name}" deleted`)
   }

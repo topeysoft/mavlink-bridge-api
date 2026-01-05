@@ -295,6 +295,7 @@ import ModalBody from '@/components/common/ModalBody.vue'
 import ModalActions from '@/components/common/ModalActions.vue'
 import { useMissionWizard } from '@/composables/useMissionWizard'
 import { useZonesStore } from '@/stores/zones'
+import { useDialog } from '@/composables/useDialog'
 
 const props = defineProps<{
   modelValue: boolean
@@ -307,6 +308,7 @@ const emit = defineEmits<{
 }>()
 
 const zonesStore = useZonesStore()
+const dialog = useDialog()
 
 const isOpen = computed({
   get: () => props.modelValue,
@@ -392,9 +394,12 @@ const canNavigateToStep = (step: number) => {
   return canGoNext.value
 }
 
-const handleClose = () => {
+const handleClose = async () => {
   if (hasChanges.value) {
-    if (confirm('Discard mission? Your progress will be saved as a draft.')) {
+    const confirmed = await dialog.confirm(
+      'Discard mission? Your progress will be saved as a draft.'
+    )
+    if (confirmed) {
       isOpen.value = false
     }
   } else {

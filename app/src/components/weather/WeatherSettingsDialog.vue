@@ -225,6 +225,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useWeatherStore } from '@/stores/weather'
+import { useDialog } from '@/composables/useDialog'
 import type { WeatherSettings } from '@/types/weather'
 
 const props = defineProps<{
@@ -236,6 +237,7 @@ const emit = defineEmits<{
 }>()
 
 const weatherStore = useWeatherStore()
+const dialog = useDialog()
 
 const localSettings = ref<WeatherSettings>(JSON.parse(JSON.stringify(weatherStore.settings)))
 const showApiKey = ref(false)
@@ -272,7 +274,7 @@ watch(() => props.modelValue, (newVal) => {
 
 async function getCurrentLocation() {
   if (!navigator.geolocation) {
-    alert('Geolocation is not supported by your browser')
+    await dialog.alert('Geolocation is not supported by your browser', 'Geolocation Unavailable', { variant: 'error' })
     return
   }
 
@@ -286,7 +288,7 @@ async function getCurrentLocation() {
     localSettings.value.location.lat = position.coords.latitude
     localSettings.value.location.lon = position.coords.longitude
   } catch (error) {
-    alert('Failed to get current location')
+    await dialog.alert('Failed to get current location', 'Location Error', { variant: 'error' })
   } finally {
     gettingLocation.value = false
   }
@@ -346,12 +348,12 @@ function applyPreset(preset: 'conservative' | 'moderate' | 'aggressive') {
 
 async function testConnection() {
   if (!localSettings.value.apiKey) {
-    alert('Please enter an API key first')
+    await dialog.alert('Please enter an API key first', 'Missing API Key', { variant: 'warning' })
     return
   }
 
   if (localSettings.value.location.lat === 0 || localSettings.value.location.lon === 0) {
-    alert('Please set a location first')
+    await dialog.alert('Please set a location first', 'Missing Location', { variant: 'warning' })
     return
   }
 
@@ -360,9 +362,9 @@ async function testConnection() {
   try {
     weatherStore.updateSettings(localSettings.value)
     await weatherStore.fetchWeather()
-    alert('Weather data fetched successfully!')
+    await dialog.alert('Weather data fetched successfully!', 'Connection Successful', { variant: 'success' })
   } catch (error) {
-    alert('Failed to fetch weather data. Please check your API key and location.')
+    await dialog.alert('Failed to fetch weather data. Please check your API key and location.', 'Connection Failed', { variant: 'error' })
   } finally {
     testing.value = false
   }
