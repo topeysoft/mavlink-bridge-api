@@ -796,11 +796,17 @@ onUnmounted(() => {
 }
 
 .btn-danger {
-  background: $negative;
+  background: var(--status-danger);
   color: white;
 
   &:hover {
-    background: darken($negative, 5%);
+    filter: brightness(0.9);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 }
 </style>

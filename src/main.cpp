@@ -846,11 +846,13 @@ void setupCommunicationEventHandlers()
     // Subscribe to MAVLink message events
     eventManager->subscribe(EventType::MAVLINK_MESSAGE, [](const Event &e)
                             {
-        DynamicJsonDocument payload(256);
+        DynamicJsonDocument payload(512);  // Increased size for base64 data
         payload["event"] = "mavlink_message";
         payload["messageId"] = e.payload["messageId"];
         payload["systemId"] = e.payload["systemId"];
         payload["componentId"] = e.payload["componentId"];
+        payload["length"] = e.payload["length"];
+        payload["data"] = e.payload["data"];  // Base64-encoded payload data
         wsServer->broadcast(WebSocketEventType::MAVLINK_MESSAGE, payload.as<JsonObjectConst>()); });
 
     // Subscribe to communication statistics events

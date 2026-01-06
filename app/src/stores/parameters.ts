@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useConnectionStore } from './connection'
 import type {
@@ -10,7 +10,12 @@ import type {
   ParameterType,
 } from '@/types/parameter'
 import { ParameterType as ParamType } from '@/types/parameter'
-import type { MAVLinkParameter } from '@mavlinkbridge/api-client'
+import type {
+  ParameterValue,
+  ParameterChangeEvent,
+  ParameterDefinition,
+} from '../../../client/dist/index'
+import { PARAMETER_DEFINITIONS, getParameterDefinition } from '../../../client/dist/mavlink/parameters/ParameterDefinitions'
 
 export const useParametersStore = defineStore('parameters', () => {
   // State
@@ -23,6 +28,7 @@ export const useParametersStore = defineStore('parameters', () => {
   const isLoadingParameters = ref(false)
   const isSavingParameters = ref(false)
   const lastSync = ref<string | null>(null)
+  const isStreamingActive = ref(false)
 
   const filter = ref<ParameterFilter>({
     search: '',
@@ -30,6 +36,21 @@ export const useParametersStore = defineStore('parameters', () => {
     modifiedOnly: false,
     showAdvanced: false,
   })
+
+  const connectionStore = useConnectionStore()
+
+  // Watch for connection changes and manage parameter streaming
+  // TODO: Re-enable once firmware is updated with parameter stream endpoint
+  // watch(
+  //   () => connectionStore.isConnected,
+  //   async (connected) => {
+  //     if (connected) {
+  //       await startParameterStreaming()
+  //     } else {
+  //       stopParameterStreaming()
+  //     }
+  //   }
+  // )
 
   // Computed
   const modifiedParameters = computed(() => parameters.value.filter(p => p.modified))
@@ -171,25 +192,43 @@ export const useParametersStore = defineStore('parameters', () => {
   // Actions
 
   /**
-   * Convert MAVLink parameter to UI Parameter format
+   * Convert MAVLink parameter value to UI Parameter format with ArduPilot definitions
    */
-  function convertMAVLinkParameter(mavParam: MAVLinkParameter): Parameter {
-    return {
-      name: mavParam.name,
-      displayName: mavParam.displayName || mavParam.name,
-      value: mavParam.value,
-      defaultValue: mavParam.defaultValue ?? mavParam.value,
-      type: mavParam.type as unknown as ParameterType,
-      group: mavParam.group || 'BASIC',
-      description: mavParam.description || '',
-      units: mavParam.units,
-      min: mavParam.min,
-      max: mavParam.max,
-      increment: mavParam.increment,
-      readOnly: mavParam.readOnly,
-      rebootRequired: mavParam.rebootRequired,
+  function convertMAVLinkParameter(paramValue: ParameterValue): Parameter {
+    // Get parameter definition from ArduPilot metadata
+    const definition = getParameterDefinition(paramValue.name)
+
+    // Convert MAVLink parameter type to app ParameterType
+    const convertType = (mavType: string): ParameterType => {
+      switch (mavType.toLowerCase()) {
+        case 'int':
+          return ParamType.INT32
+        case 'float':
+          return ParamType.FLOAT
+        default:
+          return ParamType.FLOAT
+      }
+    }
+
+    // Build parameter using definition metadata when available
+    const param: Parameter = {
+      name: paramValue.name,
+      displayName: definition?.displayName || paramValue.name,
+      value: paramValue.value,
+      defaultValue: paramValue.value, // Will be the current value until we track defaults separately
+      type: convertType(paramValue.type),
+      group: definition?.category || definition?.group || 'MISC',
+      description: definition?.description || `Parameter ${paramValue.name}`,
+      units: definition?.units,
+      min: definition?.range?.min,
+      max: definition?.range?.max,
+      increment: definition?.increment,
+      readOnly: false, // MAVLink doesn't have readonly flag in parameter values
+      rebootRequired: definition?.rebootRequired || false,
       modified: false
     }
+
+    return param
   }
 
   // Load parameters from vehicle
@@ -204,21 +243,30 @@ export const useParametersStore = defineStore('parameters', () => {
 
       const client = connectionStore.getClient()
 
-      // Get all parameters from vehicle
-      const mavParams = await client.parameters.listParameters()
+      // First, request the parameter list from the flight controller
+      console.log('Requesting parameter list from flight controller...')
+      await client.parameters.requestParameterList()
+
+      // Wait a moment for parameters to start streaming in
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // Get all cached parameters that have been received
+      const cachedParams = client.parameters.getAllCachedParameters()
+
+      if (cachedParams.length === 0) {
+        throw new Error('No parameters received from flight controller')
+      }
 
       // Convert to UI parameter format
-      parameters.value = mavParams.map(convertMAVLinkParameter)
+      parameters.value = cachedParams.map(convertMAVLinkParameter)
 
       lastSync.value = new Date().toISOString()
 
-      console.log('Loaded parameters from vehicle:', parameters.value.length)
+      console.log('✅ Loaded parameters from vehicle:', parameters.value.length)
       return true
     } catch (error) {
-      console.error('Failed to load parameters from vehicle:', error)
-      // Fallback to mock parameters for development
-      parameters.value = getMockParameters()
-      return false
+      console.error('❌ Failed to load parameters from vehicle:', error)
+      throw error // Re-throw to let the UI handle the error properly
     } finally {
       isLoadingParameters.value = false
     }
@@ -456,221 +504,73 @@ export const useParametersStore = defineStore('parameters', () => {
     filter.value = { ...filter.value, ...newFilter }
   }
 
-  // Mock parameters for development
-  function getMockParameters(): Parameter[] {
-    return [
-      // Basic Settings
-      {
-        name: 'SYSID_THISMAV',
-        displayName: 'MAVLink System ID',
-        value: 1,
-        defaultValue: 1,
-        type: ParamType.UINT8,
-        group: 'BASIC',
-        description: 'MAVLink system ID of this vehicle',
-        min: 1,
-        max: 250,
-        rebootRequired: true,
-      },
-      {
-        name: 'FRAME_TYPE',
-        displayName: 'Frame Type',
-        value: 0,
-        defaultValue: 0,
-        type: ParamType.UINT8,
-        group: 'BASIC',
-        description: 'Vehicle frame configuration (0=Rover, 1=Boat)',
-        min: 0,
-        max: 1,
-      },
-      // Navigation
-      {
-        name: 'WP_RADIUS',
-        displayName: 'Waypoint Radius',
-        value: 2.0,
-        defaultValue: 2.0,
-        type: ParamType.FLOAT,
-        group: 'NAVIGATION',
-        description: 'Distance from waypoint that triggers acceptance',
-        units: 'm',
-        min: 0.1,
-        max: 100.0,
-        increment: 0.1,
-      },
-      {
-        name: 'WP_SPEED',
-        displayName: 'Waypoint Speed',
-        value: 2.0,
-        defaultValue: 2.0,
-        type: ParamType.FLOAT,
-        group: 'NAVIGATION',
-        description: 'Target speed between waypoints',
-        units: 'm/s',
-        min: 0.0,
-        max: 5.0,
-        increment: 0.1,
-      },
-      {
-        name: 'NAV_TURN_RATE',
-        displayName: 'Turn Rate',
-        value: 45.0,
-        defaultValue: 45.0,
-        type: ParamType.FLOAT,
-        group: 'NAVIGATION',
-        description: 'Maximum turn rate during navigation',
-        units: 'deg/s',
-        min: 0.0,
-        max: 360.0,
-        increment: 5.0,
-      },
-      // Control
-      {
-        name: 'CRUISE_SPEED',
-        displayName: 'Cruise Speed',
-        value: 2.0,
-        defaultValue: 2.0,
-        type: ParamType.FLOAT,
-        group: 'CONTROL',
-        description: 'Target cruise speed in AUTO mode',
-        units: 'm/s',
-        min: 0.0,
-        max: 5.0,
-        increment: 0.1,
-      },
-      {
-        name: 'CRUISE_THROTTLE',
-        displayName: 'Cruise Throttle',
-        value: 50,
-        defaultValue: 50,
-        type: ParamType.UINT8,
-        group: 'CONTROL',
-        description: 'Throttle percentage for cruise speed',
-        units: '%',
-        min: 0,
-        max: 100,
-      },
-      // Battery
-      {
-        name: 'BATT_CAPACITY',
-        displayName: 'Battery Capacity',
-        value: 5000,
-        defaultValue: 5000,
-        type: ParamType.UINT32,
-        group: 'BATTERY',
-        description: 'Battery capacity in mAh',
-        units: 'mAh',
-        min: 0,
-        max: 100000,
-      },
-      {
-        name: 'BATT_LOW_VOLT',
-        displayName: 'Low Battery Voltage',
-        value: 10.5,
-        defaultValue: 10.5,
-        type: ParamType.FLOAT,
-        group: 'BATTERY',
-        description: 'Battery voltage that triggers low battery action',
-        units: 'V',
-        min: 0.0,
-        max: 50.0,
-        increment: 0.1,
-      },
-      {
-        name: 'BATT_CRT_VOLT',
-        displayName: 'Critical Battery Voltage',
-        value: 10.0,
-        defaultValue: 10.0,
-        type: ParamType.FLOAT,
-        group: 'BATTERY',
-        description: 'Battery voltage that triggers critical battery action',
-        units: 'V',
-        min: 0.0,
-        max: 50.0,
-        increment: 0.1,
-      },
-      // GPS
-      {
-        name: 'GPS_TYPE',
-        displayName: 'GPS Type',
-        value: 1,
-        defaultValue: 1,
-        type: ParamType.UINT8,
-        group: 'GPS',
-        description: 'GPS receiver type (0=None, 1=Auto, 2=uBlox)',
-        min: 0,
-        max: 10,
-      },
-      {
-        name: 'GPS_GNSS_MODE',
-        displayName: 'GNSS Mode',
-        value: 0,
-        defaultValue: 0,
-        type: ParamType.UINT8,
-        group: 'GPS',
-        description: 'GNSS system configuration',
-        min: 0,
-        max: 7,
-      },
-      // Geofence
-      {
-        name: 'FENCE_ENABLE',
-        displayName: 'Fence Enable',
-        value: 0,
-        defaultValue: 0,
-        type: ParamType.UINT8,
-        group: 'FENCE',
-        description: 'Enable geofence (0=Disabled, 1=Enabled)',
-        min: 0,
-        max: 1,
-      },
-      {
-        name: 'FENCE_RADIUS',
-        displayName: 'Fence Radius',
-        value: 100.0,
-        defaultValue: 100.0,
-        type: ParamType.FLOAT,
-        group: 'FENCE',
-        description: 'Circular fence radius from home',
-        units: 'm',
-        min: 0.0,
-        max: 10000.0,
-      },
-      {
-        name: 'FENCE_ACTION',
-        displayName: 'Fence Action',
-        value: 1,
-        defaultValue: 1,
-        type: ParamType.UINT8,
-        group: 'FENCE',
-        description: 'Action on fence breach (0=Report, 1=RTL, 2=Hold)',
-        min: 0,
-        max: 2,
-      },
-      // Safety
-      {
-        name: 'FS_TIMEOUT',
-        displayName: 'Failsafe Timeout',
-        value: 5.0,
-        defaultValue: 5.0,
-        type: ParamType.FLOAT,
-        group: 'SAFETY',
-        description: 'Failsafe timeout in seconds',
-        units: 's',
-        min: 0.0,
-        max: 300.0,
-      },
-      {
-        name: 'FS_ACTION',
-        displayName: 'Failsafe Action',
-        value: 1,
-        defaultValue: 1,
-        type: ParamType.UINT8,
-        group: 'SAFETY',
-        description: 'Failsafe action (0=None, 1=RTL, 2=Hold, 3=Disarm)',
-        min: 0,
-        max: 3,
-      },
-    ]
+  // Parameter Streaming
+
+  /**
+   * Start parameter streaming for real-time updates
+   */
+  async function startParameterStreaming(): Promise<void> {
+    if (!connectionStore.isConnected || isStreamingActive.value) {
+      return
+    }
+
+    try {
+      const client = connectionStore.getClient()
+
+      // Set up parameter change listener
+      const handleParameterChange = (event: ParameterChangeEvent) => {
+        const paramIndex = parameters.value.findIndex(p => p.name === event.parameterName)
+
+        if (paramIndex !== -1 && event.newValue !== undefined) {
+          // Update existing parameter
+          const param = parameters.value[paramIndex]
+          const oldValue = param.value
+          param.value = event.newValue
+          param.modified = event.newValue !== param.defaultValue
+
+          console.log(`📡 Parameter updated: ${event.parameterName} = ${event.newValue} (was ${oldValue})`)
+        } else if (event.newValue !== undefined) {
+          // New parameter received
+          const cachedParam = client.parameters.getParameterFromCache(event.parameterName)
+          if (cachedParam) {
+            const newParam = convertMAVLinkParameter(cachedParam)
+            parameters.value.push(newParam)
+            console.log(`📡 New parameter received: ${event.parameterName} = ${event.newValue}`)
+          }
+        }
+
+        lastSync.value = new Date().toISOString()
+      }
+
+      // Add listener for parameter changes
+      client.parameters.addParameterListener(handleParameterChange)
+
+      // Start the parameter stream
+      await client.parameters.startParameterStream()
+
+      isStreamingActive.value = true
+      console.log('✅ Parameter streaming started')
+    } catch (error) {
+      console.error('❌ Failed to start parameter streaming:', error)
+    }
+  }
+
+  /**
+   * Stop parameter streaming
+   */
+  function stopParameterStreaming(): void {
+    if (!isStreamingActive.value) {
+      return
+    }
+
+    try {
+      const client = connectionStore.getClient()
+      client.parameters.stopParameterStream()
+      isStreamingActive.value = false
+      console.log('🛑 Parameter streaming stopped')
+    } catch (error) {
+      console.error('❌ Failed to stop parameter streaming:', error)
+    }
   }
 
   return {

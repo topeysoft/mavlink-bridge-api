@@ -127,6 +127,8 @@ export * from './communication/CommunicationTypes';
 // MAVLink exports
 export { MAVLinkCommandClient } from './mavlink/MAVLinkCommandClient';
 export { MAVLinkMissionClient } from './mavlink/MAVLinkMissionClient';
+export { MAVLinkDecoder } from './mavlink/MAVLinkDecoder';
+export type { DecodedMAVLinkMessage } from './mavlink/MAVLinkDecoder';
 export * from './mavlink/MAVLinkTypes';
 export * from './mavlink/MAVLinkMissionTypes';
 

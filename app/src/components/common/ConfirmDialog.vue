@@ -188,7 +188,7 @@ watch(() => props.modelValue, async (isOpen) => {
 
 .btn {
   padding: var(--spacing-sm) var(--spacing-lg);
-  border-radius: var(--border-radius);
+  border-radius: var(--radius-md);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -196,27 +196,34 @@ watch(() => props.modelValue, async (isOpen) => {
   font-size: var(--font-size-base);
 
   &:focus {
-    outline: 2px solid var(--primary);
+    outline: 2px solid var(--primary-green);
     outline-offset: 2px;
   }
 }
 
 .btn-primary {
-  background: var(--primary);
+  background: var(--primary-green);
   color: white;
 
   &:hover {
-    background: var(--primary-dark);
+    background: var(--primary-green-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 }
 
 .btn-secondary {
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
 
   &:hover {
-    background: var(--bg-tertiary);
+    background: var(--bg-secondary);
+    border-color: var(--text-secondary);
   }
 }
 
@@ -225,16 +232,28 @@ watch(() => props.modelValue, async (isOpen) => {
   color: white;
 
   &:hover {
-    background: #c53030;
+    filter: brightness(0.9);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 }
 
 .btn-warning {
   background: var(--status-warning);
-  color: white;
+  color: var(--text-primary);
 
   &:hover {
-    background: #d69e2e;
+    filter: brightness(0.9);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 }
 

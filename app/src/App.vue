@@ -282,7 +282,7 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
   padding: var(--spacing-sm) var(--spacing-lg);
   border: none;
   border-radius: var(--radius-md);
@@ -300,6 +300,7 @@ textarea:focus-visible {
   svg {
     width: 18px;
     height: 18px;
+    flex-shrink: 0;
   }
 }
 
@@ -308,7 +309,13 @@ textarea:focus-visible {
   color: white;
 
   &:hover:not(:disabled) {
-    background: var(--primary-green-light);
+    background: var(--primary-green-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
 }
 
@@ -318,7 +325,8 @@ textarea:focus-visible {
   border: 1px solid var(--border-color);
 
   &:hover:not(:disabled) {
-    background: var(--border-color);
+    background: var(--bg-secondary);
+    border-color: var(--text-secondary);
   }
 }
 
@@ -327,7 +335,13 @@ textarea:focus-visible {
   color: white;
 
   &:hover:not(:disabled) {
-    background: #c82333;
+    filter: brightness(0.9);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
 }
 

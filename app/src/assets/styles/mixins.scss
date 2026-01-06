@@ -68,13 +68,47 @@
 // Secondary button
 @mixin btn-secondary {
   @include btn-base;
-  background: transparent;
+  background: var(--bg-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
 
   &:hover:not(:disabled) {
     background: var(--bg-secondary);
     border-color: var(--text-secondary);
+  }
+}
+
+// Danger button
+@mixin btn-danger {
+  @include btn-base;
+  background: var(--status-danger);
+  color: white;
+
+  &:hover:not(:disabled) {
+    filter: brightness(0.9);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+}
+
+// Success button
+@mixin btn-success {
+  @include btn-base;
+  background: var(--status-success);
+  color: white;
+
+  &:hover:not(:disabled) {
+    filter: brightness(0.9);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
 }
 

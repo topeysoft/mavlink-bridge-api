@@ -395,14 +395,14 @@ function close() {
 }
 
 .modal-dialog {
-  background: white;
+  background: var(--bg-primary);
   border-radius: 8px;
   width: 100%;
   max-width: 600px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-lg);
 }
 
 .modal-header {
@@ -410,13 +410,13 @@ function close() {
   align-items: center;
   justify-content: space-between;
   padding: 20px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-color);
 
   h3 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
-    color: #111827;
+    color: var(--text-primary);
   }
 
   .close-button {
@@ -424,7 +424,7 @@ function close() {
     border: none;
     cursor: pointer;
     padding: 4px;
-    color: #6b7280;
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -435,7 +435,7 @@ function close() {
     }
 
     &:hover {
-      color: #111827;
+      color: var(--text-primary);
     }
   }
 }
@@ -452,7 +452,7 @@ function close() {
   justify-content: flex-end;
   gap: 12px;
   padding: 20px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border-color);
 }
 
 .form-group {
@@ -462,7 +462,7 @@ function close() {
     display: block;
     font-size: 14px;
     font-weight: 500;
-    color: #374151;
+    color: var(--text-primary);
     margin-bottom: 8px;
 
     &.label-sm {
@@ -475,14 +475,16 @@ function close() {
 .form-input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 14px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   transition: border-color 0.2s;
 
   &:focus {
     outline: none;
-    border-color: $primary;
+    border-color: var(--primary-green);
   }
 }
 
@@ -496,14 +498,14 @@ function close() {
   }
 
   .input-button {
-    background: #f3f4f6;
-    border: 1px solid #d1d5db;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-left: none;
     border-top-right-radius: 6px;
     border-bottom-right-radius: 6px;
     padding: 0 12px;
     cursor: pointer;
-    color: #6b7280;
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -514,7 +516,8 @@ function close() {
     }
 
     &:hover {
-      background: #e5e7eb;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
     }
   }
 }
@@ -532,11 +535,11 @@ function close() {
 
 .form-hint {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin-top: 4px;
 
   a {
-    color: $primary;
+    color: var(--primary-green);
     text-decoration: none;
 
     &:hover {
@@ -557,13 +560,13 @@ function close() {
   width: 44px;
   height: 24px;
   appearance: none;
-  background: #d1d5db;
+  background: var(--border-color);
   border-radius: 12px;
   cursor: pointer;
   transition: background 0.2s;
 
   &:checked {
-    background: $primary;
+    background: var(--primary-green);
   }
 
   &::after {
@@ -586,7 +589,7 @@ function close() {
 .toggle-text {
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: var(--text-primary);
 }
 
 .tag-container {
@@ -601,7 +604,7 @@ function close() {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background: $primary;
+  background: var(--primary-green);
   color: white;
   border-radius: 4px;
   font-size: 13px;
@@ -630,26 +633,26 @@ function close() {
 
 .btn-preset {
   padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  color: #374151;
+  color: var(--text-primary);
   transition: all 0.2s;
 
   &:hover {
-    background: #f3f4f6;
-    border-color: $primary;
-    color: $primary;
+    background: var(--bg-tertiary);
+    border-color: var(--primary-green);
+    color: var(--primary-green);
   }
 }
 
 .link-button {
   background: none;
   border: none;
-  color: $primary;
+  color: var(--primary-green);
   cursor: pointer;
   font-size: 13px;
   padding: 4px 0;
@@ -675,6 +678,9 @@ function close() {
 
 .btn-primary,
 .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-md);
   padding: 8px 16px;
   border-radius: 6px;
   border: none;
@@ -683,6 +689,12 @@ function close() {
   font-weight: 500;
   transition: all 0.2s;
 
+  svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -690,20 +702,28 @@ function close() {
 }
 
 .btn-primary {
-  background: $primary;
+  background: var(--primary-green);
   color: white;
 
   &:hover:not(:disabled) {
-    background: darken($primary, 5%);
+    background: var(--primary-green-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
 }
 
 .btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 
   &:hover:not(:disabled) {
-    background: #e5e7eb;
+    background: var(--bg-secondary);
+    border-color: var(--text-secondary);
   }
 }
 

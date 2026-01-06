@@ -467,3 +467,107 @@ export interface HighResImuMessage {
   fieldsUpdated: number;  // Bitmap for fields that have updated since last message
   id?: number;            // IMU ID (0 for primary)
 }
+
+export interface SystemTimeMessage {
+  timeUnixUsec: number;   // Timestamp (microseconds since UNIX epoch)
+  timeBootMs: number;     // Timestamp (milliseconds since system boot)
+}
+
+export interface ScaledPressureMessage {
+  timeBootMs: number;     // Timestamp (milliseconds since system boot)
+  pressAbs: number;       // Absolute pressure (hectopascal)
+  pressDiff: number;      // Differential pressure (hectopascal)
+  temperature: number;    // Temperature (centidegrees celsius)
+}
+
+export interface RcChannelsScaledMessage {
+  timeBootMs: number;     // Timestamp (milliseconds since system boot)
+  chan1Scaled: number;    // RC channel 1 scaled (-100%, +100%)
+  chan2Scaled: number;    // RC channel 2 scaled (-100%, +100%)
+  chan3Scaled: number;    // RC channel 3 scaled (-100%, +100%)
+  chan4Scaled: number;    // RC channel 4 scaled (-100%, +100%)
+  chan5Scaled: number;    // RC channel 5 scaled (-100%, +100%)
+  chan6Scaled: number;    // RC channel 6 scaled (-100%, +100%)
+  chan7Scaled: number;    // RC channel 7 scaled (-100%, +100%)
+  chan8Scaled: number;    // RC channel 8 scaled (-100%, +100%)
+  port: number;           // Servo output port (0 for default)
+  rssi: number;           // Receive signal strength indicator (0-254, 255=invalid)
+}
+
+export interface ServoOutputRawMessage {
+  timeUsec: number;       // Timestamp (microseconds since system boot)
+  servo1Raw: number;      // Servo output 1 (PWM, usually 1000-2000)
+  servo2Raw: number;      // Servo output 2 (PWM, usually 1000-2000)
+  servo3Raw: number;      // Servo output 3 (PWM, usually 1000-2000)
+  servo4Raw: number;      // Servo output 4 (PWM, usually 1000-2000)
+  servo5Raw: number;      // Servo output 5 (PWM, usually 1000-2000)
+  servo6Raw: number;      // Servo output 6 (PWM, usually 1000-2000)
+  servo7Raw: number;      // Servo output 7 (PWM, usually 1000-2000)
+  servo8Raw: number;      // Servo output 8 (PWM, usually 1000-2000)
+  port: number;           // Servo output port (0 for default)
+  servo9Raw?: number;     // Servo output 9 (PWM, usually 1000-2000)
+  servo10Raw?: number;    // Servo output 10 (PWM, usually 1000-2000)
+  servo11Raw?: number;    // Servo output 11 (PWM, usually 1000-2000)
+  servo12Raw?: number;    // Servo output 12 (PWM, usually 1000-2000)
+  servo13Raw?: number;    // Servo output 13 (PWM, usually 1000-2000)
+  servo14Raw?: number;    // Servo output 14 (PWM, usually 1000-2000)
+  servo15Raw?: number;    // Servo output 15 (PWM, usually 1000-2000)
+  servo16Raw?: number;    // Servo output 16 (PWM, usually 1000-2000)
+}
+
+export interface MissionCurrentMessage {
+  seq: number;            // Sequence number of current mission item
+}
+
+export interface RcChannelsMessage {
+  timeBootMs: number;     // Timestamp (milliseconds since system boot)
+  chan1Raw: number;       // RC channel 1 value (microseconds)
+  chan2Raw: number;       // RC channel 2 value (microseconds)
+  chan3Raw: number;       // RC channel 3 value (microseconds)
+  chan4Raw: number;       // RC channel 4 value (microseconds)
+  chan5Raw: number;       // RC channel 5 value (microseconds)
+  chan6Raw: number;       // RC channel 6 value (microseconds)
+  chan7Raw: number;       // RC channel 7 value (microseconds)
+  chan8Raw: number;       // RC channel 8 value (microseconds)
+  chan9Raw: number;       // RC channel 9 value (microseconds)
+  chan10Raw: number;      // RC channel 10 value (microseconds)
+  chan11Raw: number;      // RC channel 11 value (microseconds)
+  chan12Raw: number;      // RC channel 12 value (microseconds)
+  chan13Raw: number;      // RC channel 13 value (microseconds)
+  chan14Raw: number;      // RC channel 14 value (microseconds)
+  chan15Raw: number;      // RC channel 15 value (microseconds)
+  chan16Raw: number;      // RC channel 16 value (microseconds)
+  chan17Raw: number;      // RC channel 17 value (microseconds)
+  chan18Raw: number;      // RC channel 18 value (microseconds)
+  chancount: number;      // Total number of RC channels
+  rssi: number;           // Receive signal strength indicator (0-254, 255=invalid)
+}
+
+export interface TimesyncMessage {
+  tc1: number;            // Time sync timestamp 1 (nanoseconds)
+  ts1: number;            // Time sync timestamp 2 (nanoseconds)
+}
+
+export interface PowerStatusMessage {
+  vcc: number;            // 5V rail voltage (millivolts)
+  vservo: number;         // Servo rail voltage (millivolts)
+  flags: number;          // Power supply status flags (bitmask)
+}
+
+export interface VibrationMessage {
+  timeUsec: number;       // Timestamp (microseconds since system boot)
+  vibrationX: number;     // Vibration level on X axis
+  vibrationY: number;     // Vibration level on Y axis
+  vibrationZ: number;     // Vibration level on Z axis
+  clipping0: number;      // First accelerometer clipping count
+  clipping1: number;      // Second accelerometer clipping count
+  clipping2: number;      // Third accelerometer clipping count
+}
+
+export interface ParamValueMessage {
+  paramId: string;        // Parameter name (16 chars max)
+  paramValue: number;     // Parameter value (float)
+  paramType: number;      // Parameter type (MAV_PARAM_TYPE)
+  paramCount: number;     // Total number of parameters
+  paramIndex: number;     // Index of this parameter
+}

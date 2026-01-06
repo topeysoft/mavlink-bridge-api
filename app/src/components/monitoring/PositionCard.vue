@@ -1,23 +1,31 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import Card from '@/components/common/Card.vue'
+import { useGpsStore } from '@/stores/gps'
+import { useCompassStore } from '@/stores/compass'
 
-interface Position {
-  latitude: number
-  longitude: number
-  altitude: number
-  speed: number
-  heading: number
-  distanceToHome: number
-}
+const gpsStore = useGpsStore()
+const compassStore = useCompassStore()
 
-const position = ref<Position>({
-  latitude: 40.7128,
-  longitude: -74.0060,
-  altitude: 15,
-  speed: 2.3,
-  heading: 45,
-  distanceToHome: 12.5
+// Subscriptions
+let compassUnsub: (() => void) | undefined
+
+// Computed position values from real data
+const position = computed(() => ({
+  latitude: gpsStore.gpsInfo.latitude || 0,
+  longitude: gpsStore.gpsInfo.longitude || 0,
+  altitude: gpsStore.gpsInfo.altitude || 0,
+  speed: gpsStore.gpsInfo.speed || 0,
+  heading: Math.round(compassStore.heading),
+  distanceToHome: 0 // TODO: Calculate from home position
+}))
+
+onMounted(() => {
+  compassUnsub = compassStore.setupSubscription()
+})
+
+onUnmounted(() => {
+  if (compassUnsub) compassUnsub()
 })
 </script>
 

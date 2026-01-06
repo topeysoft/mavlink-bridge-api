@@ -283,7 +283,7 @@ function isThresholdExceeded(type: string): boolean {
 .btn-secondary {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-md);
   padding: 8px 16px;
   border-radius: 6px;
   border: none;
@@ -295,6 +295,7 @@ function isThresholdExceeded(type: string): boolean {
   svg {
     width: 18px;
     height: 18px;
+    flex-shrink: 0;
   }
 
   &:disabled {
@@ -304,39 +305,43 @@ function isThresholdExceeded(type: string): boolean {
 }
 
 .btn-primary {
-  background: $primary;
+  background: var(--primary-green);
   color: white;
 
   &:hover:not(:disabled) {
-    background: darken($primary, 5%);
+    background: var(--primary-green-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
   }
 }
 
 .btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 
   &:hover:not(:disabled) {
-    background: #e5e7eb;
+    background: var(--bg-secondary);
+    border-color: var(--text-secondary);
   }
 }
 
 .card {
-  background: white;
+  background: var(--bg-primary);
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
   margin-bottom: 20px;
 }
 
 .card-header {
   padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-color);
 
   h3 {
     margin: 0;
     font-size: 18px;
     font-weight: 600;
-    color: #111827;
+    color: var(--text-primary);
   }
 }
 

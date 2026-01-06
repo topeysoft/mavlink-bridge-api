@@ -54,11 +54,14 @@ const formatLastSync = computed(() => {
 
 // Actions
 async function handleRefresh() {
-  const isSuccess = await parametersStore.loadParametersFromVehicle()
-  if (isSuccess) {
-    success(`Loaded ${parametersStore.parameterCount} parameters`)
-  } else {
-    error('Failed to load parameters from vehicle')
+  try {
+    const isSuccess = await parametersStore.loadParametersFromVehicle()
+    if (isSuccess) {
+      success(`Loaded ${parametersStore.parameterCount} parameters from vehicle`)
+    }
+  } catch (err) {
+    console.error('Failed to load parameters:', err)
+    error(`Failed to load parameters: ${err instanceof Error ? err.message : 'Unknown error'}`)
   }
 }
 
@@ -172,11 +175,10 @@ async function handleFileSelected(event: Event) {
   target.value = ''
 }
 
-// Load parameters on mount
+// Don't auto-load parameters on mount - wait for user to click refresh
+// This prevents unnecessary loading and allows streaming to handle updates
 onMounted(() => {
-  if (parametersStore.parameterCount === 0) {
-    handleRefresh()
-  }
+  console.log('Parameters view mounted with', parametersStore.parameterCount, 'parameters')
 })
 </script>
 

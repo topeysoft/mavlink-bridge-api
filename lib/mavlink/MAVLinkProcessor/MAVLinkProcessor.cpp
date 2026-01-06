@@ -107,12 +107,64 @@ std::vector<MAVLinkMessage> MAVLinkProcessor::processData(const uint8_t *data, s
                     messageCallback(wrappedMessage);
                 }
 
-                // Publish event
-                DynamicJsonDocument payloadDoc(256);
+                // Publish event with base64-encoded payload
+                DynamicJsonDocument payloadDoc(512);  // Increased size for base64 data
                 payloadDoc["messageId"] = (int)message.msgid;
                 payloadDoc["systemId"] = (int)message.sysid;
                 payloadDoc["componentId"] = (int)message.compid;
                 payloadDoc["length"] = (int)message.len;
+
+                // Encode payload to base64 for transmission
+                // Base64 encoding: 4 chars per 3 bytes, so max ~340 chars for 255 byte payload
+                char base64Buffer[400];
+                size_t base64Len = 0;
+
+                // Simple base64 encode - ESP32 doesn't have built-in, use manual encoding
+                const char* b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+                size_t i = 0, j = 0;
+                uint8_t a3[3], a4[4];
+
+                // Cast payload64 array to uint8_t* to access raw bytes
+                const uint8_t* payload = reinterpret_cast<const uint8_t*>(message.payload64);
+                size_t payloadLen = message.len;
+
+                while (payloadLen--) {
+                    a3[i++] = *(payload++);
+                    if (i == 3) {
+                        a4[0] = (a3[0] & 0xfc) >> 2;
+                        a4[1] = ((a3[0] & 0x03) << 4) + ((a3[1] & 0xf0) >> 4);
+                        a4[2] = ((a3[1] & 0x0f) << 2) + ((a3[2] & 0xc0) >> 6);
+                        a4[3] = a3[2] & 0x3f;
+
+                        for (i = 0; i < 4; i++) {
+                            base64Buffer[j++] = b64chars[a4[i]];
+                        }
+                        i = 0;
+                    }
+                }
+
+                if (i) {
+                    for (size_t k = i; k < 3; k++) {
+                        a3[k] = '\0';
+                    }
+
+                    a4[0] = (a3[0] & 0xfc) >> 2;
+                    a4[1] = ((a3[0] & 0x03) << 4) + ((a3[1] & 0xf0) >> 4);
+                    a4[2] = ((a3[1] & 0x0f) << 2) + ((a3[2] & 0xc0) >> 6);
+
+                    for (size_t k = 0; k < i + 1; k++) {
+                        base64Buffer[j++] = b64chars[a4[k]];
+                    }
+
+                    while (i++ < 3) {
+                        base64Buffer[j++] = '=';
+                    }
+                }
+
+                base64Buffer[j] = '\0';
+                base64Len = j;
+
+                payloadDoc["data"] = base64Buffer;
                 EventManager::getInstance()->publish(EventType::MAVLINK_MESSAGE, payloadDoc.as<JsonObjectConst>());
             }
 
@@ -490,8 +542,17 @@ void MAVLinkProcessor::logStatistics()
             case 1:
                 msgName = "SYS_STATUS";
                 break;
+            case 2:
+                msgName = "SYSTEM_TIME";
+                break;
             case 24:
                 msgName = "GPS_RAW_INT";
+                break;
+            case 27:
+                msgName = "RAW_IMU";
+                break;
+            case 29:
+                msgName = "SCALED_PRESSURE";
                 break;
             case 30:
                 msgName = "ATTITUDE";
@@ -499,8 +560,29 @@ void MAVLinkProcessor::logStatistics()
             case 33:
                 msgName = "GLOBAL_POSITION_INT";
                 break;
+            case 34:
+                msgName = "RC_CHANNELS_SCALED";
+                break;
+            case 36:
+                msgName = "SERVO_OUTPUT_RAW";
+                break;
+            case 42:
+                msgName = "MISSION_CURRENT";
+                break;
+            case 65:
+                msgName = "RC_CHANNELS";
+                break;
             case 74:
                 msgName = "VFR_HUD";
+                break;
+            case 111:
+                msgName = "TIMESYNC";
+                break;
+            case 125:
+                msgName = "POWER_STATUS";
+                break;
+            case 147:
+                msgName = "BATTERY_STATUS";
                 break;
             case 241:
                 msgName = "VIBRATION";

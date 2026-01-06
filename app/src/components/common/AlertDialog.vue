@@ -140,7 +140,7 @@ watch(() => props.modelValue, async (isOpen) => {
 }
 
 .dialog-info .dialog-icon {
-  color: var(--primary);
+  color: var(--primary-green);
 }
 
 .dialog-content {
@@ -172,7 +172,7 @@ watch(() => props.modelValue, async (isOpen) => {
 
 .btn {
   padding: var(--spacing-sm) var(--spacing-xl);
-  border-radius: var(--border-radius);
+  border-radius: var(--radius-md);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -181,17 +181,23 @@ watch(() => props.modelValue, async (isOpen) => {
   min-width: 100px;
 
   &:focus {
-    outline: 2px solid var(--primary);
+    outline: 2px solid var(--primary-green);
     outline-offset: 2px;
   }
 }
 
 .btn-primary {
-  background: var(--primary);
+  background: var(--primary-green);
   color: white;
 
   &:hover {
-    background: var(--primary-dark);
+    background: var(--primary-green-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 }
 

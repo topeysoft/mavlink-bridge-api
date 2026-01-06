@@ -284,12 +284,18 @@ const handleClearLocation = async () => {
 
 .btn-danger-outline {
   background: transparent;
-  color: #dc3545;
-  border: 1px solid #dc3545;
+  color: var(--status-danger);
+  border: 2px solid var(--status-danger);
 
   &:hover:not(:disabled) {
-    background: #dc3545;
+    background: var(--status-danger);
     color: white;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
 }
 </style>

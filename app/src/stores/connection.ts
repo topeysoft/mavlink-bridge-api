@@ -1,8 +1,27 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { createClient, discoverDevices, type MAVLinkBridgeClient, type MAVLinkBridgeDevice, MAVLinkMessageType, type BatteryStatusMessage, type GpsRawIntMessage, type GlobalPositionIntMessage } from '@mavlinkbridge/api-client'
+import {
+  createClient,
+  discoverDevices,
+  type MAVLinkBridgeClient,
+  type MAVLinkBridgeDevice,
+  MAVLinkMessageType,
+  type BatteryStatusMessage,
+  type GpsRawIntMessage,
+  type GlobalPositionIntMessage,
+  type ScaledImuMessage,
+  type RawImuMessage,
+  type HighResImuMessage,
+  type AttitudeMessage,
+  type HeartbeatMessage,
+  type ParamValueMessage,
+  MAVLinkDecoder
+} from '@mavlinkbridge/api-client'
 import { useBatteryStore } from './battery'
 import { useGpsStore } from './gps'
+import { useImuStore } from './imu'
+import { useCompassStore } from './compass'
+import { useVehicleStore } from './vehicle'
 
 export interface SavedDevice {
   id: string
@@ -39,6 +58,9 @@ export const useConnectionStore = defineStore('connection', () => {
   const connectionError = ref<string | null>(null)
   const lastConnectionTime = ref<string | null>(connectionData?.timestamp || null)
   const autoReconnectAttempted = ref(false)
+
+  // MAVLink decoder with support for message truncation
+  const mavlinkDecoder = new MAVLinkDecoder()
 
   // Computed
   const hasClient = computed(() => client.value !== null)
@@ -110,9 +132,8 @@ export const useConnectionStore = defineStore('connection', () => {
       currentDeviceName.value = deviceName || config.device.name || 'YardRover Device'
       lastConnectionTime.value = new Date().toISOString()
 
-      // Subscribe to battery and GPS telemetry
-      setupBatterySubscription(newClient)
-      setupGpsSubscription(newClient)
+      // Subscribe to all telemetry data
+      setupTelemetrySubscriptions(newClient)
 
       // Persist current connection to localStorage
       const connectionData: PersistedConnection = {
@@ -287,63 +308,243 @@ export const useConnectionStore = defineStore('connection', () => {
   }
 
   /**
-   * Setup battery telemetry subscription
+   * Setup all telemetry subscriptions using MAVLinkDecoder
    */
-  function setupBatterySubscription(clientInstance: MAVLinkBridgeClient): void {
+  function setupTelemetrySubscriptions(clientInstance: MAVLinkBridgeClient): void {
     const batteryStore = useBatteryStore()
+    const gpsStore = useGpsStore()
+    const imuStore = useImuStore()
+    const compassStore = useCompassStore()
+    const vehicleStore = useVehicleStore()
 
-    // Start battery monitoring
+    // Start monitoring in all stores
     batteryStore.startMonitoring()
+    gpsStore.startMonitoring()
 
-    // Subscribe to BATTERY_STATUS messages (ID: 147)
+    // Critical messages that we need for telemetry display
+    const criticalMessages = new Set([
+      MAVLinkMessageType.HEARTBEAT,
+      MAVLinkMessageType.ATTITUDE,
+      MAVLinkMessageType.GPS_RAW_INT,
+      MAVLinkMessageType.GLOBAL_POSITION_INT,
+      MAVLinkMessageType.BATTERY_STATUS,
+      MAVLinkMessageType.SCALED_IMU,
+      MAVLinkMessageType.RAW_IMU,
+      MAVLinkMessageType.HIGHRES_IMU
+    ])
+
+    // Subscribe to MAVLink messages and decode them
     clientInstance.communication.onMAVLinkMessage((message) => {
-      if (message.messageId === MAVLinkMessageType.BATTERY_STATUS) {
-        const batteryMsg = message.payload as BatteryStatusMessage
-
-        // Calculate total voltage from cell voltages
-        const totalVoltage = batteryMsg.voltages
-          .filter(v => v !== 65535) // Filter out invalid cells (65535 = 0xFFFF = not used)
-          .reduce((sum, v) => sum + v / 1000, 0) // Convert mV to V
-
-        // Current in A (negative for charging, positive for discharging)
-        const current = batteryMsg.currentBattery / 100 // Convert cA to A
-
-        // Battery percentage
-        const percent = batteryMsg.batteryRemaining
-
-        // Temperature in Celsius (convert from centi-degrees)
-        const temperature = batteryMsg.temperature / 100
-
-        // Update battery store with real data
-        batteryStore.updateBatteryState(
-          totalVoltage > 0 ? totalVoltage : batteryMsg.voltages[0] / 1000, // Fallback to first cell if total is 0
-          current,
-          percent,
-          temperature
+      // Decode the message using MAVLinkDecoder
+      let decoded
+      try {
+        decoded = mavlinkDecoder.decode(
+          message.messageId,
+          message.systemId,
+          message.componentId,
+          message.payload
         )
+      } catch (error) {
+        // Only warn about critical messages that failed to decode
+        if (criticalMessages.has(message.messageId)) {
+          console.warn(`Failed to decode critical MAVLink message ${message.messageId}:`, error)
+        }
+        // Skip this message
+        return
+      }
+
+      if (!decoded) {
+        // Message type not supported by decoder, skip silently
+        return
+      }
+
+      // Route decoded messages to appropriate stores
+      switch (decoded.messageId) {
+        case MAVLinkMessageType.HEARTBEAT:
+          {
+            const heartbeat = decoded.data as HeartbeatMessage
+            // Update vehicle armed/mode state
+            vehicleStore.updateVehicleState({
+              armed: (heartbeat.baseMode & 0x80) !== 0, // MAV_MODE_FLAG_SAFETY_ARMED
+              mode: getFlightModeFromCustomMode(heartbeat.customMode)
+            })
+          }
+          break
+
+        case MAVLinkMessageType.BATTERY_STATUS:
+          {
+            const batteryMsg = decoded.data as BatteryStatusMessage
+
+            // Calculate total voltage from cell voltages
+            const totalVoltage = batteryMsg.voltages
+              .filter(v => v !== 65535) // Filter out invalid cells (65535 = 0xFFFF = not used)
+              .reduce((sum, v) => sum + v / 1000, 0) // Convert mV to V
+
+            // Current in A (negative for charging, positive for discharging)
+            const current = batteryMsg.currentBattery / 100 // Convert cA to A
+
+            // Battery percentage
+            const percent = batteryMsg.batteryRemaining
+
+            // Temperature in Celsius (convert from centi-degrees)
+            const temperature = batteryMsg.temperature / 100
+
+            // Update battery store with real data
+            batteryStore.updateBatteryState(
+              totalVoltage > 0 ? totalVoltage : batteryMsg.voltages[0] / 1000, // Fallback to first cell if total is 0
+              current,
+              percent,
+              temperature
+            )
+          }
+          break
+
+        case MAVLinkMessageType.GPS_RAW_INT:
+          {
+            const gpsMsg = decoded.data as GpsRawIntMessage
+            gpsStore.updateFromGpsRawInt(gpsMsg)
+          }
+          break
+
+        case MAVLinkMessageType.GLOBAL_POSITION_INT:
+          {
+            const posMsg = decoded.data as GlobalPositionIntMessage
+            gpsStore.updateFromGlobalPositionInt(posMsg)
+          }
+          break
+
+        case MAVLinkMessageType.ATTITUDE:
+          {
+            const attitudeMsg = decoded.data as AttitudeMessage
+            // Update compass store with attitude data
+            compassStore.updateAttitudeData({
+              timestamp: Date.now(),
+              roll: attitudeMsg.roll,
+              pitch: attitudeMsg.pitch,
+              yaw: attitudeMsg.yaw,
+              rollspeed: attitudeMsg.rollspeed,
+              pitchspeed: attitudeMsg.pitchspeed,
+              yawspeed: attitudeMsg.yawspeed
+            })
+          }
+          break
+
+        case MAVLinkMessageType.SCALED_IMU:
+          {
+            const imuMsg = decoded.data as ScaledImuMessage
+            // Convert from milli-g to m/s^2 for acceleration
+            // Convert from milli-rad/s to rad/s for gyro
+            imuStore.updateIMUData({
+              timestamp: Date.now(),
+              acceleration: {
+                x: (imuMsg.xacc / 1000) * 9.81,
+                y: (imuMsg.yacc / 1000) * 9.81,
+                z: (imuMsg.zacc / 1000) * 9.81
+              },
+              gyro: {
+                x: imuMsg.xgyro / 1000,
+                y: imuMsg.ygyro / 1000,
+                z: imuMsg.zgyro / 1000
+              },
+              magnetometer: {
+                x: imuMsg.xmag,
+                y: imuMsg.ymag,
+                z: imuMsg.zmag
+              },
+              temperature: imuMsg.temperature !== undefined ? imuMsg.temperature / 100 : undefined
+            })
+          }
+          break
+
+        case MAVLinkMessageType.RAW_IMU:
+          {
+            const imuMsg = decoded.data as RawImuMessage
+            // Raw IMU values are in raw sensor units, convert to standard units
+            imuStore.updateIMUData({
+              timestamp: Date.now(),
+              acceleration: {
+                x: (imuMsg.xacc / 1000) * 9.81,
+                y: (imuMsg.yacc / 1000) * 9.81,
+                z: (imuMsg.zacc / 1000) * 9.81
+              },
+              gyro: {
+                x: imuMsg.xgyro / 1000,
+                y: imuMsg.ygyro / 1000,
+                z: imuMsg.zgyro / 1000
+              },
+              magnetometer: {
+                x: imuMsg.xmag,
+                y: imuMsg.ymag,
+                z: imuMsg.zmag
+              },
+              temperature: imuMsg.temperature !== undefined ? imuMsg.temperature / 100 : undefined
+            })
+          }
+          break
+
+        case MAVLinkMessageType.HIGHRES_IMU:
+          {
+            const imuMsg = decoded.data as HighResImuMessage
+            // High-res IMU provides data in standard units already
+            imuStore.updateIMUData({
+              timestamp: Date.now(),
+              acceleration: {
+                x: imuMsg.xacc,
+                y: imuMsg.yacc,
+                z: imuMsg.zacc
+              },
+              gyro: {
+                x: imuMsg.xgyro,
+                y: imuMsg.ygyro,
+                z: imuMsg.zgyro
+              },
+              magnetometer: {
+                x: imuMsg.xmag,
+                y: imuMsg.ymag,
+                z: imuMsg.zmag
+              },
+              temperature: imuMsg.temperature
+            })
+          }
+          break
+
+        case MAVLinkMessageType.PARAM_VALUE:
+          {
+            const paramMsg = decoded.data as ParamValueMessage
+            // Forward parameter to the parameter client for caching
+            if (clientInstance && clientInstance.parameters) {
+              // Update the parameter cache directly
+              clientInstance.parameters['updateCacheParameter'](
+                paramMsg.paramId,
+                paramMsg.paramValue,
+                paramMsg.paramType === 1 ? 'int' : 'float',
+                Date.now()
+              )
+              console.log(`📦 Received parameter: ${paramMsg.paramId} = ${paramMsg.paramValue} (${paramMsg.paramIndex + 1}/${paramMsg.paramCount})`)
+            }
+          }
+          break
       }
     })
   }
 
   /**
-   * Setup GPS telemetry subscription
+   * Convert MAVLink custom mode to flight mode string
+   * Based on ArduRover mode numbers
    */
-  function setupGpsSubscription(clientInstance: MAVLinkBridgeClient): void {
-    const gpsStore = useGpsStore()
-
-    // Start GPS monitoring
-    gpsStore.startMonitoring()
-
-    // Subscribe to GPS_RAW_INT and GLOBAL_POSITION_INT messages
-    clientInstance.communication.onMAVLinkMessage((message) => {
-      if (message.messageId === MAVLinkMessageType.GPS_RAW_INT) {
-        const gpsMsg = message.payload as GpsRawIntMessage
-        gpsStore.updateFromGpsRawInt(gpsMsg)
-      } else if (message.messageId === MAVLinkMessageType.GLOBAL_POSITION_INT) {
-        const posMsg = message.payload as GlobalPositionIntMessage
-        gpsStore.updateFromGlobalPositionInt(posMsg)
-      }
-    })
+  function getFlightModeFromCustomMode(customMode: number): string {
+    const modeMap: Record<number, string> = {
+      0: 'MANUAL',
+      1: 'ACRO',
+      3: 'STEERING',
+      4: 'HOLD',
+      10: 'AUTO',
+      11: 'RTL',
+      12: 'SMART_RTL',
+      15: 'GUIDED',
+      16: 'INITIALIZING'
+    }
+    return modeMap[customMode] || 'HOLD'
   }
 
   return {

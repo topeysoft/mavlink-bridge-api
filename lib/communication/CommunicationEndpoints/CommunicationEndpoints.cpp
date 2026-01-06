@@ -43,26 +43,51 @@ void CommunicationEndpoints::setupEndpoints(AsyncWebServer& server) {
     
     heapAfterInterface = ESP.getFreeHeap();
     ESP_LOGI(TAG, "After interface endpoints, free heap: %zu bytes", heapAfterInterface);
-    
+
+    // Parameter management endpoints (critical - always register)
+    ESP_LOGI(TAG, "Registering parameter endpoints...");
+    server.on("/api/mavlink/parameters/stream", HTTP_GET, handleParameterStream);
+
+    // Register POST endpoints with body handlers
+    server.on("/api/mavlink/parameters/request", HTTP_POST, handleRequestParameters, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index == 0) request->_tempObject = malloc(total + 1);
+            if (request->_tempObject) {
+                memcpy((uint8_t*)request->_tempObject + index, data, len);
+                if (index + len == total) ((uint8_t*)request->_tempObject)[total] = '\0';
+            }
+        });
+
+    server.on("/api/mavlink/parameters/set", HTTP_POST, handleSetParameter, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index == 0) request->_tempObject = malloc(total + 1);
+            if (request->_tempObject) {
+                memcpy((uint8_t*)request->_tempObject + index, data, len);
+                if (index + len == total) ((uint8_t*)request->_tempObject)[total] = '\0';
+            }
+        });
+
+    server.on("/api/mavlink/parameters/list", HTTP_POST, handleRequestParameterList, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index == 0) request->_tempObject = malloc(total + 1);
+            if (request->_tempObject) {
+                memcpy((uint8_t*)request->_tempObject + index, data, len);
+                if (index + len == total) ((uint8_t*)request->_tempObject)[total] = '\0';
+            }
+        });
+
     // MAVLink endpoints
     if (ESP.getFreeHeap() < 1536) {
         ESP_LOGW(TAG, "Low memory, skipping MAVLink endpoints");
         goto minimal_endpoints;
     }
-    
+
     ESP_LOGI(TAG, "Registering MAVLink endpoints...");
     server.on("/api/communication/mavlink/processing", HTTP_POST, handleSetMAVLinkProcessing);
     server.on("/api/communication/mavlink/filter", HTTP_GET, handleGetMAVLinkFilter);
     server.on("/api/communication/mavlink/filter", HTTP_POST, handleSetMAVLinkFilter);
     server.on("/api/communication/mavlink/filter", HTTP_DELETE, handleClearMAVLinkFilter);
     server.on("/api/mavlink/command", HTTP_POST, handleSendMAVLinkCommand);
-    
-    // Parameter management endpoints
-    ESP_LOGI(TAG, "Registering parameter endpoints...");
-    server.on("/api/mavlink/parameters/stream", HTTP_GET, handleParameterStream);
-    server.on("/api/mavlink/parameters/request", HTTP_POST, handleRequestParameters);
-    server.on("/api/mavlink/parameters/set", HTTP_POST, handleSetParameter);
-    server.on("/api/mavlink/parameters/list", HTTP_POST, handleRequestParameterList);
     
     // Data and control endpoints
     if (ESP.getFreeHeap() < 1024) {
@@ -637,20 +662,32 @@ DataRouter::RoutingMode CommunicationEndpoints::stringToRoutingMode(const String
 }
 
 bool CommunicationEndpoints::validateJsonRequest(AsyncWebServerRequest* request, DynamicJsonDocument& doc) {
-    if (!request->hasParam("plain", true)) {
-        return false;
+    // First try the "plain" parameter (set by HttpServer's onRequestBody handler)
+    if (request->hasParam("plain", true)) {
+        String body = request->getParam("plain", true)->value();
+        DeserializationError error = deserializeJson(doc, body);
+        return error == DeserializationError::Ok;
     }
-    
-    String body = request->getParam("plain", true)->value();
-    DeserializationError error = deserializeJson(doc, body);
-    
-    return error == DeserializationError::Ok;
+
+    // If no "plain" parameter, check if there's a body stored in _tempObject
+    // This is set by AsyncWebServer's body callback
+    if (request->_tempObject != NULL) {
+        String body = String((char*)request->_tempObject);
+        DeserializationError error = deserializeJson(doc, body);
+        return error == DeserializationError::Ok;
+    }
+
+    return false;
 }
 
 void CommunicationEndpoints::sendJsonResponse(AsyncWebServerRequest* request, const DynamicJsonDocument& doc, int statusCode) {
     String response;
     serializeJson(doc, response);
-    request->send(statusCode, "application/json", response);
+    AsyncWebServerResponse* asyncResponse = request->beginResponse(statusCode, "application/json", response);
+    asyncResponse->addHeader("Access-Control-Allow-Origin", "*");
+    asyncResponse->addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+    asyncResponse->addHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    request->send(asyncResponse);
 }
 
 void CommunicationEndpoints::sendErrorResponse(AsyncWebServerRequest* request, const String& message, int statusCode) {
@@ -815,11 +852,21 @@ void CommunicationEndpoints::handleParameterStream(AsyncWebServerRequest* reques
 
 void CommunicationEndpoints::handleRequestParameters(AsyncWebServerRequest* request) {
     ESP_LOGI(TAG, "📋 Processing parameter request");
-    
+
     DynamicJsonDocument doc(512);
     if (!validateJsonRequest(request, doc)) {
+        if (request->_tempObject) {
+            free(request->_tempObject);
+            request->_tempObject = NULL;
+        }
         sendErrorResponse(request, "Invalid JSON in request body");
         return;
+    }
+
+    // Free the temp object after parsing
+    if (request->_tempObject) {
+        free(request->_tempObject);
+        request->_tempObject = NULL;
     }
     
     uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;
@@ -893,13 +940,23 @@ void CommunicationEndpoints::handleRequestParameters(AsyncWebServerRequest* requ
 
 void CommunicationEndpoints::handleSetParameter(AsyncWebServerRequest* request) {
     ESP_LOGI(TAG, "✏️ Processing parameter set request");
-    
+
     DynamicJsonDocument doc(512);
     if (!validateJsonRequest(request, doc)) {
+        if (request->_tempObject) {
+            free(request->_tempObject);
+            request->_tempObject = NULL;
+        }
         sendErrorResponse(request, "Invalid JSON in request body");
         return;
     }
-    
+
+    // Free the temp object after parsing
+    if (request->_tempObject) {
+        free(request->_tempObject);
+        request->_tempObject = NULL;
+    }
+
     if (!doc.containsKey("parameterName") || !doc.containsKey("value")) {
         sendErrorResponse(request, "Missing required fields: 'parameterName' and 'value'");
         return;
@@ -953,11 +1010,21 @@ void CommunicationEndpoints::handleSetParameter(AsyncWebServerRequest* request) 
 
 void CommunicationEndpoints::handleRequestParameterList(AsyncWebServerRequest* request) {
     ESP_LOGI(TAG, "📋 Processing parameter list request");
-    
+
     DynamicJsonDocument doc(256);
     if (!validateJsonRequest(request, doc)) {
+        if (request->_tempObject) {
+            free(request->_tempObject);
+            request->_tempObject = NULL;
+        }
         sendErrorResponse(request, "Invalid JSON in request body");
         return;
+    }
+
+    // Free the temp object after parsing
+    if (request->_tempObject) {
+        free(request->_tempObject);
+        request->_tempObject = NULL;
     }
     
     uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;

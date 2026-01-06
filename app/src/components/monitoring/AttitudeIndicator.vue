@@ -1,11 +1,51 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import Card from '@/components/common/Card.vue'
+import { useCompassStore } from '@/stores/compass'
 
-const attitude = ref({
-  pitch: -2,
-  roll: 0.5,
-  heading: 45
+const compassStore = useCompassStore()
+
+// Subscriptions
+let compassUnsub: (() => void) | undefined
+
+// Computed attitude values
+const attitude = computed(() => {
+  // Get attitude data from compass store (which receives ATTITUDE messages)
+  const attitudeData = compassStore.attitudeData
+
+  if (!attitudeData) {
+    return {
+      pitch: 0,
+      roll: 0,
+      heading: Math.round(compassStore.heading)
+    }
+  }
+
+  // Convert radians to degrees
+  return {
+    pitch: (attitudeData.pitch * 180 / Math.PI),
+    roll: (attitudeData.roll * 180 / Math.PI),
+    heading: Math.round(compassStore.heading)
+  }
+})
+
+// Computed transform for horizon based on pitch and roll
+const horizonTransform = computed(() => {
+  const pitch = attitude.value.pitch
+  const roll = attitude.value.roll
+
+  // Translate Y based on pitch (positive pitch = nose up = horizon moves down)
+  const translateY = pitch * 2 // Scale factor for visual effect
+
+  return `translate(0, ${translateY}) rotate(${roll})`
+})
+
+onMounted(() => {
+  compassUnsub = compassStore.setupSubscription()
+})
+
+onUnmounted(() => {
+  if (compassUnsub) compassUnsub()
 })
 </script>
 
@@ -14,14 +54,22 @@ const attitude = ref({
     <div class="attitude-container">
       <div class="attitude-display">
         <svg viewBox="-100 -100 200 200" class="attitude-svg">
-          <!-- Sky -->
-          <rect x="-100" y="-100" width="200" height="100" :fill="'#4299e1'" />
-          <!-- Ground -->
-          <rect x="-100" y="0" width="200" height="100" :fill="'#805ad5'" />
-          <!-- Horizon line -->
-          <line x1="-100" y1="0" x2="100" y2="0" stroke="white" stroke-width="2" />
+          <!-- Animated horizon group -->
+          <g :transform="horizonTransform">
+            <!-- Sky -->
+            <rect x="-100" y="-200" width="200" height="200" fill="#4299e1" />
+            <!-- Ground -->
+            <rect x="-100" y="0" width="200" height="200" fill="#805ad5" />
+            <!-- Horizon line -->
+            <line x1="-150" y1="0" x2="150" y2="0" stroke="white" stroke-width="2" />
+            <!-- Pitch ladder marks -->
+            <line x1="-30" y1="-20" x2="30" y2="-20" stroke="white" stroke-width="1" opacity="0.7" />
+            <line x1="-30" y1="-40" x2="30" y2="-40" stroke="white" stroke-width="1" opacity="0.7" />
+            <line x1="-30" y1="20" x2="30" y2="20" stroke="white" stroke-width="1" opacity="0.7" />
+            <line x1="-30" y1="40" x2="30" y2="40" stroke="white" stroke-width="1" opacity="0.7" />
+          </g>
 
-          <!-- Center marker -->
+          <!-- Center marker (fixed) -->
           <g>
             <line x1="-30" y1="0" x2="-10" y2="0" stroke="yellow" stroke-width="3" />
             <line x1="10" y1="0" x2="30" y2="0" stroke="yellow" stroke-width="3" />
@@ -70,6 +118,10 @@ const attitude = ref({
 .attitude-svg {
   width: 100%;
   height: 100%;
+
+  g {
+    transition: transform 0.3s ease-out;
+  }
 }
 
 .attitude-values {

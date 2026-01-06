@@ -1,18 +1,33 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import Card from '@/components/common/Card.vue'
 import { useGpsStore } from '@/stores/gps'
 import { useBatteryStore } from '@/stores/battery'
+import { useImuStore } from '@/stores/imu'
 
 const gpsStore = useGpsStore()
 const batteryStore = useBatteryStore()
+const imuStore = useImuStore()
+
+// Subscriptions
+let imuUnsub: (() => void) | undefined
 
 const telemetry = computed(() => ({
   speed: gpsStore.gpsInfo.speed,
   battery: Math.round(batteryStore.batteryInfo.percent),
   satellites: gpsStore.gpsInfo.satellites,
-  hdop: gpsStore.gpsInfo.hdop
+  hdop: gpsStore.gpsInfo.hdop,
+  vibration: Math.round(imuStore.vibrationLevel * 100),
+  tilt: Math.round(imuStore.tiltAngle)
 }))
+
+onMounted(() => {
+  imuUnsub = imuStore.setupSubscription()
+})
+
+onUnmounted(() => {
+  if (imuUnsub) imuUnsub()
+})
 </script>
 
 <template>
@@ -73,6 +88,26 @@ const telemetry = computed(() => ({
         <div class="telemetry-value">{{ telemetry.hdop.toFixed(1) }}</div>
         <div class="quality-indicator" :class="telemetry.hdop < 2 ? 'excellent' : 'good'">
           {{ telemetry.hdop < 2 ? 'Excellent' : 'Good' }}
+        </div>
+      </div>
+
+      <div class="telemetry-item">
+        <div class="telemetry-label">Vibration</div>
+        <div class="telemetry-value">{{ telemetry.vibration }}<span class="unit">%</span></div>
+        <div class="vibration-bar">
+          <div class="vibration-fill" :style="{ width: telemetry.vibration + '%' }" :class="{
+            'low': telemetry.vibration < 30,
+            'medium': telemetry.vibration >= 30 && telemetry.vibration < 70,
+            'high': telemetry.vibration >= 70
+          }"></div>
+        </div>
+      </div>
+
+      <div class="telemetry-item">
+        <div class="telemetry-label">Tilt Angle</div>
+        <div class="telemetry-value">{{ telemetry.tilt }}<span class="unit">°</span></div>
+        <div class="quality-indicator" :class="telemetry.tilt < 15 ? 'excellent' : telemetry.tilt < 30 ? 'good' : 'warning'">
+          {{ telemetry.tilt < 15 ? 'Level' : telemetry.tilt < 30 ? 'Tilted' : 'Warning' }}
         </div>
       </div>
     </div>
@@ -203,6 +238,35 @@ const telemetry = computed(() => ({
   &.good {
     background: rgba(66, 153, 225, 0.1);
     color: var(--status-info);
+  }
+
+  &.warning {
+    background: rgba(237, 137, 54, 0.1);
+    color: var(--status-warning);
+  }
+}
+
+.vibration-bar {
+  height: 30px;
+  background: var(--bg-tertiary);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+.vibration-fill {
+  height: 100%;
+  transition: width 0.3s ease, background 0.3s ease;
+
+  &.low {
+    background: var(--status-success);
+  }
+
+  &.medium {
+    background: var(--status-warning);
+  }
+
+  &.high {
+    background: var(--status-danger);
   }
 }
 </style>

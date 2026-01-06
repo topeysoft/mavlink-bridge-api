@@ -50,7 +50,7 @@ const props = withDefaults(defineProps<Props>(), {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
   padding: var(--spacing-sm) var(--spacing-lg);
   border: none;
   border-radius: var(--border-radius);
@@ -94,11 +94,17 @@ const props = withDefaults(defineProps<Props>(), {
 }
 
 .btn-danger {
-  background: var(--status-error);
+  background: var(--status-danger);
   color: white;
 
   &:not(:disabled):hover {
-    opacity: 0.9;
+    filter: brightness(0.9);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:not(:disabled):active {
+    transform: translateY(0);
   }
 }
 
@@ -107,7 +113,13 @@ const props = withDefaults(defineProps<Props>(), {
   color: white;
 
   &:not(:disabled):hover {
-    opacity: 0.9;
+    filter: brightness(0.9);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:not(:disabled):active {
+    transform: translateY(0);
   }
 }
 
@@ -119,6 +131,12 @@ const props = withDefaults(defineProps<Props>(), {
   &:not(:disabled):hover {
     background: var(--primary-green);
     color: white;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:not(:disabled):active {
+    transform: translateY(0);
   }
 }
 
@@ -153,16 +171,24 @@ const props = withDefaults(defineProps<Props>(), {
 .btn-content {
   display: inline-flex;
   align-items: center;
+  gap: var(--spacing-md);
+
+  svg {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+  }
 }
 
 .spinner {
   position: absolute;
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
+  border: 2px solid;
+  border-color: currentColor transparent currentColor transparent;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+  opacity: 0.7;
 }
 
 @keyframes spin {

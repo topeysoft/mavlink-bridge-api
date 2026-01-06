@@ -412,6 +412,7 @@ function formatBattery(voltage: number, percent: number): string {
   height: auto;
   padding: var(--spacing-lg);
   justify-content: flex-start;
+  gap: var(--spacing-md);
 
   svg {
     width: 24px;
