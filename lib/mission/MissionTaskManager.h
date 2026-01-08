@@ -68,7 +68,7 @@ private:
     
     // MAVLink integration
     MAVLinkProcessor* mavlinkProcessor;
-    std::function<void(const mavlink_message_t&)> messageCallback;
+    std::function<void(const MAVLinkMessage&)> messageCallback;
     
     // Event callbacks
     std::function<void(const String&, TaskStatus, TaskStatus)> taskStatusChangeCallback;

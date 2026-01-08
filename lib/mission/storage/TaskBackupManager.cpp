@@ -1,6 +1,7 @@
 #include "TaskBackupManager.h"
 #include <esp_log.h>
 #include <esp_system.h>
+#include <esp_mac.h>
 #include <LittleFS.h>
 
 static const char* TAG = "TaskBackupManager";
@@ -251,7 +252,7 @@ TaskStorageResult TaskBackupManager::importTasksFromFile(const String& filePath,
         return TaskStorageResult::CORRUPTION_DETECTED;
     }
     
-    if (header.magic != 0xBACKUP01) {
+    if (header.magic != 0xBAC0B01) {
         file.close();
         return TaskStorageResult::CORRUPTION_DETECTED;
     }
@@ -286,7 +287,7 @@ TaskStorageResult TaskBackupManager::validateBackupFile(const String& filePath, 
     
     file.close();
     
-    if (header.magic != 0xBACKUP01) {
+    if (header.magic != 0xBAC0B01) {
         return TaskStorageResult::CORRUPTION_DETECTED;
     }
     

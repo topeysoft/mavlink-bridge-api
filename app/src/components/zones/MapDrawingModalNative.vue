@@ -154,7 +154,9 @@ import { useLeafletMap } from '@/composables/useLeafletMap'
 import { useZoneDrawing } from '@/composables/useZoneDrawing'
 import { formatArea, formatPerimeter } from '@/utils/geoCalculations'
 import { useThemeStore } from '@/stores/theme'
+import { useLocationStore } from '@/stores/location'
 import { useDialog } from '@/composables/useDialog'
+import { getCurrentPosition } from '@/utils/geocoding'
 
 interface Props {
   modelValue: boolean
@@ -175,6 +177,7 @@ const emit = defineEmits<{
 }>()
 
 const themeStore = useThemeStore()
+const locationStore = useLocationStore()
 const dialog = useDialog()
 
 // Dialog state
@@ -182,6 +185,9 @@ const isOpen = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value)
 })
+
+// Map initial center
+const mapCenter = ref<[number, number]>([40.7128, -74.006])
 
 // Form data
 const zoneName = ref('')
@@ -217,6 +223,7 @@ const {
   zoneCount,
   initializeDrawing,
   loadGeoJSON,
+  getBoundsFromGeoJSON,
   exportGeoJSON,
   clearAll,
   zoomToZone
@@ -225,8 +232,40 @@ const {
 // Watch for dialog open/close
 watch(isOpen, async (newValue) => {
   if (newValue) {
+    // Determine initial map center based on priority:
+    // 1. If editing zone with geometry - will fit bounds after loading
+    // 2. Saved home location
+    // 3. Current user position
+    // 4. Default fallback
+    let initialCenter: [number, number] = [40.7128, -74.006]
+
+    // Check if editing zone (we'll fit bounds after load, but try to get a good initial center)
+    if (props.editingZone?.geometry) {
+      const bounds = getBoundsFromGeoJSON(props.editingZone.geometry)
+      if (bounds) {
+        const center = bounds.getCenter()
+        initialCenter = [center.lat, center.lng]
+      }
+    }
+    // Otherwise use home location if set
+    else if (locationStore.hasHomeLocation && locationStore.homeCoordinates) {
+      initialCenter = [locationStore.homeCoordinates.lat, locationStore.homeCoordinates.lng]
+    }
+    // Try current position
+    else {
+      try {
+        const position = await getCurrentPosition({ timeout: 3000, maximumAge: 300000 })
+        initialCenter = [position.lat, position.lng]
+      } catch (error) {
+        // Silently fall back to default - user may have denied permission
+        console.log('Could not get current position, using default center')
+      }
+    }
+
+    mapCenter.value = initialCenter
+
     await nextTick()
-    initializeMap()
+    initializeMap(initialCenter)
     await nextTick()
     invalidateSize()
     initializeDrawing()
@@ -238,8 +277,18 @@ watch(isOpen, async (newValue) => {
       zoneDescription.value = props.editingZone.description || ''
       zoneColor.value = props.editingZone.color || '#2C5F2D'
 
+      // Wait for map to fully render before loading geometry
       if (props.editingZone.geometry) {
-        loadGeoJSON(props.editingZone.geometry)
+        await nextTick()
+        // Additional delay to ensure map tiles are loaded
+        setTimeout(() => {
+          loadGeoJSON(props.editingZone.geometry)
+          // Fit bounds to show the entire zone
+          const bounds = getBoundsFromGeoJSON(props.editingZone.geometry)
+          if (bounds && map.value) {
+            map.value.fitBounds(bounds, { padding: [50, 50] })
+          }
+        }, 300)
       }
     }
   }

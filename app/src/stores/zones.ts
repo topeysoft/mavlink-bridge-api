@@ -1,36 +1,165 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type { Zone } from '@/types'
+import type { ZoneManager, SyncStatus } from '../../../client/dist/index'
+import { useConnectionStore } from './connection'
 
 export const useZonesStore = defineStore('zones', () => {
-  const zones = ref<Zone[]>(JSON.parse(localStorage.getItem('yardrover_zones') || '[]'))
+  const connectionStore = useConnectionStore()
+
+  const zones = ref<Zone[]>([])
   const currentEditingZone = ref<Zone | null>(null)
   const selectedZones = ref<string[]>([])
-
-  const getZoneById = computed(() => (id: string) => {
-    return zones.value.find(z => z.id === id)
+  const syncStatus = ref<SyncStatus>({
+    status: 'offline',
+    lastSync: 0,
+    pendingChanges: 0
   })
+  const isLoading = ref(false)
+  const error = ref<string | null>(null)
+
+  // Get zone manager from connection store
+  const zoneManager = computed(() => connectionStore.client?.zones as ZoneManager | undefined)
+
+  // Watch for connection and load zones
+  watch(() => connectionStore.isConnected, async (connected) => {
+    if (connected && zoneManager.value) {
+      await loadZones()
+      // Update sync status periodically
+      const interval = setInterval(updateSyncStatus, 1000)
+      // Clean up on disconnect
+      watch(() => connectionStore.isConnected, (stillConnected) => {
+        if (!stillConnected) {
+          clearInterval(interval)
+        }
+      })
+    } else {
+      zones.value = []
+      syncStatus.value = {
+        status: 'offline',
+        lastSync: 0,
+        pendingChanges: 0
+      }
+    }
+  }, { immediate: true })
+
+  function getZoneById(id: string) {
+    return zones.value.find(z => z.id === id)
+  }
 
   const mowingZones = computed(() => zones.value.filter(z => z.type === 'mowing'))
   const exclusionZones = computed(() => zones.value.filter(z => z.type === 'exclusion'))
   const chargingZones = computed(() => zones.value.filter(z => z.type === 'charging'))
 
-  function addZone(zone: Zone) {
-    zones.value.push(zone)
-    saveZones()
-  }
+  async function loadZones() {
+    if (!zoneManager.value) {
+      error.value = 'Zone manager not available'
+      return
+    }
 
-  function updateZone(id: string, updates: Partial<Zone>) {
-    const index = zones.value.findIndex(z => z.id === id)
-    if (index !== -1) {
-      zones.value[index] = { ...zones.value[index], ...updates, lastModified: new Date().toISOString() }
-      saveZones()
+    isLoading.value = true
+    error.value = null
+
+    try {
+      zones.value = await zoneManager.value.getAll()
+      updateSyncStatus()
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to load zones'
+      console.error('Failed to load zones:', err)
+    } finally {
+      isLoading.value = false
     }
   }
 
-  function deleteZone(id: string) {
-    zones.value = zones.value.filter(z => z.id !== id)
-    saveZones()
+  async function addZone(zone: Zone) {
+    if (!zoneManager.value) {
+      error.value = 'Zone manager not available'
+      return
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    try {
+      await zoneManager.value.create(zone)
+      await loadZones()  // Refresh list
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to add zone'
+      console.error('Failed to add zone:', err)
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function updateZone(id: string, updates: Partial<Zone>) {
+    if (!zoneManager.value) {
+      error.value = 'Zone manager not available'
+      return
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    try {
+      await zoneManager.value.update(id, updates)
+      await loadZones()  // Refresh list
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to update zone'
+      console.error('Failed to update zone:', err)
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function deleteZone(id: string) {
+    if (!zoneManager.value) {
+      error.value = 'Zone manager not available'
+      return
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    try {
+      await zoneManager.value.delete(id)
+      await loadZones()  // Refresh list
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to delete zone'
+      console.error('Failed to delete zone:', err)
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function syncWithServer() {
+    if (!zoneManager.value) {
+      error.value = 'Zone manager not available'
+      return
+    }
+
+    isLoading.value = true
+    error.value = null
+
+    try {
+      await zoneManager.value.sync()
+      await loadZones()
+      updateSyncStatus()
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to sync zones'
+      console.error('Failed to sync zones:', err)
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  function updateSyncStatus() {
+    if (zoneManager.value) {
+      syncStatus.value = zoneManager.value.getSyncStatus()
+    }
   }
 
   function setEditingZone(zone: Zone | null) {
@@ -50,14 +179,13 @@ export const useZonesStore = defineStore('zones', () => {
     selectedZones.value = []
   }
 
-  function saveZones() {
-    localStorage.setItem('yardrover_zones', JSON.stringify(zones.value))
-  }
-
   return {
     zones,
     currentEditingZone,
     selectedZones,
+    syncStatus,
+    isLoading,
+    error,
     getZoneById,
     mowingZones,
     exclusionZones,
@@ -65,6 +193,7 @@ export const useZonesStore = defineStore('zones', () => {
     addZone,
     updateZone,
     deleteZone,
+    syncWithServer,
     setEditingZone,
     toggleZoneSelection,
     clearSelection

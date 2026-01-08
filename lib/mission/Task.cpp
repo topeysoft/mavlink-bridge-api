@@ -1,7 +1,7 @@
 #include "Task.h"
 #include <esp_log.h>
 #include <math.h>
-#include <uuid/uuid.h>
+// UUID generation will use simple random IDs instead of libuuid
 
 static const char* TAG = "Task";
 
@@ -570,10 +570,10 @@ String Task::getStatusString() const {
 
 String Task::getPriorityString() const {
     switch (metadata.priority) {
-        case TaskPriority::LOW: return "Low";
-        case TaskPriority::NORMAL: return "Normal";
-        case TaskPriority::HIGH: return "High";
-        case TaskPriority::CRITICAL: return "Critical";
+        case TaskPriority::TASK_LOW: return "Low";
+        case TaskPriority::TASK_NORMAL: return "Normal";
+        case TaskPriority::TASK_HIGH: return "High";
+        case TaskPriority::TASK_CRITICAL: return "Critical";
         default: return "Unknown";
     }
 }

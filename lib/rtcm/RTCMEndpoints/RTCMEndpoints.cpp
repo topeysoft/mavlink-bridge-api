@@ -468,6 +468,12 @@ bool RTCMEndpoints::startClient(const DynamicJsonDocument &config)
         return false;
     }
 
+    // Initialize output router
+    if (!initializeOutputRouter())
+    {
+        ESP_LOGW(TAG, "Output router initialization failed, data will not be forwarded");
+    }
+
     // Set up data callback to handle RTCM data
     currentClient->setDataCallback([](const uint8_t *data, size_t length)
                                    {
@@ -490,8 +496,11 @@ bool RTCMEndpoints::startClient(const DynamicJsonDocument &config)
                                            EventManager::getInstance()->publishAsync(EventType::RTCM_DATA_RECEIVED, event.as<JsonObjectConst>());
                                        }
 
-                                       // TODO: Forward to flight controller via MAVLink or raw
-                                       // This would use the MAVLinkConverter if configured
+                                       // Forward to flight controller via output router
+                                       if (outputRouter)
+                                       {
+                                           outputRouter->route(data, length);
+                                       }
                                    });
 
     // Set up state callback

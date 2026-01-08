@@ -24,7 +24,7 @@ struct TaskBackupHeader {
     char deviceId[37];        // Device ID that created backup
     char description[128];    // Optional backup description
     
-    TaskBackupHeader() : magic(0xBACKUP01), version(1), taskCount(0), 
+    TaskBackupHeader() : magic(0xBAC0B01), version(1), taskCount(0), 
                         totalSize(0), timestamp(0), format(TaskBackupFormat::JSON),
                         checksum(0) {
         memset(deviceId, 0, sizeof(deviceId));

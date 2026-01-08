@@ -23,7 +23,7 @@ export function useLeafletMap(containerId: string, options: MapOptions = {}) {
   /**
    * Initialize the Leaflet map
    */
-  const initializeMap = () => {
+  const initializeMap = (centerOverride?: [number, number]) => {
     if (isInitialized.value || !document.getElementById(containerId)) {
       return
     }
@@ -31,11 +31,14 @@ export function useLeafletMap(containerId: string, options: MapOptions = {}) {
     isLoading.value = true
 
     try {
+      // Use override center if provided, otherwise use default
+      const initialCenter = centerOverride || defaultCenter
+
       // Create map instance
       map.value = L.map(containerId, {
         zoomControl: true,
         attributionControl: true
-      }).setView(defaultCenter, defaultZoom)
+      }).setView(initialCenter, defaultZoom)
 
       // Add tile layer based on theme
       const tileLayer = options.theme === 'dark'

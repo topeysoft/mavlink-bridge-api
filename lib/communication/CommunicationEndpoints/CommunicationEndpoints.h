@@ -7,6 +7,7 @@
 #include "../USBOTGManager/USBOTGManager.h"
 #include "../UARTManager/UARTManager.h"
 #include "../../mavlink/MAVLinkProcessor/MAVLinkProcessor.h"
+#include "../../mission/MissionProtocolHandler.h"
 
 class CommunicationEndpoints {
 public:
@@ -36,6 +37,13 @@ private:
     static void handleRequestParameters(AsyncWebServerRequest* request);
     static void handleSetParameter(AsyncWebServerRequest* request);
     static void handleRequestParameterList(AsyncWebServerRequest* request);
+
+    // Mission management endpoints
+    static void handleMissionUpload(AsyncWebServerRequest* request);
+    static void handleMissionDownload(AsyncWebServerRequest* request);
+    static void handleMissionClear(AsyncWebServerRequest* request);
+    static void handleMissionSetCurrent(AsyncWebServerRequest* request);
+    static void handleMissionStatus(AsyncWebServerRequest* request);
     
     static void handleSendData(AsyncWebServerRequest* request);
     static void handleResetStatistics(AsyncWebServerRequest* request);

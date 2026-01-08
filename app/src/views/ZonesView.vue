@@ -1,184 +1,150 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import ZoneStatsHeader from '@/components/zones/ZoneStatsHeader.vue'
-import ZonesToolbar from '@/components/zones/ZonesToolbar.vue'
-import ZoneCard from '@/components/zones/ZoneCard.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
-import SkeletonCard from '@/components/common/SkeletonCard.vue'
-import MapDrawingModalNative from '@/components/zones/MapDrawingModalNative.vue'
-import { useZonesStore } from '@/stores/zones'
-import { useNotifications } from '@/composables/useNotifications'
-import { useDialog } from '@/composables/useDialog'
-import { formatDistance } from 'date-fns'
+import { ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import ZoneStatsHeader from '@/components/zones/ZoneStatsHeader.vue';
+import ZonesToolbar from '@/components/zones/ZonesToolbar.vue';
+import ZoneCard from '@/components/zones/ZoneCard.vue';
+import EmptyState from '@/components/common/EmptyState.vue';
+import SkeletonCard from '@/components/common/SkeletonCard.vue';
+import { useZonesStore } from '@/stores/zones';
+import { useNotifications } from '@/composables/useNotifications';
+import { useDialog } from '@/composables/useDialog';
+import { formatDistance } from 'date-fns';
 
-const { success, error, info } = useNotifications()
-const dialog = useDialog()
-const zonesStore = useZonesStore()
+const router = useRouter();
+const { success, error, info } = useNotifications();
+const dialog = useDialog();
+const zonesStore = useZonesStore();
 
-// Loading state
-const loading = ref(true)
-
-// Modal state
-const showMapDrawing = ref(false)
-const editingZone = ref<any>(null)
-const modalTitle = computed(() => editingZone.value ? 'Edit Zone' : 'Create New Zone')
-const saveButtonText = computed(() => editingZone.value ? 'Update Zone' : 'Save Zone')
-
-const searchQuery = ref('')
-const filterType = ref('all')
+const searchQuery = ref('');
+const filterType = ref('all');
 
 // Use store data
-const zones = computed(() => zonesStore.zones)
+const zones = computed(() => zonesStore.zones);
+const loading = computed(() => zonesStore.isLoading);
 
 const filteredZones = computed(() => {
-  let filtered = zones.value
+  let filtered = zones.value;
 
   if (searchQuery.value) {
-    filtered = filtered.filter(zone =>
-      zone.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      zone.description?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      zone.tags?.some(tag => tag.toLowerCase().includes(searchQuery.value.toLowerCase()))
-    )
+    filtered = filtered.filter(
+      (zone) =>
+        zone.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+        zone.description
+          ?.toLowerCase()
+          .includes(searchQuery.value.toLowerCase()) ||
+        zone.tags?.some((tag) =>
+          tag.toLowerCase().includes(searchQuery.value.toLowerCase()),
+        ),
+    );
   }
 
   if (filterType.value !== 'all') {
-    filtered = filtered.filter(zone => zone.type === filterType.value)
+    filtered = filtered.filter((zone) => zone.type === filterType.value);
   }
 
-  return filtered
-})
+  return filtered;
+});
 
 const totalArea = computed(() => {
-  return zones.value.reduce((sum, zone) => sum + zone.area, 0)
-})
+  return zones.value.reduce((sum, zone) => sum + zone.area, 0);
+});
 
 const activeZones = computed(() => {
-  return zones.value.length
-})
+  return zones.value.length;
+});
 
 const handleCreateZone = () => {
-  editingZone.value = null
-  showMapDrawing.value = true
-}
+  router.push('/zones/edit');
+};
 
 const handleImport = async () => {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.json'
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
   input.onchange = async (e: any) => {
-    const file = e.target?.files?.[0]
-    if (!file) return
+    const file = e.target?.files?.[0];
+    if (!file) return;
 
-    const reader = new FileReader()
+    const reader = new FileReader();
     reader.onload = async (event: any) => {
       try {
-        const importedZones = JSON.parse(event.target.result)
+        const importedZones = JSON.parse(event.target.result);
         if (Array.isArray(importedZones)) {
           const confirmed = await dialog.confirm(
             `Import ${importedZones.length} zones? This will add to your existing zones.`,
-            'Confirm Import'
-          )
+            'Confirm Import',
+          );
           if (confirmed) {
-            importedZones.forEach(zone => {
-              zonesStore.createZone(zone)
-            })
-            success(`${importedZones.length} zones imported successfully`)
+            importedZones.forEach((zone) => {
+              zonesStore.addZone(zone);
+            });
+            success(`${importedZones.length} zones imported successfully`);
           }
         } else {
-          error('Invalid zone file format')
+          error('Invalid zone file format');
         }
       } catch (err) {
-        error('Error importing zones: ' + (err as Error).message)
+        error('Error importing zones: ' + (err as Error).message);
       }
-    }
-    reader.readAsText(file)
-  }
-  input.click()
-}
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+};
 
 const handleExport = () => {
-  const dataStr = JSON.stringify(zones.value, null, 2)
-  const dataBlob = new Blob([dataStr], { type: 'application/json' })
-  const url = URL.createObjectURL(dataBlob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `yardrover-zones-${new Date().toISOString().split('T')[0]}.json`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  const dataStr = JSON.stringify(zones.value, null, 2);
+  const dataBlob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(dataBlob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `yardrover-zones-${
+    new Date().toISOString().split('T')[0]
+  }.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 
-  success('Zones exported successfully')
-}
+  success('Zones exported successfully');
+};
 
 const handleSearch = (query: string) => {
-  searchQuery.value = query
-}
+  searchQuery.value = query;
+};
 
 const handleFilterType = (type: string) => {
-  filterType.value = type
-}
+  filterType.value = type;
+};
 
 const handleEditZone = (id: string) => {
-  const zone = zonesStore.getZoneById(id)
-  if (zone) {
-    editingZone.value = zone
-    showMapDrawing.value = true
-  }
-}
+  router.push(`/zones/edit/${id}`);
+};
 
 const handleDeleteZone = async (id: string) => {
-  const zone = zonesStore.getZoneById(id)
-  if (!zone) return
+  const zone = zonesStore.getZoneById(id);
+  if (!zone) return;
 
   const confirmed = await dialog.confirm(
     `Are you sure you want to delete zone "${zone.name}"? This action cannot be undone.`,
-    'Confirm Delete'
-  )
+    'Confirm Delete',
+  );
   if (confirmed) {
-    zonesStore.deleteZone(id)
-    info(`Zone "${zone.name}" deleted`)
+    zonesStore.deleteZone(id);
+    info(`Zone "${zone.name}" deleted`);
   }
-}
+};
 
 const handleToggleStatus = (id: string) => {
   // This could be implemented if zones have an active/inactive status
-  console.log('Toggle status:', id)
-}
-
-const handleSaveZone = (zoneData: any) => {
-  if (editingZone.value) {
-    // Update existing zone
-    zonesStore.updateZone(editingZone.value.id, zoneData)
-    success(`Zone "${zoneData.name}" updated successfully`)
-  } else {
-    // Create new zone with ID and timestamp
-    const newZone = {
-      ...zoneData,
-      id: `zone_${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      lastModified: new Date().toISOString()
-    }
-    zonesStore.addZone(newZone)
-    success(`Zone "${zoneData.name}" created successfully`)
-  }
-  editingZone.value = null
-}
-
-const handleCancelDrawing = () => {
-  editingZone.value = null
-}
+  console.log('Toggle status:', id);
+};
 
 // Format relative time for display
 const formatRelativeTime = (timestamp: string) => {
-  return formatDistance(new Date(timestamp), new Date(), { addSuffix: true })
-}
-
-// Simulate loading data
-onMounted(async () => {
-  await new Promise(resolve => setTimeout(resolve, 600))
-  loading.value = false
-})
+  return formatDistance(new Date(timestamp), new Date(), { addSuffix: true });
+};
 </script>
 
 <template>
@@ -214,22 +180,12 @@ onMounted(async () => {
     </div>
 
     <EmptyState
-      v-else-if="!loading"
+      v-else
       icon="map"
       title="No Zones Created Yet"
       message="Create your first coverage zone to start planning missions"
       action-label="Create Zone"
       @action="handleCreateZone"
-    />
-
-    <!-- Map Drawing Modal -->
-    <MapDrawingModalNative
-      v-model="showMapDrawing"
-      :title="modalTitle"
-      :save-button-text="saveButtonText"
-      :editing-zone="editingZone"
-      @save="handleSaveZone"
-      @cancel="handleCancelDrawing"
     />
   </div>
 </template>

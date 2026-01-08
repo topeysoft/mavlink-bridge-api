@@ -20,12 +20,16 @@
 #include <MDNSEndpoints/MDNSEndpoints.h>
 #include <RTCMEndpoints/RTCMEndpoints.h>
 #include <ButtonHandler/ButtonHandler.h>
+#include <ResourceStorage/ResourceStorage.h>
+#include <ResourceStorage/StorageTask.h>
+#include <ResourceEndpoints/ResourceEndpoints.h>
 
 #if ENABLE_COMMUNICATION_SYSTEM
 #include <USBOTGManager/USBOTGManager.h>
 #include <UARTManager/UARTManager.h>
 #include <MAVLinkProcessor/MAVLinkProcessor.h>
 #include <DataRouter/DataRouter.h>
+#include <MissionProtocolHandler.h>
 #include <CommunicationEndpoints/CommunicationEndpoints.h>
 #endif
 
@@ -44,12 +48,16 @@ ErrorHandler *errorHandler = nullptr;
 IntegrationTest *integrationTest = nullptr;
 NetworkLib::MDNSManager *mdnsManager = nullptr;
 ButtonHandler *buttonHandler = nullptr;
+ResourceStorage *resourceStorage = nullptr;
+StorageTask *storageTask = nullptr;
+ResourceEndpoints *resourceEndpoints = nullptr;
 
 #if ENABLE_COMMUNICATION_SYSTEM
 USBOTGManager *usbManager = nullptr;
 UARTManager *uartManager = nullptr;
 MAVLinkProcessor *mavlinkProcessor = nullptr;
 DataRouter *dataRouter = nullptr;
+MissionProtocolHandler *missionProtocolHandler = nullptr;
 #endif
 
 // Task handles
@@ -99,6 +107,20 @@ void setup()
     else
     {
         Serial.printf("✓ Storage initialized (%zu bytes total)\n", storage->getTotalSpace());
+    }
+
+    // Initialize Resource Storage (for zones, missions, settings)
+    Serial.println("Initializing resource storage...");
+    resourceStorage = ResourceStorage::getInstance();
+    ResourceResult resResult = resourceStorage->begin();
+    if (resResult != ResourceResult::SUCCESS)
+    {
+        Serial.println("⚠️  Resource storage initialization failed");
+    }
+    else
+    {
+        Serial.printf("✓ Resource storage initialized (%zu bytes total, %zu bytes free)\n",
+                      resourceStorage->getTotalSpace(), resourceStorage->getFreeSpace());
     }
 
     // Initialize Event Manager
@@ -166,6 +188,19 @@ void setup()
     setupSystemMonitoring();
     Serial.println("✓ System monitoring initialized");
 
+    // Initialize and start Resource Storage Task
+    if (resourceStorage && resResult == ResourceResult::SUCCESS)
+    {
+        Serial.println("Starting resource storage task...");
+        storageTask = new StorageTask(100, 5); // 100ms interval, batch size 5
+        if (taskManager)
+        {
+            taskManager->registerTask(storageTask);
+        }
+        storageTask->start();
+        Serial.println("✓ Resource storage task started (100ms interval, batch size 5)");
+    }
+
 #if ENABLE_COMMUNICATION_SYSTEM
     // Initialize Communication System
     Serial.println("Initializing communication system...");
@@ -226,7 +261,7 @@ void setup()
     RTCMEndpoints::registerRoutes(httpServer, configManager);
     Serial.println("DEBUG: RTCMEndpoints registered");
 
-    // Start the HTTP server AFTER registering all routes
+    // Start the HTTP server AFTER registering all basic routes
     httpServer->begin(80);
     Serial.println("✓ HTTP Server initialized on port 80");
 
@@ -243,6 +278,15 @@ void setup()
     wsServer->attachToServer(httpServer->getAsyncServer());
     setupEventHandlers();
     Serial.println("✓ WebSocket Server initialized on /ws");
+
+    // Register Resource Endpoints (for zones, missions, settings)
+    if (resourceStorage && resResult == ResourceResult::SUCCESS)
+    {
+        Serial.println("DEBUG: Registering ResourceEndpoints...");
+        resourceEndpoints = ResourceEndpoints::getInstance();
+        resourceEndpoints->begin(httpServer->getAsyncServer(), wsServer);
+        Serial.println("✓ Resource endpoints registered (/api/zones, /api/missions)");
+    }
 
 #if ENABLE_COMMUNICATION_SYSTEM
     // Setup communication event handlers
@@ -310,6 +354,20 @@ void setup()
     Serial.printf("  POST   /api/rtcm/stop      - Stop RTCM client\n");
     Serial.printf("  GET    /api/rtcm/status    - RTCM client status\n");
     Serial.printf("  GET    /api/rtcm/config    - RTCM configuration\n");
+    if (resourceStorage && resResult == ResourceResult::SUCCESS)
+    {
+        Serial.printf("  GET    /api/zones          - List zones\n");
+        Serial.printf("  POST   /api/zones          - Create zone\n");
+        Serial.printf("  GET    /api/zones/:id      - Get zone\n");
+        Serial.printf("  PUT    /api/zones/:id      - Update zone\n");
+        Serial.printf("  DELETE /api/zones/:id      - Delete zone\n");
+        Serial.printf("  GET    /api/missions       - List missions\n");
+        Serial.printf("  POST   /api/missions       - Create mission\n");
+        Serial.printf("  GET    /api/missions/:id   - Get mission\n");
+        Serial.printf("  PUT    /api/missions/:id   - Update mission\n");
+        Serial.printf("  DELETE /api/missions/:id   - Delete mission\n");
+        Serial.printf("  GET    /api/resources/sync - Sync metadata\n");
+    }
 #if ENABLE_COMMUNICATION_SYSTEM
     Serial.printf("  GET    /api/communication/status     - Communication status\n");
     Serial.printf("  GET    /api/communication/statistics - Communication stats\n");
@@ -319,7 +377,12 @@ void setup()
     IPAddress currentIP = (wifiManager->getState() == WiFiManager::CONNECTED) ? wifiManager->getConnectionInfo().ip : WiFi.softAPIP();
     Serial.printf("  WebSocket: ws://%s/ws - Real-time events\n", currentIP.toString().c_str());
     Serial.println("");
-    Serial.println("Features: Config ✓ WiFi ✓ Events ✓ Communication ✓ Health ✓ Memory ✓ Tasks ✓ Errors ✓ RTCM ✓");
+    Serial.print("Features: Config ✓ WiFi ✓ Events ✓ Communication ✓ Health ✓ Memory ✓ Tasks ✓ Errors ✓ RTCM ✓");
+    if (resourceStorage && resResult == ResourceResult::SUCCESS)
+    {
+        Serial.print(" Resources ✓");
+    }
+    Serial.println("");
 }
 
 void loop()
@@ -639,6 +702,34 @@ void handleHealthCheck(const HttpRequest &req, HttpResponse &res)
         doc["storage"]["initialized"] = false;
     }
 
+    // Resource storage health and metrics
+    if (resourceStorage && resourceStorage->isHealthy())
+    {
+        auto stats = resourceStorage->getStats();
+
+        JsonObject resStorage = doc["resourceStorage"].to<JsonObject>();
+        resStorage["healthy"] = true;
+        resStorage["freeBytes"] = stats.freeSpace;
+        resStorage["usedBytes"] = stats.usedSpace;
+        resStorage["totalBytes"] = resourceStorage->getTotalSpace();
+
+        // Performance metrics
+        JsonObject metrics = resStorage["metrics"].to<JsonObject>();
+        metrics["totalWrites"] = stats.totalWrites;
+        metrics["totalReads"] = stats.totalReads;
+        metrics["failedWrites"] = stats.failedWrites;
+        metrics["failedReads"] = stats.failedReads;
+        metrics["queueDepth"] = stats.queuedWrites;
+        metrics["avgWriteLatency"] = stats.avgWriteLatency;
+        metrics["avgReadLatency"] = stats.avgReadLatency;
+        metrics["poolUtilization"] = stats.poolUtilization;
+    }
+    else if (resourceStorage)
+    {
+        doc["resourceStorage"]["healthy"] = false;
+        doc["resourceStorage"]["initialized"] = false;
+    }
+
     // Overall health assessment
     bool systemHealthy = healthMonitor ? healthMonitor->isSystemHealthy() : true;
     bool storageHealthy = doc["storage"]["healthy"].as<bool>();
@@ -746,6 +837,11 @@ void setupCommunicationSystem()
     dataRouter->enableMAVLinkProcessing(true);
     ESP_LOGI("Communication", "MAVLink processing enabled");
 #endif
+
+    // Initialize mission protocol handler
+    missionProtocolHandler = MissionProtocolHandler::getInstance();
+    missionProtocolHandler->begin();
+    ESP_LOGI("Communication", "Mission protocol handler initialized");
 }
 
 void onWiFiEvent(WiFiEvent_t event)
@@ -904,6 +1000,9 @@ void setupSystemMonitoring()
 
     healthMonitor->registerComponent("WebSocket", []() -> bool
                                      { return wsServer != nullptr; });
+
+    healthMonitor->registerComponent("ResourceStorage", []() -> bool
+                                     { return resourceStorage && resourceStorage->isHealthy(); });
 
     // Set up health monitoring callbacks
     healthMonitor->onLowMemory([](uint32_t freeHeap)

@@ -94,6 +94,17 @@ export {
   RTCMResponse
 } from './rtcm/RTCMTypes';
 
+// mDNS exports
+export { MDNSClient } from './mdns/MDNSClient';
+export {
+  MDNSService,
+  RTCMServerInfo,
+  MDNSStatus,
+  MDNSDiscoveryRequest,
+  MDNSDiscoveryResponse,
+  MDNSConfig
+} from './mdns/MDNSTypes';
+
 // Health monitoring exports
 export { HealthClient } from './health/HealthClient';
 export {
@@ -159,6 +170,28 @@ export {
   TaskTemplate,
   TaskTemplateListResponse
 } from './tasks/TaskTypes';
+
+// Resource management exports
+export { ResourceManager } from './resources/ResourceManager';
+export { ZoneManager } from './resources/ZoneManager';
+export { MissionManager } from './resources/MissionManager';
+export { MissionExecutor } from './resources/MissionExecutor';
+export type {
+  WaypointGenerationOptions,
+  MissionExecutionOptions,
+  MissionExecutionResult
+} from './resources/MissionExecutor';
+export {
+  ResourceType,
+  ResourceMetadata,
+  SyncStatus,
+  ResourceListResponse,
+  ResourceChangeEvent,
+  Zone,
+  Mission,
+  ResourceData,
+  ResourceStorageConfig
+} from './resources/ResourceTypes';
 
 
 // Version info

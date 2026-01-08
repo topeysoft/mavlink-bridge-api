@@ -87,8 +87,62 @@ void CommunicationEndpoints::setupEndpoints(AsyncWebServer& server) {
     server.on("/api/communication/mavlink/filter", HTTP_GET, handleGetMAVLinkFilter);
     server.on("/api/communication/mavlink/filter", HTTP_POST, handleSetMAVLinkFilter);
     server.on("/api/communication/mavlink/filter", HTTP_DELETE, handleClearMAVLinkFilter);
-    server.on("/api/mavlink/command", HTTP_POST, handleSendMAVLinkCommand);
-    
+    server.on("/api/mavlink/command", HTTP_POST, handleSendMAVLinkCommand, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index == 0) request->_tempObject = malloc(total + 1);
+            if (request->_tempObject) {
+                memcpy((uint8_t*)request->_tempObject + index, data, len);
+                if (index + len == total) ((uint8_t*)request->_tempObject)[total] = '\0';
+            }
+        });
+
+    // Mission management endpoints
+    ESP_LOGI(TAG, "Registering mission endpoints...");
+    server.on("/api/mavlink/mission/upload", HTTP_POST, handleMissionUpload, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index == 0) request->_tempObject = malloc(total + 1);
+            if (request->_tempObject) {
+                memcpy((uint8_t*)request->_tempObject + index, data, len);
+                if (index + len == total) ((uint8_t*)request->_tempObject)[total] = '\0';
+            }
+        });
+
+    server.on("/api/mavlink/mission/download", HTTP_POST, handleMissionDownload, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index == 0) request->_tempObject = malloc(total + 1);
+            if (request->_tempObject) {
+                memcpy((uint8_t*)request->_tempObject + index, data, len);
+                if (index + len == total) ((uint8_t*)request->_tempObject)[total] = '\0';
+            }
+        });
+
+    server.on("/api/mavlink/mission/clear", HTTP_POST, handleMissionClear, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index == 0) request->_tempObject = malloc(total + 1);
+            if (request->_tempObject) {
+                memcpy((uint8_t*)request->_tempObject + index, data, len);
+                if (index + len == total) ((uint8_t*)request->_tempObject)[total] = '\0';
+            }
+        });
+
+    server.on("/api/mavlink/mission/set_current", HTTP_POST, handleMissionSetCurrent, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index == 0) request->_tempObject = malloc(total + 1);
+            if (request->_tempObject) {
+                memcpy((uint8_t*)request->_tempObject + index, data, len);
+                if (index + len == total) ((uint8_t*)request->_tempObject)[total] = '\0';
+            }
+        });
+
+    server.on("/api/mavlink/mission/status", HTTP_POST, handleMissionStatus, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index == 0) request->_tempObject = malloc(total + 1);
+            if (request->_tempObject) {
+                memcpy((uint8_t*)request->_tempObject + index, data, len);
+                if (index + len == total) ((uint8_t*)request->_tempObject)[total] = '\0';
+            }
+        });
+
     // Data and control endpoints
     if (ESP.getFreeHeap() < 1024) {
         ESP_LOGW(TAG, "Low memory, skipping data/control endpoints");
@@ -700,8 +754,18 @@ void CommunicationEndpoints::sendErrorResponse(AsyncWebServerRequest* request, c
 void CommunicationEndpoints::handleSendMAVLinkCommand(AsyncWebServerRequest* request) {
     DynamicJsonDocument doc(1024);
     if (!validateJsonRequest(request, doc)) {
+        if (request->_tempObject) {
+            free(request->_tempObject);
+            request->_tempObject = NULL;
+        }
         sendErrorResponse(request, "Invalid JSON in request body");
         return;
+    }
+
+    // Free the temp object after parsing
+    if (request->_tempObject) {
+        free(request->_tempObject);
+        request->_tempObject = NULL;
     }
     
     if (!doc.containsKey("commandType")) {
@@ -1058,5 +1122,316 @@ void CommunicationEndpoints::handleRequestParameterList(AsyncWebServerRequest* r
     responseDoc["targetSystem"] = targetSystem;
     responseDoc["targetComponent"] = targetComponent;
     responseDoc["bytesSent"] = messageLength;
+    sendJsonResponse(request, responseDoc);
+}
+
+// Mission management endpoint implementations
+
+void CommunicationEndpoints::handleMissionUpload(AsyncWebServerRequest* request) {
+    ESP_LOGI(TAG, "📤 Processing mission upload request");
+
+    DynamicJsonDocument doc(8192);  // Large buffer for mission items
+    if (!validateJsonRequest(request, doc)) {
+        if (request->_tempObject) {
+            free(request->_tempObject);
+            request->_tempObject = NULL;
+        }
+        sendErrorResponse(request, "Invalid JSON in request body");
+        return;
+    }
+
+    // Free the temp object after parsing
+    if (request->_tempObject) {
+        free(request->_tempObject);
+        request->_tempObject = NULL;
+    }
+
+    // Parse mission upload parameters
+    uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;
+    uint8_t targetComponent = doc.containsKey("targetComponent") ? doc["targetComponent"].as<uint8_t>() : 1;
+    uint8_t missionType = doc.containsKey("missionType") ? doc["missionType"].as<uint8_t>() : 0;
+
+    if (!doc.containsKey("items") || !doc["items"].is<JsonArray>()) {
+        sendErrorResponse(request, "Missing or invalid 'items' array");
+        return;
+    }
+
+    JsonArray itemsArray = doc["items"].as<JsonArray>();
+    if (itemsArray.size() == 0) {
+        sendErrorResponse(request, "Mission items array is empty");
+        return;
+    }
+
+    // Parse mission items
+    std::vector<mavlink_mission_item_int_t> missionItems;
+    missionItems.reserve(itemsArray.size());
+
+    for (JsonObject itemObj : itemsArray) {
+        mavlink_mission_item_int_t item = {};
+
+        item.seq = itemObj.containsKey("seq") ? itemObj["seq"].as<uint16_t>() : 0;
+        item.frame = itemObj.containsKey("frame") ? itemObj["frame"].as<uint8_t>() : 0;
+        item.command = itemObj.containsKey("command") ? itemObj["command"].as<uint16_t>() : 0;
+        item.current = itemObj.containsKey("current") ? itemObj["current"].as<uint8_t>() : 0;
+        item.autocontinue = itemObj.containsKey("autocontinue") ? itemObj["autocontinue"].as<uint8_t>() : 1;
+        item.param1 = itemObj.containsKey("param1") ? itemObj["param1"].as<float>() : 0.0f;
+        item.param2 = itemObj.containsKey("param2") ? itemObj["param2"].as<float>() : 0.0f;
+        item.param3 = itemObj.containsKey("param3") ? itemObj["param3"].as<float>() : 0.0f;
+        item.param4 = itemObj.containsKey("param4") ? itemObj["param4"].as<float>() : 0.0f;
+        item.x = itemObj.containsKey("x") ? itemObj["x"].as<int32_t>() : 0;
+        item.y = itemObj.containsKey("y") ? itemObj["y"].as<int32_t>() : 0;
+        item.z = itemObj.containsKey("z") ? itemObj["z"].as<float>() : 0.0f;
+        item.mission_type = itemObj.containsKey("missionType") ? itemObj["missionType"].as<uint8_t>() : missionType;
+
+        missionItems.push_back(item);
+    }
+
+    ESP_LOGI(TAG, "Parsed %d mission items for upload", missionItems.size());
+
+    // Setup mission protocol configuration
+    MissionProtocolConfig config;
+    config.targetSystem = targetSystem;
+    config.targetComponent = targetComponent;
+    config.missionType = missionType;
+    config.timeoutMs = 10000;  // 10 second timeout
+
+    // Get mission protocol handler
+    MissionProtocolHandler* handler = MissionProtocolHandler::getInstance();
+
+    // Create a response document that will be filled by the callback
+    AsyncWebServerResponse* response = nullptr;
+
+    // Upload mission using protocol handler
+    handler->uploadMission(missionItems, config,
+        [request, &response](MissionProtocolResult result, const String& message) {
+            // This callback will be called when upload completes
+            DynamicJsonDocument responseDoc(512);
+            responseDoc["success"] = (result == MissionProtocolResult::SUCCESS);
+            responseDoc["operation"] = "mission_upload";
+            responseDoc["message"] = message;
+            responseDoc["result"] = (int)result;
+
+            if (result == MissionProtocolResult::SUCCESS) {
+                String responseStr;
+                serializeJson(responseDoc, responseStr);
+                request->send(200, "application/json", responseStr);
+            } else {
+                String responseStr;
+                serializeJson(responseDoc, responseStr);
+                request->send(400, "application/json", responseStr);
+            }
+        },
+        [](uint16_t current, uint16_t total) {
+            // Progress callback
+            ESP_LOGD(TAG, "Upload progress: %d/%d", current, total);
+        });
+
+    // Note: The actual response is sent by the callback
+}
+
+void CommunicationEndpoints::handleMissionDownload(AsyncWebServerRequest* request) {
+    ESP_LOGI(TAG, "📥 Processing mission download request");
+
+    DynamicJsonDocument doc(512);
+    if (!validateJsonRequest(request, doc)) {
+        if (request->_tempObject) {
+            free(request->_tempObject);
+            request->_tempObject = NULL;
+        }
+        sendErrorResponse(request, "Invalid JSON in request body");
+        return;
+    }
+
+    // Free the temp object after parsing
+    if (request->_tempObject) {
+        free(request->_tempObject);
+        request->_tempObject = NULL;
+    }
+
+    uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;
+    uint8_t targetComponent = doc.containsKey("targetComponent") ? doc["targetComponent"].as<uint8_t>() : 1;
+    uint8_t missionType = doc.containsKey("missionType") ? doc["missionType"].as<uint8_t>() : 0;
+
+    // Setup mission protocol configuration
+    MissionProtocolConfig config;
+    config.targetSystem = targetSystem;
+    config.targetComponent = targetComponent;
+    config.missionType = missionType;
+    config.timeoutMs = 10000;
+
+    // Get mission protocol handler
+    MissionProtocolHandler* handler = MissionProtocolHandler::getInstance();
+
+    // Download mission using protocol handler
+    handler->downloadMission(config,
+        [request](const std::vector<mavlink_mission_item_int_t>& items) {
+            // Download callback - items received
+            ESP_LOGI(TAG, "Downloaded %d mission items", items.size());
+        },
+        [request](MissionProtocolResult result, const String& message) {
+            // Completion callback
+            DynamicJsonDocument responseDoc(8192);
+            responseDoc["success"] = (result == MissionProtocolResult::SUCCESS);
+            responseDoc["operation"] = "mission_download";
+            responseDoc["message"] = message;
+
+            // Note: In a real implementation, we would include the downloaded items here
+            // For now, just send success/failure
+
+            String responseStr;
+            serializeJson(responseDoc, responseStr);
+
+            if (result == MissionProtocolResult::SUCCESS) {
+                request->send(200, "application/json", responseStr);
+            } else {
+                request->send(400, "application/json", responseStr);
+            }
+        },
+        [](uint16_t current, uint16_t total) {
+            ESP_LOGD(TAG, "Download progress: %d/%d", current, total);
+        });
+}
+
+void CommunicationEndpoints::handleMissionClear(AsyncWebServerRequest* request) {
+    ESP_LOGI(TAG, "🗑️ Processing mission clear request");
+
+    DynamicJsonDocument doc(512);
+    if (!validateJsonRequest(request, doc)) {
+        if (request->_tempObject) {
+            free(request->_tempObject);
+            request->_tempObject = NULL;
+        }
+        sendErrorResponse(request, "Invalid JSON in request body");
+        return;
+    }
+
+    // Free the temp object after parsing
+    if (request->_tempObject) {
+        free(request->_tempObject);
+        request->_tempObject = NULL;
+    }
+
+    uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;
+    uint8_t targetComponent = doc.containsKey("targetComponent") ? doc["targetComponent"].as<uint8_t>() : 1;
+    uint8_t missionType = doc.containsKey("missionType") ? doc["missionType"].as<uint8_t>() : 0;
+
+    // Setup mission protocol configuration
+    MissionProtocolConfig config;
+    config.targetSystem = targetSystem;
+    config.targetComponent = targetComponent;
+    config.missionType = missionType;
+    config.timeoutMs = 5000;
+
+    // Get mission protocol handler
+    MissionProtocolHandler* handler = MissionProtocolHandler::getInstance();
+
+    // Clear mission using protocol handler
+    handler->clearMission(config,
+        [request](MissionProtocolResult result, const String& message) {
+            DynamicJsonDocument responseDoc(512);
+            responseDoc["success"] = (result == MissionProtocolResult::SUCCESS);
+            responseDoc["operation"] = "mission_clear";
+            responseDoc["message"] = message;
+
+            String responseStr;
+            serializeJson(responseDoc, responseStr);
+
+            if (result == MissionProtocolResult::SUCCESS) {
+                request->send(200, "application/json", responseStr);
+            } else {
+                request->send(400, "application/json", responseStr);
+            }
+        });
+}
+
+void CommunicationEndpoints::handleMissionSetCurrent(AsyncWebServerRequest* request) {
+    ESP_LOGI(TAG, "🎯 Processing set current mission item request");
+
+    DynamicJsonDocument doc(512);
+    if (!validateJsonRequest(request, doc)) {
+        if (request->_tempObject) {
+            free(request->_tempObject);
+            request->_tempObject = NULL;
+        }
+        sendErrorResponse(request, "Invalid JSON in request body");
+        return;
+    }
+
+    // Free the temp object after parsing
+    if (request->_tempObject) {
+        free(request->_tempObject);
+        request->_tempObject = NULL;
+    }
+
+    if (!doc.containsKey("seq")) {
+        sendErrorResponse(request, "Missing required 'seq' parameter");
+        return;
+    }
+
+    uint16_t seq = doc["seq"].as<uint16_t>();
+    uint8_t targetSystem = doc.containsKey("targetSystem") ? doc["targetSystem"].as<uint8_t>() : 1;
+    uint8_t targetComponent = doc.containsKey("targetComponent") ? doc["targetComponent"].as<uint8_t>() : 1;
+
+    // Setup mission protocol configuration
+    MissionProtocolConfig config;
+    config.targetSystem = targetSystem;
+    config.targetComponent = targetComponent;
+    config.timeoutMs = 5000;
+
+    // Get mission protocol handler
+    MissionProtocolHandler* handler = MissionProtocolHandler::getInstance();
+
+    // Set current item using protocol handler
+    handler->setCurrentItem(seq, config,
+        [request, seq](MissionProtocolResult result, const String& message) {
+            DynamicJsonDocument responseDoc(512);
+            responseDoc["success"] = (result == MissionProtocolResult::SUCCESS);
+            responseDoc["operation"] = "mission_set_current";
+            responseDoc["seq"] = seq;
+            responseDoc["message"] = message;
+
+            String responseStr;
+            serializeJson(responseDoc, responseStr);
+
+            if (result == MissionProtocolResult::SUCCESS) {
+                request->send(200, "application/json", responseStr);
+            } else {
+                request->send(400, "application/json", responseStr);
+            }
+        });
+}
+
+void CommunicationEndpoints::handleMissionStatus(AsyncWebServerRequest* request) {
+    ESP_LOGI(TAG, "📊 Processing mission status request");
+
+    DynamicJsonDocument doc(512);
+    if (!validateJsonRequest(request, doc)) {
+        if (request->_tempObject) {
+            free(request->_tempObject);
+            request->_tempObject = NULL;
+        }
+        sendErrorResponse(request, "Invalid JSON in request body");
+        return;
+    }
+
+    // Free the temp object after parsing
+    if (request->_tempObject) {
+        free(request->_tempObject);
+        request->_tempObject = NULL;
+    }
+
+    // Get mission protocol handler to check current state
+    MissionProtocolHandler* handler = MissionProtocolHandler::getInstance();
+
+    DynamicJsonDocument responseDoc(512);
+    responseDoc["success"] = true;
+    responseDoc["operation"] = "mission_status";
+    responseDoc["state"] = (int)handler->getState();
+    responseDoc["busy"] = handler->isBusy();
+
+    // Note: In a full implementation, we would query the flight controller
+    // for actual mission status (MISSION_CURRENT, etc.)
+    // For now, we just return the protocol handler state
+
     sendJsonResponse(request, responseDoc);
 }

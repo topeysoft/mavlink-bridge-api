@@ -121,6 +121,22 @@ public:
     static mavlink_message_t buildParameterRequestList(uint8_t targetSystem, uint8_t targetComponent);
     static mavlink_message_t buildParameterSet(uint8_t targetSystem, uint8_t targetComponent,
                                              const char* paramId, float paramValue, uint8_t paramType);
+
+    // Mission command builders
+    static mavlink_message_t buildMissionCount(uint8_t targetSystem, uint8_t targetComponent,
+                                               uint16_t count, uint8_t missionType = 0);
+    static mavlink_message_t buildMissionItemInt(uint8_t targetSystem, uint8_t targetComponent,
+                                                 const mavlink_mission_item_int_t& item);
+    static mavlink_message_t buildMissionClear(uint8_t targetSystem, uint8_t targetComponent,
+                                              uint8_t missionType = 0);
+    static mavlink_message_t buildMissionSetCurrent(uint8_t targetSystem, uint8_t targetComponent,
+                                                   uint16_t seq);
+    static mavlink_message_t buildMissionRequestList(uint8_t targetSystem, uint8_t targetComponent,
+                                                    uint8_t missionType = 0);
+    static mavlink_message_t buildMissionRequest(uint8_t targetSystem, uint8_t targetComponent,
+                                                uint16_t seq, uint8_t missionType = 0);
+    static mavlink_message_t buildMissionAck(uint8_t targetSystem, uint8_t targetComponent,
+                                            uint8_t type, uint8_t missionType = 0);
     
 private:
     MAVLinkProcessor();

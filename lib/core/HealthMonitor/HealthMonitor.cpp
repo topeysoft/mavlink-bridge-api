@@ -3,6 +3,7 @@
 #include <esp_task_wdt.h>
 #include <esp_log.h>
 #include <EventManager/EventManager.h>
+#include <ResourceStorage/ResourceStorage.h>
 #include <ArduinoJson.h>
 
 static const char* TAG = "HealthMonitor";
@@ -219,7 +220,7 @@ void HealthMonitor::publishHealthEvents() {
     if (!eventManager) {
         return;
     }
-    
+
     DynamicJsonDocument payload(1024);
     payload["uptime"] = health.uptime;
     payload["freeHeap"] = health.freeHeap;
@@ -229,7 +230,7 @@ void HealthMonitor::publishHealthEvents() {
     payload["systemHealthy"] = health.systemHealthy;
     payload["taskCount"] = health.tasks.size();
     payload["componentCount"] = health.components.size();
-    
+
     // Add unhealthy components
     JsonArray unhealthyComponents = payload["unhealthyComponents"].to<JsonArray>();
     for (const auto& component : health.components) {
@@ -239,7 +240,25 @@ void HealthMonitor::publishHealthEvents() {
             comp["status"] = component.status;
         }
     }
-    
+
+    // Add resource storage metrics
+    ResourceStorage* storage = ResourceStorage::getInstance();
+    if (storage && storage->isHealthy()) {
+        auto stats = storage->getStats();
+
+        JsonObject storageMetrics = payload["storage"].to<JsonObject>();
+        storageMetrics["totalWrites"] = stats.totalWrites;
+        storageMetrics["totalReads"] = stats.totalReads;
+        storageMetrics["failedWrites"] = stats.failedWrites;
+        storageMetrics["failedReads"] = stats.failedReads;
+        storageMetrics["queueDepth"] = stats.queuedWrites;
+        storageMetrics["avgWriteLatency"] = stats.avgWriteLatency;
+        storageMetrics["avgReadLatency"] = stats.avgReadLatency;
+        storageMetrics["poolUtilization"] = stats.poolUtilization;
+        storageMetrics["freeSpace"] = stats.freeSpace;
+        storageMetrics["usedSpace"] = stats.usedSpace;
+    }
+
     eventManager->publishAsync(EventType::HEALTH_UPDATE, payload.as<JsonObjectConst>());
 }
 

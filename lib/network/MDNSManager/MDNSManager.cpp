@@ -338,7 +338,7 @@ namespace NetworkLib
             if (isInitialized && isEnabled && WiFi.status() == WL_CONNECTED)
             {
                 // Discover RTCM services
-                int numServices = MDNS.queryService("rtcm", "tcp");
+                int numServices = MDNS.queryService("rtk-base", "tcp");
 
                 if (xSemaphoreTake(servicesMutex, pdMS_TO_TICKS(1000)) == pdTRUE)
                 {
@@ -349,7 +349,7 @@ namespace NetworkLib
                         DiscoveredService service;
                         service.hostname = MDNS.hostname(i);
                         service.serviceName = MDNS.hostname(i);
-                        service.serviceType = "rtcm";
+                        service.serviceType = "rtk-base";
                         service.ip = MDNS.address(i);
                         service.port = MDNS.port(i);
                         service.lastSeen = now;

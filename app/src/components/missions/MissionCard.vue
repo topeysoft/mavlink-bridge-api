@@ -5,7 +5,7 @@ import Button from '@/components/common/Button.vue'
 import ProgressBar from '@/components/common/ProgressBar.vue'
 
 interface Mission {
-  id: number
+  id: string
   name: string
   type: string
   status: 'active' | 'scheduled' | 'completed' | 'pending'
@@ -23,11 +23,11 @@ interface Props {
 defineProps<Props>()
 
 const emit = defineEmits<{
-  edit: [id: number]
-  start: [id: number]
-  pause: [id: number]
-  cancel: [id: number]
-  delete: [id: number]
+  edit: [id: string]
+  start: [id: string]
+  pause: [id: string]
+  cancel: [id: string]
+  delete: [id: string]
 }>()
 
 const getStatusVariant = (status: string) => {

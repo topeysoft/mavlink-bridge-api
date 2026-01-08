@@ -32,7 +32,10 @@ class PlaygroundApp {
     // Initialize modules with configuration
     this.deviceConnection = new DeviceConnection(this.config);
     this.apiExplorer = new ApiExplorer(this.deviceConnection, this.config);
-    this.websocketConsole = new WebSocketConsole(this.deviceConnection, this.config);
+    this.websocketConsole = new WebSocketConsole(
+      this.deviceConnection,
+      this.config,
+    );
     this.quickActions = new QuickActions(this.deviceConnection, this.config);
 
     // Initialize modules
@@ -57,10 +60,17 @@ class PlaygroundApp {
     // Sidebar navigation
     document.querySelectorAll('.nav-list a').forEach((link) => {
       link.addEventListener('click', (e) => {
-        e.preventDefault();
-
         const category = link.getAttribute('data-category');
         const view = link.getAttribute('data-view');
+        const href = link.getAttribute('href');
+
+        // Allow external links and links with target="_blank" to work normally
+        if (href && !href.startsWith('#') && !category && !view) {
+          // This is an external link, don't prevent default
+          return;
+        }
+
+        e.preventDefault();
 
         if (category) {
           this.showView('apiExplorer');

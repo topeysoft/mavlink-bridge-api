@@ -770,3 +770,106 @@ mavlink_message_t MAVLinkProcessor::buildParameterSet(uint8_t targetSystem, uint
     mavlink_msg_param_set_encode(1, 200, &msg, &param_set);
     return msg;
 }
+
+// Mission command builders
+
+mavlink_message_t MAVLinkProcessor::buildMissionCount(uint8_t targetSystem, uint8_t targetComponent,
+                                                      uint16_t count, uint8_t missionType)
+{
+    mavlink_message_t msg;
+    mavlink_mission_count_t mission_count = {};
+
+    mission_count.target_system = targetSystem;
+    mission_count.target_component = targetComponent;
+    mission_count.count = count;
+    mission_count.mission_type = missionType;
+
+    mavlink_msg_mission_count_encode(1, 200, &msg, &mission_count);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildMissionItemInt(uint8_t targetSystem, uint8_t targetComponent,
+                                                        const mavlink_mission_item_int_t& item)
+{
+    mavlink_message_t msg;
+    mavlink_mission_item_int_t mission_item = item;
+
+    // Ensure target system/component are set correctly
+    mission_item.target_system = targetSystem;
+    mission_item.target_component = targetComponent;
+
+    mavlink_msg_mission_item_int_encode(1, 200, &msg, &mission_item);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildMissionClear(uint8_t targetSystem, uint8_t targetComponent,
+                                                      uint8_t missionType)
+{
+    mavlink_message_t msg;
+    mavlink_mission_clear_all_t mission_clear = {};
+
+    mission_clear.target_system = targetSystem;
+    mission_clear.target_component = targetComponent;
+    mission_clear.mission_type = missionType;
+
+    mavlink_msg_mission_clear_all_encode(1, 200, &msg, &mission_clear);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildMissionSetCurrent(uint8_t targetSystem, uint8_t targetComponent,
+                                                          uint16_t seq)
+{
+    mavlink_message_t msg;
+    mavlink_mission_set_current_t mission_set_current = {};
+
+    mission_set_current.target_system = targetSystem;
+    mission_set_current.target_component = targetComponent;
+    mission_set_current.seq = seq;
+
+    mavlink_msg_mission_set_current_encode(1, 200, &msg, &mission_set_current);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildMissionRequestList(uint8_t targetSystem, uint8_t targetComponent,
+                                                            uint8_t missionType)
+{
+    mavlink_message_t msg;
+    mavlink_mission_request_list_t mission_request_list = {};
+
+    mission_request_list.target_system = targetSystem;
+    mission_request_list.target_component = targetComponent;
+    mission_request_list.mission_type = missionType;
+
+    mavlink_msg_mission_request_list_encode(1, 200, &msg, &mission_request_list);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildMissionRequest(uint8_t targetSystem, uint8_t targetComponent,
+                                                        uint16_t seq, uint8_t missionType)
+{
+    mavlink_message_t msg;
+    mavlink_mission_request_int_t mission_request = {};
+
+    mission_request.target_system = targetSystem;
+    mission_request.target_component = targetComponent;
+    mission_request.seq = seq;
+    mission_request.mission_type = missionType;
+
+    mavlink_msg_mission_request_int_encode(1, 200, &msg, &mission_request);
+    return msg;
+}
+
+mavlink_message_t MAVLinkProcessor::buildMissionAck(uint8_t targetSystem, uint8_t targetComponent,
+                                                    uint8_t type, uint8_t missionType)
+{
+    mavlink_message_t msg;
+    mavlink_mission_ack_t mission_ack = {};
+
+    mission_ack.target_system = targetSystem;
+    mission_ack.target_component = targetComponent;
+    mission_ack.type = type;
+    mission_ack.mission_type = missionType;
+
+    mavlink_msg_mission_ack_encode(1, 200, &msg, &mission_ack);
+    return msg;
+}

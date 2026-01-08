@@ -253,7 +253,7 @@ function isThresholdExceeded(type: string): boolean {
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/variables';
+@use '@/assets/styles/variables' as *;
 
 .weather-page {
   padding: 20px;

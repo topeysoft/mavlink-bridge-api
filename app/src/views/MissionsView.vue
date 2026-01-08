@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import MissionsToolbar from '@/components/missions/MissionsToolbar.vue'
 import MissionTemplateCard from '@/components/missions/MissionTemplateCard.vue'
@@ -7,29 +7,19 @@ import MissionCard from '@/components/missions/MissionCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
 import { useMissionsStore } from '@/stores/missions'
+import { useZonesStore } from '@/stores/zones'
 import { useFeaturesStore } from '@/stores/features'
 import { useNotifications } from '@/composables/useNotifications'
+import { useDialog } from '@/composables/useDialog'
+import type { Mission } from '@/types'
 
 const router = useRouter()
 
-const { success, info } = useNotifications()
+const { success, info, error } = useNotifications()
+const dialog = useDialog()
 const missionsStore = useMissionsStore()
+const zonesStore = useZonesStore()
 const featuresStore = useFeaturesStore()
-
-// Loading state
-const loading = ref(true)
-
-interface Mission {
-  id: number
-  name: string
-  type: string
-  status: 'active' | 'scheduled' | 'completed' | 'pending'
-  progress?: number
-  schedule?: string
-  estimatedTime?: string
-  zones: string[]
-  trigger?: string
-}
 
 interface MissionTemplate {
   id: number
@@ -39,34 +29,17 @@ interface MissionTemplate {
   estimatedTime: string
 }
 
-const missions = ref<Mission[]>([
-  {
-    id: 1,
-    name: 'Daily Front Lawn Mowing',
-    type: 'Lawn Mowing',
-    status: 'active',
-    progress: 35,
-    estimatedTime: '~25 min remaining',
-    zones: ['Front Lawn', 'Side Path']
-  },
-  {
-    id: 2,
-    name: 'Weekly Garden Maintenance',
-    type: 'Garden Care',
-    status: 'scheduled',
-    schedule: 'Every Sunday at 8:00 AM',
-    zones: ['Back Garden'],
-    trigger: 'Weather: No rain'
-  },
-  {
-    id: 3,
-    name: 'Perimeter Patrol',
-    type: 'Patrol',
-    status: 'scheduled',
-    schedule: 'Daily at 6:00 PM',
-    zones: ['All Zones']
+// Use store data
+const missions = computed(() => missionsStore.missions)
+const loading = computed(() => missionsStore.isLoading)
+const storeError = computed(() => missionsStore.error)
+
+// Watch for errors
+watch(storeError, (err) => {
+  if (err) {
+    error(`Error loading missions: ${err}`)
   }
-])
+})
 
 const templates = ref<MissionTemplate[]>([
   {
@@ -95,20 +68,67 @@ const templates = ref<MissionTemplate[]>([
 const filterStatus = ref('all')
 const showTemplates = ref(false)
 
+// Adapt Mission type to MissionCard format
+interface DisplayMission {
+  id: string
+  name: string
+  type: string
+  status: 'active' | 'scheduled' | 'completed' | 'pending'
+  progress?: number
+  schedule?: string
+  estimatedTime?: string
+  zones: string[]
+  trigger?: string
+}
+
+const displayMissions = computed<DisplayMission[]>(() => {
+  return missions.value.map(mission => {
+    // Get zone names from zone IDs
+    const zoneNames = mission.zoneIds.map(id => {
+      const zone = zonesStore.getZoneById(id)
+      return zone?.name || id
+    })
+
+    // Format schedule based on type
+    let schedule = ''
+    if (mission.type === 'once') {
+      schedule = `Once on ${new Date(mission.schedule.startTime).toLocaleString()}`
+    } else if (mission.type === 'daily') {
+      schedule = `Daily at ${new Date(mission.schedule.startTime).toLocaleTimeString()}`
+    } else if (mission.type === 'weekly' && mission.schedule.daysOfWeek) {
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      const dayNames = mission.schedule.daysOfWeek.map(d => days[d]).join(', ')
+      schedule = `Weekly on ${dayNames} at ${new Date(mission.schedule.startTime).toLocaleTimeString()}`
+    } else if (mission.type === 'monthly' && mission.schedule.dayOfMonth) {
+      schedule = `Monthly on day ${mission.schedule.dayOfMonth} at ${new Date(mission.schedule.startTime).toLocaleTimeString()}`
+    }
+
+    return {
+      id: mission.id,
+      name: mission.name,
+      type: mission.type,
+      status: mission.enabled ? 'scheduled' : 'pending',
+      schedule,
+      zones: zoneNames,
+      trigger: mission.priority !== 'normal' ? `Priority: ${mission.priority}` : undefined
+    }
+  })
+})
+
 const filteredMissions = computed(() => {
+  let filtered = displayMissions.value
+
   if (filterStatus.value === 'all') {
-    return missions.value
+    return filtered
   }
-  return missions.value.filter(mission => mission.status === filterStatus.value)
+
+  // Filter by status
+  return filtered.filter(mission => mission.status === filterStatus.value)
 })
 
 const handleCreateMission = () => {
   // Navigate to mission editor page instead of opening modal
   router.push('/missions/create')
-}
-
-const handleOpenMissionPlanner = () => {
-  router.push('/missions/planner')
 }
 
 const handleViewTemplates = () => {
@@ -123,35 +143,43 @@ const handleUseTemplate = (templateId: number) => {
   console.log('Use template:', templateId)
 }
 
-const handleEditMission = (id: number) => {
+const handleEditMission = async (id: string) => {
   console.log('Edit mission:', id)
+  // TODO: Navigate to mission editor with mission ID
 }
 
-const handleStartMission = (id: number) => {
-  const mission = missions.value.find(m => m.id === id)
-  if (mission) {
-    mission.status = 'active'
-    mission.progress = 0
+const handleStartMission = async (id: string) => {
+  // TODO: Implement mission execution via MAVLink
+  info('Mission execution coming soon')
+}
+
+const handlePauseMission = async (id: string) => {
+  // TODO: Implement mission pause
+  info('Mission pause coming soon')
+}
+
+const handleCancelMission = async (id: string) => {
+  // TODO: Implement mission cancel
+  info('Mission cancel coming soon')
+}
+
+const handleDeleteMission = async (id: string) => {
+  const mission = missionsStore.getMissionById.value(id)
+  if (!mission) return
+
+  const confirmed = await dialog.confirm(
+    `Are you sure you want to delete mission "${mission.name}"? This action cannot be undone.`,
+    'Confirm Delete'
+  )
+
+  if (confirmed) {
+    try {
+      await missionsStore.deleteMission(id)
+      success(`Mission "${mission.name}" deleted successfully`)
+    } catch (err) {
+      error(`Failed to delete mission: ${(err as Error).message}`)
+    }
   }
-}
-
-const handlePauseMission = (id: number) => {
-  const mission = missions.value.find(m => m.id === id)
-  if (mission) {
-    mission.status = 'pending'
-  }
-}
-
-const handleCancelMission = (id: number) => {
-  const mission = missions.value.find(m => m.id === id)
-  if (mission) {
-    mission.status = 'scheduled'
-    mission.progress = undefined
-  }
-}
-
-const handleDeleteMission = (id: number) => {
-  missions.value = missions.value.filter(m => m.id !== id)
 }
 
 const handleExport = () => {
@@ -168,20 +196,12 @@ const handleExport = () => {
 
   success(`${missions.value.length} missions exported successfully`)
 }
-
-// Simulate loading data
-onMounted(async () => {
-  await new Promise(resolve => setTimeout(resolve, 600))
-  loading.value = false
-})
 </script>
 
 <template>
   <div class="missions-view">
     <MissionsToolbar
-      :show-mission-planner="featuresStore.isFeatureEnabled('missionPlanner')"
       @create-mission="handleCreateMission"
-      @open-mission-planner="handleOpenMissionPlanner"
       @view-templates="handleViewTemplates"
       @filter-status="handleFilterStatus"
       @export="handleExport"

@@ -168,7 +168,7 @@ function formatLastUpdate(): string {
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/variables';
+@use '@/assets/styles/variables' as *;
 
 .weather-widget {
   height: 100%;

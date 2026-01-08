@@ -11,7 +11,6 @@ export type UserMode = 'consumer' | 'power-user' | 'developer'
  */
 export interface FeatureFlags {
   // Mission & Planning
-  missionPlanner: boolean // Low-level waypoint-based mission planning
   missionTemplates: boolean // Pre-built mission templates
   missionScheduling: boolean // Schedule missions for later
 
@@ -33,6 +32,7 @@ export interface FeatureFlags {
   rallyPoints: boolean // Rally point management
   batteryManagement: boolean // Advanced battery monitoring and management
   weatherIntegration: boolean // Weather monitoring and task postponement
+  rtcmClient: boolean // RTK/RTCM positioning for centimeter-level GPS accuracy
   customCommands: boolean // Send custom MAVLink commands
   scriptExecution: boolean // Run custom automation scripts
 
@@ -47,7 +47,6 @@ export interface FeatureFlags {
  */
 const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
   consumer: {
-    missionPlanner: false,
     missionTemplates: true,
     missionScheduling: true,
     vehicleControl: false,
@@ -63,6 +62,7 @@ const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
     rallyPoints: false,
     batteryManagement: true,
     weatherIntegration: true,
+    rtcmClient: true,
     customCommands: false,
     scriptExecution: false,
     apiConsole: false,
@@ -70,7 +70,6 @@ const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
     experimentalFeatures: false,
   },
   'power-user': {
-    missionPlanner: true,
     missionTemplates: true,
     missionScheduling: true,
     vehicleControl: true,
@@ -86,6 +85,7 @@ const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
     rallyPoints: true,
     batteryManagement: true,
     weatherIntegration: true,
+    rtcmClient: true,
     customCommands: false,
     scriptExecution: false,
     apiConsole: false,
@@ -93,7 +93,6 @@ const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
     experimentalFeatures: false,
   },
   developer: {
-    missionPlanner: true,
     missionTemplates: true,
     missionScheduling: true,
     vehicleControl: true,
@@ -109,6 +108,7 @@ const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
     rallyPoints: true,
     batteryManagement: true,
     weatherIntegration: true,
+    rtcmClient: true,
     customCommands: true,
     scriptExecution: true,
     apiConsole: true,

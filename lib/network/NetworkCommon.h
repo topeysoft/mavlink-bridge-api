@@ -28,7 +28,14 @@ enum class WebSocketEventType {
     RTCM_DATA,
     ERROR_EVENT,
     LOG,
-    MAVLINK_MESSAGE
+    MAVLINK_MESSAGE,
+    // Resource sync events
+    ZONE_CREATED,
+    ZONE_UPDATED,
+    ZONE_DELETED,
+    MISSION_CREATED,
+    MISSION_UPDATED,
+    MISSION_DELETED
 };
 
 

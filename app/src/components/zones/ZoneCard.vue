@@ -4,11 +4,11 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import Button from '@/components/common/Button.vue'
 
 interface Zone {
-  id: number
+  id: string
   name: string
   type: string
   area: number
-  status: 'active' | 'inactive' | 'pending'
+  status?: 'active' | 'inactive' | 'pending'
   color: string
   lastModified: string
 }
@@ -20,9 +20,9 @@ interface Props {
 defineProps<Props>()
 
 const emit = defineEmits<{
-  edit: [id: number]
-  delete: [id: number]
-  toggleStatus: [id: number]
+  edit: [id: string]
+  delete: [id: string]
+  toggleStatus: [id: string]
 }>()
 </script>
 

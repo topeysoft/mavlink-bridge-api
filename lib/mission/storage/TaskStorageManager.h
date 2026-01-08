@@ -28,7 +28,7 @@ struct TaskStorageConfig {
     static const char* INDEX_FILE;
     static const char* TEMP_SUFFIX;
     
-    static const uint32_t STORAGE_MAGIC = 0xTASK5678;
+    static const uint32_t STORAGE_MAGIC = 0x7A5B5678;  // Magic number for task storage
     static const uint32_t STORAGE_VERSION = 1;
 };
 

@@ -173,7 +173,7 @@ void MDNSRTCMDiscovery::runDiscoveryTask() {
     while (isRunning) {
         if (WiFi.status() == WL_CONNECTED && mdnsManager && mdnsManager->getEnabled()) {
             // Get discovered services from mDNS manager
-            auto services = mdnsManager->getDiscoveredServices("rtcm");
+            auto services = mdnsManager->getDiscoveredServices("rtk-base");
             
             if (xSemaphoreTake(serversMutex, pdMS_TO_TICKS(1000)) == pdTRUE) {
                 unsigned long now = millis();

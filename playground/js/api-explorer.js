@@ -4,8 +4,9 @@
  */
 
 export class ApiExplorer {
-  constructor(deviceConnection) {
+  constructor(deviceConnection, config) {
     this.deviceConnection = deviceConnection;
+    this.config = config;
     this.spec = null;
     this.endpoints = [];
     this.expandedEndpoints = new Set();
@@ -39,13 +40,31 @@ export class ApiExplorer {
    */
   async loadOpenApiSpec() {
     try {
-      const response = await fetch('../../api-spec.yaml');
+      console.log('Fetching OpenAPI spec from ./api-spec.yaml...');
+      const response = await fetch('./api-spec.yaml');
+      console.log('Response status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const yamlText = await response.text();
+      console.log('YAML text length:', yamlText.length);
+      console.log('First 100 chars:', yamlText.substring(0, 100));
+
+      if (typeof jsyaml === 'undefined') {
+        throw new Error('js-yaml library not loaded');
+      }
+
       this.spec = jsyaml.load(yamlText);
       console.log('Loaded OpenAPI spec:', this.spec);
+      console.log(
+        'Number of paths:',
+        Object.keys(this.spec.paths || {}).length,
+      );
     } catch (error) {
       console.error('Failed to load OpenAPI spec:', error);
-      this.showError('Failed to load API specification');
+      this.showError('Failed to load API specification: ' + error.message);
     }
   }
 
@@ -53,21 +72,44 @@ export class ApiExplorer {
    * Render API endpoints
    */
   renderEndpoints() {
+    console.log('renderEndpoints called, spec:', this.spec);
+
     if (!this.spec || !this.spec.paths) {
+      console.error('No spec or paths found!', {
+        hasSpec: !!this.spec,
+        hasPaths: !!(this.spec && this.spec.paths),
+      });
       return;
     }
 
     const container = document.getElementById('apiEndpoints');
+    if (!container) {
+      console.error('apiEndpoints container not found!');
+      return;
+    }
+
+    console.log('Clearing container and grouping endpoints...');
     container.innerHTML = '';
 
     // Group endpoints by tags
     const grouped = this.groupEndpointsByTag();
+    console.log(
+      'Grouped endpoints:',
+      Object.keys(grouped),
+      'Total groups:',
+      Object.keys(grouped).length,
+    );
 
     // Render each group
     Object.entries(grouped).forEach(([tag, endpoints]) => {
+      console.log(
+        `Rendering section: ${tag} with ${endpoints.length} endpoints`,
+      );
       const section = this.createSection(tag, endpoints);
       container.appendChild(section);
     });
+
+    console.log('Render complete!');
   }
 
   /**

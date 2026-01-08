@@ -38,39 +38,9 @@
             <span>{{ formatSchedule(mission.schedule) }}</span>
           </div>
 
-          <!-- Weather Safety Indicator -->
-          <div v-if="mission.weatherSafetyEnabled && weatherStore.isConfigured" class="weather-indicator">
-            <template v-if="mission.status === 'postponed'">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-warning">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                <line x1="12" y1="9" x2="12" y2="13"></line>
-                <line x1="12" y1="17" x2="12.01" y2="17"></line>
-              </svg>
-              <span class="text-warning">{{ mission.postponedReason || 'Postponed due to conditions' }}</span>
-            </template>
-            <template v-else-if="!isWeatherSafe">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-warning">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                <line x1="12" y1="9" x2="12" y2="13"></line>
-                <line x1="12" y1="17" x2="12.01" y2="17"></line>
-              </svg>
-              <span class="text-warning">Weather conditions unsafe</span>
-            </template>
-            <template v-else>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon-safe">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-              </svg>
-              <span class="text-safe">Weather safe</span>
-            </template>
-          </div>
-
-          <div v-if="mission.postponedUntil" class="retry-time">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-            </svg>
-            <span>Retry: {{ formatRetryTime(mission.postponedUntil) }}</span>
+          <!-- Priority Indicator -->
+          <div v-if="mission.priority !== 'normal'" class="priority-indicator">
+            <span :class="`priority-${mission.priority}`">{{ mission.priority.toUpperCase() }}</span>
           </div>
         </div>
       </div>
@@ -96,62 +66,28 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useWeatherStore } from '@/stores/weather'
-import { MissionScheduler } from '@/services/missionScheduler'
+import { useMissionsStore } from '@/stores/missions'
 import type { Mission } from '@/types'
 
-// Mock missions for demonstration - in real app, this would come from a missions store
-const mockMissions: Mission[] = [
-  {
-    id: '1',
-    name: 'Front Yard Mowing',
-    zones: ['zone-1'],
-    attachment: 'mower-1',
-    schedule: {
-      type: 'recurring',
-      startTime: '2024-01-15T08:00:00',
-      days: ['Monday', 'Wednesday', 'Friday']
-    },
-    status: 'pending',
-    created: '2024-01-01',
-    weatherSafetyEnabled: true
-  },
-  {
-    id: '2',
-    name: 'Back Yard Maintenance',
-    zones: ['zone-2'],
-    attachment: 'mower-1',
-    schedule: {
-      type: 'once',
-      startTime: '2024-01-15T14:00:00'
-    },
-    status: 'pending',
-    created: '2024-01-01',
-    weatherSafetyEnabled: true
-  }
-]
-
 const weatherStore = useWeatherStore()
+const missionsStore = useMissionsStore()
 
 const upcomingMissions = computed(() => {
-  // In real app, filter and sort missions from store
-  return mockMissions.filter(m => m.status === 'pending' || m.status === 'postponed')
-})
-
-const isWeatherSafe = computed(() => {
-  return weatherStore.isSafeForOperations
+  // Get upcoming missions from store (enabled missions sorted by next run time)
+  return missionsStore.missions
+    .filter(m => m.enabled)
+    .slice(0, 5) // Show up to 5 upcoming missions
 })
 
 function getStatusText(mission: Mission): string {
-  return MissionScheduler.getMissionStatusText(mission)
+  return mission.enabled ? 'Scheduled' : 'Disabled'
 }
 
 function getStatusColor(mission: Mission): string {
-  return MissionScheduler.getMissionStatusColor(mission)
+  return mission.enabled ? '#10b981' : '#6b7280'
 }
 
 function formatSchedule(schedule: Mission['schedule']): string {
-  if (!schedule) return 'Not scheduled'
-
   const startTime = new Date(schedule.startTime)
   const timeStr = startTime.toLocaleTimeString('en-US', {
     hour: 'numeric',
@@ -159,44 +95,17 @@ function formatSchedule(schedule: Mission['schedule']): string {
     hour12: true
   })
 
-  if (schedule.type === 'once') {
-    const dateStr = startTime.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric'
-    })
-    return `${dateStr} at ${timeStr}`
-  }
+  const dateStr = startTime.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric'
+  })
 
-  if (schedule.days && schedule.days.length > 0) {
-    const daysStr = schedule.days.map(d => d.substring(0, 3)).join(', ')
-    return `${daysStr} at ${timeStr}`
-  }
-
-  return `Daily at ${timeStr}`
-}
-
-function formatRetryTime(retryTime: string): string {
-  const date = new Date(retryTime)
-  const now = new Date()
-
-  const diffMs = date.getTime() - now.getTime()
-  const diffMinutes = Math.round(diffMs / 60000)
-
-  if (diffMinutes <= 0) {
-    return 'Ready now'
-  }
-
-  if (diffMinutes < 60) {
-    return `${diffMinutes}m`
-  }
-
-  const diffHours = Math.round(diffMinutes / 60)
-  return `${diffHours}h`
+  return `${dateStr} at ${timeStr}`
 }
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/variables';
+@use '@/assets/styles/variables' as *;
 
 .upcoming-missions-widget {
   height: 100%;

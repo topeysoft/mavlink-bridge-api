@@ -115,7 +115,7 @@ function formatRetryTime(retryTime: string): string {
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/variables';
+@use '@/assets/styles/variables' as *;
 
 .mission-weather-status {
   display: flex;

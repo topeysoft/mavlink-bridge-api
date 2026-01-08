@@ -3,15 +3,8 @@ import { ref } from 'vue'
 import Button from '@/components/common/Button.vue'
 import FormSelect from '@/components/common/FormSelect.vue'
 
-interface Props {
-  showMissionPlanner?: boolean
-}
-
-defineProps<Props>()
-
 const emit = defineEmits<{
   createMission: []
-  openMissionPlanner: []
   viewTemplates: []
   toggleView: [view: 'grid' | 'calendar']
   filterStatus: [status: string]
@@ -47,13 +40,6 @@ const toggleView = () => {
           <line x1="5" y1="12" x2="19" y2="12"></line>
         </svg>
         Create Mission
-      </Button>
-      <Button v-if="showMissionPlanner" variant="outline" @click="emit('openMissionPlanner')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-          <circle cx="12" cy="10" r="3"></circle>
-        </svg>
-        Mission Planner
       </Button>
       <Button variant="outline" @click="emit('viewTemplates')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

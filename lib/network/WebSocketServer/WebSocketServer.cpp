@@ -235,6 +235,12 @@ WebSocketEventType WebSocketServer::stringToEventType(const String& typeStr) {
     if (typeStr == "error") return WebSocketEventType::ERROR_EVENT;
     if (typeStr == "log") return WebSocketEventType::LOG;
     if (typeStr == "mavlink_message") return WebSocketEventType::MAVLINK_MESSAGE;
+    if (typeStr == "zone:created") return WebSocketEventType::ZONE_CREATED;
+    if (typeStr == "zone:updated") return WebSocketEventType::ZONE_UPDATED;
+    if (typeStr == "zone:deleted") return WebSocketEventType::ZONE_DELETED;
+    if (typeStr == "mission:created") return WebSocketEventType::MISSION_CREATED;
+    if (typeStr == "mission:updated") return WebSocketEventType::MISSION_UPDATED;
+    if (typeStr == "mission:deleted") return WebSocketEventType::MISSION_DELETED;
     return WebSocketEventType::STATUS;
 }
 
@@ -246,6 +252,12 @@ String WebSocketServer::eventTypeToString(WebSocketEventType type) {
         case WebSocketEventType::ERROR_EVENT: return "error";
         case WebSocketEventType::LOG: return "log";
         case WebSocketEventType::MAVLINK_MESSAGE: return "mavlink_message";
+        case WebSocketEventType::ZONE_CREATED: return "zone:created";
+        case WebSocketEventType::ZONE_UPDATED: return "zone:updated";
+        case WebSocketEventType::ZONE_DELETED: return "zone:deleted";
+        case WebSocketEventType::MISSION_CREATED: return "mission:created";
+        case WebSocketEventType::MISSION_UPDATED: return "mission:updated";
+        case WebSocketEventType::MISSION_DELETED: return "mission:deleted";
         default: return "status";
     }
 }

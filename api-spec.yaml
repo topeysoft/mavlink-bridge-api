@@ -24,28 +24,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
               example:
-                status: "healthy"
+                status: 'healthy'
                 uptime: 12345
                 freeHeap: 45678
                 device:
-                  hostname: "yardrover-esp32"
-                  name: "YardRover Device"
-                  chipModel: "ESP32-S3"
+                  hostname: 'yardrover-esp32'
+                  name: 'YardRover Device'
+                  chipModel: 'ESP32-S3'
                   chipRevision: 1
                   flashSize: 8388608
-                  sdkVersion: "4.4.0"
+                  sdkVersion: '4.4.0'
                   coreCount: 2
                 network:
-                  macAddress: "24:6F:28:AB:CD:EF"
-                  apMacAddress: "24:6F:28:AB:CD:F0"
+                  macAddress: '24:6F:28:AB:CD:EF'
+                  apMacAddress: '24:6F:28:AB:CD:F0'
                   wifi:
-                    status: "connected"
-                    ssid: "MyNetwork"
-                    ip: "192.168.1.100"
-                    gateway: "192.168.1.1"
-                    subnet: "255.255.255.0"
+                    status: 'connected'
+                    ssid: 'MyNetwork'
+                    ip: '192.168.1.100'
+                    gateway: '192.168.1.1'
+                    subnet: '255.255.255.0'
                     rssi: -45
-                    bssid: "AA:BB:CC:DD:EE:FF"
+                    bssid: 'AA:BB:CC:DD:EE:FF'
                     channel: 6
                   ap:
                     enabled: false
@@ -59,12 +59,12 @@ paths:
                   taskCount: 8
                   componentCount: 4
                   components:
-                    - name: "Storage"
+                    - name: 'Storage'
                       healthy: true
-                      status: "healthy"
-                    - name: "WiFi"
+                      status: 'healthy'
+                    - name: 'WiFi'
                       healthy: true
-                      status: "healthy"
+                      status: 'healthy'
                 config:
                   version: 1
                   isDirty: false
@@ -115,7 +115,10 @@ paths:
   /api/wifi/connect:
     post:
       summary: Connect to WiFi network
-      description: Connect to a WiFi network. The network credentials are automatically saved and will be used for auto-connect on boot. AP mode is disabled upon successful connection.
+      description: |
+        Connect to a WiFi network. The network credentials are automatically saved and will be used for auto-connect on boot.
+        Upon successful connection, the Access Point is disabled while maintaining dual-mode WiFi capability for AsyncWebServer compatibility.
+        The device remains in WIFI_AP_STA mode but the AP interface is disconnected.
       requestBody:
         required: true
         content:
@@ -192,6 +195,72 @@ paths:
         '200':
           description: RTCM client stopped
 
+  /api/rtcm/config:
+    get:
+      summary: Get RTCM configuration
+      description: Returns the current RTCM client configuration
+      responses:
+        '200':
+          description: RTCM configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RTCMConfig'
+
+  /api/rtcm/outputs:
+    get:
+      summary: Get RTCM output configuration
+      description: Returns the current RTCM output routing configuration
+      responses:
+        '200':
+          description: Output configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RTCMOutputConfig'
+
+    post:
+      summary: Update RTCM output configuration
+      description: Update which outputs receive RTCM data (MAVLink, Serial, WebSocket)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RTCMOutputConfig'
+      responses:
+        '200':
+          description: Output configuration updated
+        '400':
+          description: Invalid configuration
+
+  /api/rtcm/outputs/toggle:
+    post:
+      summary: Toggle RTCM output
+      description: Enable or disable a specific RTCM output
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - output
+                - enabled
+              properties:
+                output:
+                  type: string
+                  enum: [mavlink, serial, websocket]
+                  description: Output to toggle
+                enabled:
+                  type: boolean
+                  description: Enable or disable the output
+      responses:
+        '200':
+          description: Output toggled successfully
+        '400':
+          description: Invalid output type
+
   /api/mavlink/command:
     post:
       summary: Send MAVLink command to flight controller
@@ -206,19 +275,19 @@ paths:
               arm:
                 summary: Arm the vehicle
                 value:
-                  commandType: "arm"
+                  commandType: 'arm'
                   targetSystem: 1
                   targetComponent: 1
               disarm:
                 summary: Disarm the vehicle
                 value:
-                  commandType: "disarm"
+                  commandType: 'disarm'
                   targetSystem: 1
                   targetComponent: 1
               setMode:
                 summary: Set flight mode
                 value:
-                  commandType: "setMode"
+                  commandType: 'setMode'
                   targetSystem: 1
                   targetComponent: 1
                   customMode: 4
@@ -226,7 +295,7 @@ paths:
               commandLong:
                 summary: Send generic command_long
                 value:
-                  commandType: "commandLong"
+                  commandType: 'commandLong'
                   targetSystem: 1
                   targetComponent: 1
                   command: 400
@@ -240,6 +309,541 @@ paths:
                 $ref: '#/components/schemas/MAVLinkCommandResponse'
         '400':
           description: Invalid command parameters
+
+  /api/communication/status:
+    get:
+      summary: Get communication system status
+      description: Returns the current status of the communication system including active interface and routing mode
+      responses:
+        '200':
+          description: Communication status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommunicationStatus'
+
+  /api/communication/statistics:
+    get:
+      summary: Get communication statistics
+      description: Returns detailed statistics for all communication interfaces (USB, UART, MAVLink)
+      responses:
+        '200':
+          description: Communication statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommunicationStatistics'
+
+  /api/communication/config:
+    get:
+      summary: Get communication configuration
+      description: Returns the current communication system configuration
+      responses:
+        '200':
+          description: Communication configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommunicationConfig'
+
+    patch:
+      summary: Update communication configuration
+      description: Update specific fields in the communication configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommunicationConfig'
+      responses:
+        '200':
+          description: Configuration updated successfully
+        '400':
+          description: Invalid configuration
+
+  /api/communication/routing-mode:
+    post:
+      summary: Set routing mode
+      description: Set the MAVLink routing mode (transparent or filtered)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mode
+              properties:
+                mode:
+                  type: string
+                  enum: [transparent, filtered]
+                  description: Routing mode to set
+      responses:
+        '200':
+          description: Routing mode updated
+        '400':
+          description: Invalid mode
+
+  /api/communication/interface:
+    post:
+      summary: Switch active interface
+      description: Switch between USB OTG and UART interfaces
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - interface
+              properties:
+                interface:
+                  type: string
+                  enum: [usb_otg, uart]
+                  description: Interface to switch to
+      responses:
+        '200':
+          description: Interface switched successfully
+        '400':
+          description: Invalid interface
+
+  /api/communication/interfaces:
+    get:
+      summary: Get available interfaces
+      description: List all available communication interfaces and their status
+      responses:
+        '200':
+          description: List of available interfaces
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  interfaces:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InterfaceInfo'
+
+  /api/communication/detect:
+    post:
+      summary: Detect available interfaces
+      description: Trigger detection of available communication interfaces
+      responses:
+        '200':
+          description: Detection completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detected:
+                    type: array
+                    items:
+                      type: string
+
+  /api/communication/test:
+    post:
+      summary: Test interface
+      description: Test a specific communication interface
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - interface
+              properties:
+                interface:
+                  type: string
+                  enum: [usb_otg, uart]
+      responses:
+        '200':
+          description: Test completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  /api/communication/health:
+    get:
+      summary: Get interface health status
+      description: Returns health status for all communication interfaces
+      responses:
+        '200':
+          description: Interface health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InterfaceHealth'
+
+  /api/communication/mavlink/processing:
+    post:
+      summary: Set MAVLink processing mode
+      description: Enable or disable MAVLink message processing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - enabled
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Processing mode updated
+
+  /api/communication/mavlink/filter:
+    get:
+      summary: Get MAVLink message filter
+      description: Returns the current MAVLink message filter configuration
+      responses:
+        '200':
+          description: Filter configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAVLinkFilter'
+
+    post:
+      summary: Set MAVLink message filter
+      description: Configure which MAVLink messages to filter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MAVLinkFilter'
+      responses:
+        '200':
+          description: Filter updated
+        '400':
+          description: Invalid filter configuration
+
+    delete:
+      summary: Clear MAVLink message filter
+      description: Remove all MAVLink message filters
+      responses:
+        '200':
+          description: Filter cleared
+
+  /api/communication/send:
+    post:
+      summary: Send raw data
+      description: Send raw data through the active communication interface
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - data
+              properties:
+                data:
+                  type: string
+                  description: Base64-encoded data to send
+      responses:
+        '200':
+          description: Data sent successfully
+        '400':
+          description: Invalid data
+
+  /api/communication/statistics/reset:
+    post:
+      summary: Reset communication statistics
+      description: Reset all communication statistics counters to zero
+      responses:
+        '200':
+          description: Statistics reset successfully
+
+  /api/communication/restart:
+    post:
+      summary: Restart communication system
+      description: Restart the communication system and reconnect interfaces
+      responses:
+        '200':
+          description: Communication system restarting
+
+  /api/communication/usb/stats:
+    get:
+      summary: Get USB interface statistics
+      description: Returns detailed statistics for the USB OTG interface
+      responses:
+        '200':
+          description: USB statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/USBStatistics'
+
+  /api/communication/usb/devices:
+    get:
+      summary: Get connected USB devices
+      description: List all connected USB devices
+      responses:
+        '200':
+          description: Connected USB devices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/USBDevice'
+
+  /api/communication/uart/stats:
+    get:
+      summary: Get UART interface statistics
+      description: Returns detailed statistics for the UART interface
+      responses:
+        '200':
+          description: UART statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UARTStatistics'
+
+  /api/communication/mavlink/stats:
+    get:
+      summary: Get MAVLink statistics
+      description: Returns detailed MAVLink message statistics
+      responses:
+        '200':
+          description: MAVLink statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAVLinkStatistics'
+
+  /api/mdns/status:
+    get:
+      summary: Get mDNS status
+      description: Returns the current mDNS service status including advertised and discovered services
+      responses:
+        '200':
+          description: mDNS status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MDNSStatus'
+
+  /api/mdns/discover:
+    post:
+      summary: Trigger mDNS service discovery
+      description: Manually trigger mDNS service discovery for RTCM base stations
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                serviceType:
+                  type: string
+                  description: Specific service type to discover (default "rtk-base")
+                  default: "rtk-base"
+      responses:
+        '200':
+          description: Discovery initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /api/mdns/config:
+    get:
+      summary: Get mDNS configuration
+      description: Returns the current mDNS configuration
+      responses:
+        '200':
+          description: mDNS configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MDNSConfig'
+
+    patch:
+      summary: Update mDNS configuration
+      description: Update mDNS configuration settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MDNSConfig'
+      responses:
+        '200':
+          description: Configuration updated
+        '400':
+          description: Invalid configuration
+
+  /api/status:
+    get:
+      summary: Get system status
+      description: Returns general system status information
+      responses:
+        '200':
+          description: System status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+
+  /api/health/system:
+    get:
+      summary: Get detailed system health
+      description: Returns comprehensive system health metrics
+      responses:
+        '200':
+          description: System health information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedSystemHealth'
+
+  /api/health/check:
+    post:
+      summary: Run health check
+      description: Trigger a manual system health check
+      responses:
+        '200':
+          description: Health check completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResult'
+
+  /api/health/memory:
+    get:
+      summary: Get memory information
+      description: Returns detailed memory usage information
+      responses:
+        '200':
+          description: Memory information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryInfo'
+
+  /api/memory/cleanup:
+    post:
+      summary: Trigger memory cleanup
+      description: Force memory cleanup and garbage collection
+      responses:
+        '200':
+          description: Cleanup completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  freedBytes:
+                    type: integer
+                    description: Bytes freed
+                  freeHeapAfter:
+                    type: integer
+                    description: Free heap after cleanup
+
+  /api/memory/defrag:
+    post:
+      summary: Trigger memory defragmentation
+      description: Force memory defragmentation
+      responses:
+        '200':
+          description: Defragmentation completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  largestBlockBefore:
+                    type: integer
+                  largestBlockAfter:
+                    type: integer
+
+  /api/health/errors:
+    get:
+      summary: Get error log
+      description: Returns the system error log
+      responses:
+        '200':
+          description: Error log
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ErrorEntry'
+
+    delete:
+      summary: Clear error log
+      description: Clear all entries from the error log
+      responses:
+        '200':
+          description: Error log cleared
+
+  /api/health/tasks:
+    get:
+      summary: Get task information
+      description: Returns information about running FreeRTOS tasks
+      responses:
+        '200':
+          description: Task information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskInfo'
+
+  /api/test/run:
+    post:
+      summary: Run system test
+      description: Execute a system test
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                testType:
+                  type: string
+                  description: Type of test to run
+      responses:
+        '200':
+          description: Test completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  results:
+                    type: object
 
   /api/mavlink/mission/upload:
     post:
@@ -369,7 +973,7 @@ paths:
               by_name:
                 summary: Request parameter by name
                 value:
-                  parameterName: "AHRS_GPS_GAIN"
+                  parameterName: 'AHRS_GPS_GAIN'
                   targetSystem: 1
                   targetComponent: 1
               by_index:
@@ -399,7 +1003,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ParameterSetRequest'
             example:
-              parameterName: "AHRS_GPS_GAIN"
+              parameterName: 'AHRS_GPS_GAIN'
               value: 1.5
               targetSystem: 1
               targetComponent: 1
@@ -436,95 +1040,83 @@ paths:
         '400':
           description: Invalid request parameters
 
-  /api/tasks:
+  /api/zones:
     get:
-      summary: List all tasks
+      summary: List all zones
       description: |
-        Retrieve a list of all tasks with optional filtering.
-        Note: Pattern generation (mowing patterns, survey patterns) is handled client-side for performance optimization.
+        Retrieve a list of all zones with optional incremental sync support.
+        Use the `since` parameter to get only zones modified after a specific timestamp for efficient synchronization.
       parameters:
-        - name: type
+        - name: since
           in: query
-          description: Filter tasks by type
+          description: Timestamp for incremental sync (only return zones modified after this time)
           schema:
-            type: string
-            enum: [waypoint_mission, mowing, spraying, leaf_blowing, towing, snow_removal, patrolling, surveying, custom]
-        - name: status
-          in: query
-          description: Filter tasks by status
-          schema:
-            type: string
-            enum: [created, ready, executing, paused, completed, failed, cancelled]
-        - name: priority
-          in: query
-          description: Filter tasks by priority
-          schema:
-            type: string
-            enum: [low, normal, high, critical]
+            type: integer
+            format: int64
       responses:
         '200':
-          description: List of tasks
+          description: List of zones
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TaskListResponse'
+                $ref: '#/components/schemas/ZoneListResponse'
         '500':
-          description: Internal server error
+          description: Storage not initialized
 
     post:
-      summary: Create a new task
-      description: |
-        Create a new task with the specified parameters.
-        Tasks should be created with pre-generated waypoints from client-side pattern algorithms.
+      summary: Create a new zone
+      description: Create a new zone definition for mowing, exclusion, or charging areas
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TaskCreateRequest'
+              $ref: '#/components/schemas/Zone'
       responses:
-        '201':
-          description: Task created successfully
+        '202':
+          description: Zone creation queued
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TaskResponse'
+                $ref: '#/components/schemas/ZoneOperationResponse'
         '400':
-          description: Invalid task data
+          description: Invalid zone data or missing ID
+        '503':
+          description: Write queue full, try again later
         '500':
-          description: Internal server error
+          description: Storage not initialized
 
-  /api/tasks/{taskId}:
+  /api/zones/{zoneId}:
     get:
-      summary: Get task details
-      description: Retrieve detailed information about a specific task
+      summary: Get zone details
+      description: Retrieve detailed information about a specific zone
       parameters:
-        - name: taskId
+        - name: zoneId
           in: path
           required: true
-          description: Unique task identifier
+          description: Unique zone identifier (UUID)
           schema:
             type: string
       responses:
         '200':
-          description: Task details
+          description: Zone details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TaskResponse'
+                $ref: '#/components/schemas/Zone'
         '404':
-          description: Task not found
+          description: Zone not found
         '500':
-          description: Internal server error
+          description: Storage not initialized or read failed
 
     put:
-      summary: Update task
-      description: Update an existing task
+      summary: Update zone
+      description: Update an existing zone definition
       parameters:
-        - name: taskId
+        - name: zoneId
           in: path
           required: true
-          description: Unique task identifier
+          description: Unique zone identifier (UUID)
           schema:
             type: string
       requestBody:
@@ -532,276 +1124,179 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TaskUpdateRequest'
+              $ref: '#/components/schemas/Zone'
       responses:
-        '200':
-          description: Task updated successfully
+        '202':
+          description: Zone update queued
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TaskResponse'
+                $ref: '#/components/schemas/ZoneOperationResponse'
         '400':
-          description: Invalid task data
-        '404':
-          description: Task not found
-        '409':
-          description: Task is currently executing
+          description: Invalid zone data
+        '503':
+          description: Write queue full, try again later
         '500':
-          description: Internal server error
+          description: Storage not initialized
 
     delete:
-      summary: Delete task
-      description: Delete a task (will cancel execution if running)
+      summary: Delete zone
+      description: Delete a zone from storage
       parameters:
-        - name: taskId
+        - name: zoneId
           in: path
           required: true
-          description: Unique task identifier
+          description: Unique zone identifier (UUID)
           schema:
             type: string
-      responses:
-        '204':
-          description: Task deleted successfully
-        '404':
-          description: Task not found
-        '500':
-          description: Internal server error
-
-  /api/tasks/{taskId}/execute:
-    post:
-      summary: Execute task
-      description: Start execution of a task, converting it to a MAVLink mission
-      parameters:
-        - name: taskId
-          in: path
-          required: true
-          description: Unique task identifier
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TaskExecutionRequest'
       responses:
         '200':
-          description: Task execution started
+          description: Zone deleted successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TaskExecutionResponse'
-        '400':
-          description: Invalid execution parameters
+                $ref: '#/components/schemas/ZoneOperationResponse'
         '404':
-          description: Task not found
-        '409':
-          description: Task already executing or system busy
+          description: Zone not found
         '500':
-          description: Internal server error
+          description: Storage not initialized or delete failed
 
-  /api/tasks/{taskId}/status:
+  /api/missions:
     get:
-      summary: Get task execution status
-      description: Get real-time execution status of a task
+      summary: List all scheduled missions
+      description: |
+        Retrieve a list of all scheduled missions with optional incremental sync support.
+        Use the `since` parameter to get only missions modified after a specific timestamp.
       parameters:
-        - name: taskId
-          in: path
-          required: true
-          description: Unique task identifier
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Task execution status
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TaskExecutionStatus'
-        '404':
-          description: Task not found or not executing
-        '500':
-          description: Internal server error
-
-  /api/tasks/{taskId}/cancel:
-    post:
-      summary: Cancel task execution
-      description: Cancel the execution of a running task
-      parameters:
-        - name: taskId
-          in: path
-          required: true
-          description: Unique task identifier
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Task execution cancelled
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TaskExecutionResponse'
-        '404':
-          description: Task not found
-        '409':
-          description: Task is not executing
-        '500':
-          description: Internal server error
-
-  /api/tasks/{taskId}/pause:
-    post:
-      summary: Pause task execution
-      description: Pause the execution of a running task
-      parameters:
-        - name: taskId
-          in: path
-          required: true
-          description: Unique task identifier
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Task execution paused
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TaskExecutionResponse'
-        '404':
-          description: Task not found
-        '409':
-          description: Task is not executing
-        '500':
-          description: Internal server error
-
-  /api/tasks/{taskId}/resume:
-    post:
-      summary: Resume task execution
-      description: Resume the execution of a paused task
-      parameters:
-        - name: taskId
-          in: path
-          required: true
-          description: Unique task identifier
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Task execution resumed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TaskExecutionResponse'
-        '404':
-          description: Task not found
-        '409':
-          description: Task is not paused
-        '500':
-          description: Internal server error
-
-  /api/tasks/import:
-    post:
-      summary: Import tasks
-      description: Import tasks from JSON or backup format
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TaskImportRequest'
-      responses:
-        '200':
-          description: Tasks imported successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TaskImportResponse'
-        '400':
-          description: Invalid import data
-        '500':
-          description: Internal server error
-
-  /api/tasks/export:
-    get:
-      summary: Export all tasks
-      description: Export all tasks in specified format
-      parameters:
-        - name: format
+        - name: since
           in: query
-          description: Export format
+          description: Timestamp for incremental sync (only return missions modified after this time)
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: List of missions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionListResponse'
+        '500':
+          description: Storage not initialized
+
+    post:
+      summary: Create a new scheduled mission
+      description: Create a new scheduled mission with zone assignments and timing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduledMission'
+      responses:
+        '202':
+          description: Mission creation queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionOperationResponse'
+        '400':
+          description: Invalid mission data or missing ID
+        '503':
+          description: Write queue full, try again later
+        '500':
+          description: Storage not initialized
+
+  /api/missions/{missionId}:
+    get:
+      summary: Get mission details
+      description: Retrieve detailed information about a specific scheduled mission
+      parameters:
+        - name: missionId
+          in: path
+          required: true
+          description: Unique mission identifier (UUID)
           schema:
             type: string
-            enum: [json, compressed_json, binary]
-            default: json
-        - name: includeWaypoints
-          in: query
-          description: Include waypoint data
+      responses:
+        '200':
+          description: Mission details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledMission'
+        '404':
+          description: Mission not found
+        '500':
+          description: Storage not initialized or read failed
+
+    put:
+      summary: Update mission
+      description: Update an existing scheduled mission
+      parameters:
+        - name: missionId
+          in: path
+          required: true
+          description: Unique mission identifier (UUID)
           schema:
-            type: boolean
-            default: true
-      responses:
-        '200':
-          description: Tasks exported successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TaskExportResponse'
-        '500':
-          description: Internal server error
-
-    post:
-      summary: Export specific tasks
-      description: Export selected tasks in specified format
+            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TaskExportRequest'
+              $ref: '#/components/schemas/ScheduledMission'
       responses:
-        '200':
-          description: Tasks exported successfully
+        '202':
+          description: Mission update queued
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TaskExportResponse'
+                $ref: '#/components/schemas/MissionOperationResponse'
         '400':
-          description: Invalid export parameters
+          description: Invalid mission data
+        '503':
+          description: Write queue full, try again later
         '500':
-          description: Internal server error
+          description: Storage not initialized
 
-  /api/tasks/templates:
+    delete:
+      summary: Delete mission
+      description: Delete a scheduled mission from storage
+      parameters:
+        - name: missionId
+          in: path
+          required: true
+          description: Unique mission identifier (UUID)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Mission deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionOperationResponse'
+        '404':
+          description: Mission not found
+        '500':
+          description: Storage not initialized or delete failed
+
+  /api/resources/sync:
     get:
-      summary: List task templates
-      description: Get available task templates
+      summary: Get resource synchronization metadata
+      description: |
+        Retrieve synchronization metadata and statistics for all resource types.
+        Useful for checking sync status and storage health.
       responses:
         '200':
-          description: Task templates
+          description: Resource sync metadata
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TaskTemplateListResponse'
+                $ref: '#/components/schemas/ResourceSyncResponse'
         '500':
-          description: Internal server error
-
-    post:
-      summary: Create task from template
-      description: Create a new task using a predefined template
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TaskFromTemplateRequest'
-      responses:
-        '201':
-          description: Task created from template
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TaskResponse'
-        '400':
-          description: Invalid template or parameters
-        '500':
-          description: Internal server error
+          description: Storage not initialized
 
   /ws:
     get:
@@ -809,7 +1304,7 @@ paths:
       description: |
         WebSocket connection for real-time events and data streaming.
         Message format: JSON with 'type' and 'payload' fields.
-        
+
         Task-related events:
         - task_created: Task was created
         - task_updated: Task was modified
@@ -821,6 +1316,14 @@ paths:
         - task_execution_completed: Task execution finished
         - task_execution_failed: Task execution failed
         - task_execution_cancelled: Task execution was cancelled
+
+        Resource-related events:
+        - zone:created: Zone was created
+        - zone:updated: Zone was modified
+        - zone:deleted: Zone was deleted
+        - mission:created: Mission was created
+        - mission:updated: Mission was modified
+        - mission:deleted: Mission was deleted
       responses:
         '101':
           description: Switching Protocols
@@ -858,6 +1361,9 @@ components:
           $ref: '#/components/schemas/ConfigHealth'
         storage:
           $ref: '#/components/schemas/StorageHealth'
+        resourceStorage:
+          $ref: '#/components/schemas/ResourceStorageHealth'
+          description: Resource storage health and metrics (only present when resource storage is initialized)
         issues:
           type: array
           items:
@@ -927,6 +1433,16 @@ components:
         status:
           type: string
           enum: [disconnected, connecting, connected, ap_mode, error]
+          description: |
+            WiFi connection status:
+            - disconnected: Not connected to any network
+            - connecting: Attempting to connect to a network
+            - connected: Connected to WiFi network (AP interface disabled via softAPdisconnect)
+            - ap_mode: Running as access point (AP active, may or may not have STA connection)
+            - error: Connection error occurred
+
+            Note: Device always runs in WIFI_AP_STA mode for AsyncWebServer compatibility,
+            but AP is disabled when connected to WiFi.
         ssid:
           type: string
           description: Connected network SSID (only when connected)
@@ -1131,12 +1647,12 @@ components:
         apSSID:
           type: string
           maxLength: 32
-          default: "MAVLinkBridge-Setup"
+          default: 'MAVLinkBridge-Setup'
           description: Access Point SSID
         apPassword:
           type: string
           maxLength: 64
-          default: "mavlinkbridge123"
+          default: 'mavlinkbridge123'
           description: Access Point password
 
     WiFiCredentials:
@@ -1244,7 +1760,8 @@ components:
           description: Whether network is password protected
         authMode:
           type: string
-          enum: [open, wep, wpa, wpa2, wpa/wpa2, wpa2-enterprise, wpa3, wpa2/wpa3]
+          enum:
+            [open, wep, wpa, wpa2, wpa/wpa2, wpa2-enterprise, wpa3, wpa2/wpa3]
           description: Authentication mode
         channel:
           type: integer
@@ -1327,7 +1844,8 @@ components:
       properties:
         commandType:
           type: string
-          enum: [arm, disarm, setMode, commandLong, commandInt, setPositionTarget]
+          enum:
+            [arm, disarm, setMode, commandLong, commandInt, setPositionTarget]
           description: Type of MAVLink command to send
         targetSystem:
           type: integer
@@ -1679,8 +2197,8 @@ components:
           type: integer
           description: Mission state (MissionState enum)
 
-    # Task Management Schemas
-    TaskWaypoint:
+    # Waypoint/Position Schemas
+    WaypointRequest:
       type: object
       required:
         - latitude
@@ -1785,11 +2303,23 @@ components:
           description: Task description
         type:
           type: string
-          enum: [waypoint_mission, mowing, spraying, leaf_blowing, towing, snow_removal, patrolling, surveying, custom]
+          enum:
+            [
+              waypoint_mission,
+              mowing,
+              spraying,
+              leaf_blowing,
+              towing,
+              snow_removal,
+              patrolling,
+              surveying,
+              custom,
+            ]
           description: Task type
         status:
           type: string
-          enum: [created, ready, executing, paused, completed, failed, cancelled]
+          enum:
+            [created, ready, executing, paused, completed, failed, cancelled]
           description: Current task status
         priority:
           type: string
@@ -1861,7 +2391,18 @@ components:
           description: Task description
         type:
           type: string
-          enum: [waypoint_mission, mowing, spraying, leaf_blowing, towing, snow_removal, patrolling, surveying, custom]
+          enum:
+            [
+              waypoint_mission,
+              mowing,
+              spraying,
+              leaf_blowing,
+              towing,
+              snow_removal,
+              patrolling,
+              surveying,
+              custom,
+            ]
           description: Task type
         priority:
           type: string
@@ -1981,7 +2522,8 @@ components:
           description: Task identifier
         status:
           type: string
-          enum: [created, ready, executing, paused, completed, failed, cancelled]
+          enum:
+            [created, ready, executing, paused, completed, failed, cancelled]
           description: Current execution status
         startTime:
           type: integer
@@ -2142,7 +2684,18 @@ components:
           description: Template description
         type:
           type: string
-          enum: [waypoint_mission, mowing, spraying, leaf_blowing, towing, snow_removal, patrolling, surveying, custom]
+          enum:
+            [
+              waypoint_mission,
+              mowing,
+              spraying,
+              leaf_blowing,
+              towing,
+              snow_removal,
+              patrolling,
+              surveying,
+              custom,
+            ]
           description: Task type this template creates
         parameters:
           $ref: '#/components/schemas/TaskParameters'
@@ -2412,3 +2965,751 @@ components:
           items:
             type: string
           description: Parameter tags for searching/filtering
+
+    # Resource Storage Schemas
+    ResourceStorageHealth:
+      type: object
+      required:
+        - healthy
+        - freeBytes
+        - usedBytes
+        - totalBytes
+      properties:
+        healthy:
+          type: boolean
+          description: Whether resource storage is healthy
+        initialized:
+          type: boolean
+          description: Whether resource storage is initialized
+        freeBytes:
+          type: integer
+          description: Free storage space in resource partition
+        usedBytes:
+          type: integer
+          description: Used storage space in resource partition
+        totalBytes:
+          type: integer
+          description: Total storage space in resource partition (2MB dedicated)
+        metrics:
+          $ref: '#/components/schemas/ResourceStorageMetrics'
+
+    ResourceStorageMetrics:
+      type: object
+      properties:
+        totalWrites:
+          type: integer
+          description: Total number of write operations
+        totalReads:
+          type: integer
+          description: Total number of read operations
+        failedWrites:
+          type: integer
+          description: Number of failed write operations
+        failedReads:
+          type: integer
+          description: Number of failed read operations
+        queueDepth:
+          type: integer
+          description: Current write queue depth
+        avgWriteLatency:
+          type: integer
+          description: Average write latency in milliseconds
+        avgReadLatency:
+          type: integer
+          description: Average read latency in milliseconds
+        poolUtilization:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Memory pool utilization (0.0 to 1.0)
+
+    Zone:
+      type: object
+      required:
+        - id
+        - name
+        - type
+        - coordinates
+        - color
+        - area
+        - created
+        - lastModified
+      properties:
+        id:
+          type: string
+          description: Unique zone identifier (UUID)
+        name:
+          type: string
+          description: Zone name
+        type:
+          type: string
+          enum: [mowing, exclusion, charging]
+          description: Zone type
+        coordinates:
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+            minItems: 2
+            maxItems: 2
+          description: Array of [longitude, latitude] coordinate pairs
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          description: Hex color code for zone visualization
+        area:
+          type: number
+          description: Zone area in square meters
+        description:
+          type: string
+          description: Optional zone description
+        tags:
+          type: array
+          items:
+            type: string
+          description: Optional tags for categorization
+        created:
+          type: string
+          format: date-time
+          description: Creation timestamp (ISO 8601)
+        lastModified:
+          type: string
+          format: date-time
+          description: Last modification timestamp (ISO 8601)
+        settings:
+          type: object
+          description: Zone-specific settings (e.g., mowing height, pattern)
+
+    ZoneMetadata:
+      type: object
+      required:
+        - id
+        - version
+        - timestamp
+        - size
+      properties:
+        id:
+          type: string
+          description: Zone identifier
+        version:
+          type: integer
+          description: Zone version number
+        timestamp:
+          type: integer
+          format: int64
+          description: Last modification timestamp (microseconds since epoch)
+        size:
+          type: integer
+          description: Zone data size in bytes
+
+    ZoneListResponse:
+      type: object
+      required:
+        - zones
+        - version
+        - count
+      properties:
+        zones:
+          type: array
+          items:
+            $ref: '#/components/schemas/ZoneMetadata'
+          description: Array of zone metadata
+        deleted:
+          type: array
+          items:
+            type: string
+          description: Array of deleted zone IDs (for incremental sync)
+        version:
+          type: integer
+          format: int64
+          description: Current server version timestamp
+        count:
+          type: integer
+          description: Number of zones returned
+
+    ZoneOperationResponse:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          description: Zone identifier
+        status:
+          type: string
+          enum: [queued, success]
+          description: Operation status
+
+    ScheduledMission:
+      type: object
+      required:
+        - id
+        - name
+        - type
+        - zoneIds
+        - schedule
+        - created
+        - lastModified
+      properties:
+        id:
+          type: string
+          description: Unique mission identifier (UUID)
+        name:
+          type: string
+          description: Mission name
+        type:
+          type: string
+          enum: [once, daily, weekly, monthly]
+          description: Mission schedule type
+        zoneIds:
+          type: array
+          items:
+            type: string
+          description: Array of zone IDs to execute in order
+        schedule:
+          type: object
+          properties:
+            startTime:
+              type: string
+              format: date-time
+              description: Scheduled start time (ISO 8601)
+            endTime:
+              type: string
+              format: date-time
+              description: Optional end time for recurring missions
+            daysOfWeek:
+              type: array
+              items:
+                type: integer
+                minimum: 0
+                maximum: 6
+              description: Days of week (0=Sunday, 6=Saturday) for weekly missions
+            dayOfMonth:
+              type: integer
+              minimum: 1
+              maximum: 31
+              description: Day of month for monthly missions
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
+          default: normal
+          description: Mission priority
+        enabled:
+          type: boolean
+          default: true
+          description: Whether mission is enabled
+        created:
+          type: string
+          format: date-time
+          description: Creation timestamp (ISO 8601)
+        lastModified:
+          type: string
+          format: date-time
+          description: Last modification timestamp (ISO 8601)
+        lastRun:
+          type: string
+          format: date-time
+          description: Last execution timestamp (ISO 8601)
+        nextRun:
+          type: string
+          format: date-time
+          description: Next scheduled execution (ISO 8601)
+
+    MissionMetadata:
+      type: object
+      required:
+        - id
+        - version
+        - timestamp
+        - size
+      properties:
+        id:
+          type: string
+          description: Mission identifier
+        version:
+          type: integer
+          description: Mission version number
+        timestamp:
+          type: integer
+          format: int64
+          description: Last modification timestamp (microseconds since epoch)
+        size:
+          type: integer
+          description: Mission data size in bytes
+
+    MissionListResponse:
+      type: object
+      required:
+        - missions
+        - version
+        - count
+      properties:
+        missions:
+          type: array
+          items:
+            $ref: '#/components/schemas/MissionMetadata'
+          description: Array of mission metadata
+        deleted:
+          type: array
+          items:
+            type: string
+          description: Array of deleted mission IDs (for incremental sync)
+        version:
+          type: integer
+          format: int64
+          description: Current server version timestamp
+        count:
+          type: integer
+          description: Number of missions returned
+
+    MissionOperationResponse:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          description: Mission identifier
+        status:
+          type: string
+          enum: [queued, success]
+          description: Operation status
+
+    ResourceSyncResponse:
+      type: object
+      required:
+        - version
+        - timestamp
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: Current synchronization version
+        timestamp:
+          type: integer
+          format: int64
+          description: Server timestamp (microseconds since epoch)
+        zones:
+          type: object
+          properties:
+            count:
+              type: integer
+              description: Total number of zones
+            lastModified:
+              type: integer
+              format: int64
+              description: Latest zone modification timestamp
+        missions:
+          type: object
+          properties:
+            count:
+              type: integer
+              description: Total number of missions
+            lastModified:
+              type: integer
+              format: int64
+              description: Latest mission modification timestamp
+        storage:
+          $ref: '#/components/schemas/ResourceStorageMetrics'
+
+    # Communication System Schemas
+    CommunicationStatus:
+      type: object
+      properties:
+        activeInterface:
+          type: string
+          enum: [usb_otg, uart, none]
+          description: Currently active communication interface
+        routingMode:
+          type: string
+          enum: [transparent, filtered]
+          description: Current routing mode
+        connected:
+          type: boolean
+          description: Whether an interface is connected
+        bytesReceived:
+          type: integer
+          description: Total bytes received
+        bytesSent:
+          type: integer
+          description: Total bytes sent
+
+    CommunicationStatistics:
+      type: object
+      properties:
+        usb:
+          $ref: '#/components/schemas/USBStatistics'
+        uart:
+          $ref: '#/components/schemas/UARTStatistics'
+        mavlink:
+          $ref: '#/components/schemas/MAVLinkStatistics'
+        uptime:
+          type: integer
+          description: System uptime in seconds
+
+    CommunicationConfig:
+      type: object
+      properties:
+        activeInterface:
+          type: string
+          enum: [usb_otg, uart]
+          description: Active interface
+        routingMode:
+          type: string
+          enum: [transparent, filtered]
+          description: Routing mode
+        mavlinkProcessing:
+          type: boolean
+          description: Enable MAVLink message processing
+
+    InterfaceInfo:
+      type: object
+      required:
+        - name
+        - available
+        - active
+      properties:
+        name:
+          type: string
+          description: Interface name
+        type:
+          type: string
+          enum: [usb_otg, uart]
+        available:
+          type: boolean
+          description: Whether interface is available
+        active:
+          type: boolean
+          description: Whether interface is currently active
+        connected:
+          type: boolean
+          description: Whether interface has an active connection
+
+    InterfaceHealth:
+      type: object
+      properties:
+        usb:
+          type: object
+          properties:
+            healthy:
+              type: boolean
+            connected:
+              type: boolean
+            errorCount:
+              type: integer
+        uart:
+          type: object
+          properties:
+            healthy:
+              type: boolean
+            connected:
+              type: boolean
+            errorCount:
+              type: integer
+
+    MAVLinkFilter:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Whether filtering is enabled
+        allowedMessages:
+          type: array
+          items:
+            type: integer
+          description: List of allowed MAVLink message IDs
+        blockedMessages:
+          type: array
+          items:
+            type: integer
+          description: List of blocked MAVLink message IDs
+
+    USBStatistics:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        bytesReceived:
+          type: integer
+        bytesSent:
+          type: integer
+        packetsReceived:
+          type: integer
+        packetsSent:
+          type: integer
+        errorCount:
+          type: integer
+        lastError:
+          type: string
+
+    USBDevice:
+      type: object
+      properties:
+        vendorId:
+          type: integer
+        productId:
+          type: integer
+        deviceClass:
+          type: string
+        connected:
+          type: boolean
+
+    UARTStatistics:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        bytesReceived:
+          type: integer
+        bytesSent:
+          type: integer
+        errorCount:
+          type: integer
+        overrunErrors:
+          type: integer
+        frameErrors:
+          type: integer
+        parityErrors:
+          type: integer
+
+    MAVLinkStatistics:
+      type: object
+      properties:
+        messagesReceived:
+          type: integer
+        messagesSent:
+          type: integer
+        parseErrors:
+          type: integer
+        sequenceErrors:
+          type: integer
+        crcErrors:
+          type: integer
+        lastMessageId:
+          type: integer
+        lastSystemId:
+          type: integer
+        lastComponentId:
+          type: integer
+
+    # RTCM Output Schemas
+    RTCMOutputConfig:
+      type: object
+      properties:
+        mavlink:
+          type: boolean
+          description: Send RTCM data via MAVLink
+        serial:
+          type: boolean
+          description: Send RTCM data via serial
+        websocket:
+          type: boolean
+          description: Send RTCM data via WebSocket
+
+    # mDNS Schemas
+    MDNSStatus:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Whether mDNS is enabled
+        hostname:
+          type: string
+          description: mDNS hostname
+        advertisedServices:
+          type: array
+          items:
+            $ref: '#/components/schemas/MDNSService'
+          description: Services being advertised
+        discoveredServices:
+          type: array
+          items:
+            $ref: '#/components/schemas/MDNSService'
+          description: Discovered services
+
+    MDNSService:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Service name
+        serviceName:
+          type: string
+          description: Service instance name
+        serviceType:
+          type: string
+          description: Service type (e.g., "rtk-base" for RTCM base stations)
+        port:
+          type: integer
+          description: Service port
+        hostname:
+          type: string
+          description: Hostname
+        ip:
+          type: string
+          format: ipv4
+          description: IP address
+        txtRecords:
+          type: string
+          description: TXT records
+
+    MDNSConfig:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          description: Enable/disable mDNS
+        hostname:
+          type: string
+          description: mDNS hostname
+        services:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              port:
+                type: integer
+              txtRecords:
+                type: string
+
+    # Health & System Schemas
+    SystemStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [running, degraded, error]
+        stage:
+          type: string
+          description: Current system stage/phase
+        uptime:
+          type: integer
+          description: System uptime in seconds
+        freeHeap:
+          type: integer
+          description: Free heap memory in bytes
+        storage:
+          type: object
+          properties:
+            total:
+              type: integer
+            used:
+              type: integer
+            free:
+              type: integer
+
+    DetailedSystemHealth:
+      type: object
+      properties:
+        overall:
+          type: string
+          enum: [healthy, degraded, critical]
+        cpu:
+          type: object
+          properties:
+            usage:
+              type: number
+              format: float
+            temperature:
+              type: number
+              format: float
+        memory:
+          type: object
+          properties:
+            freeHeap:
+              type: integer
+            minFreeHeap:
+              type: integer
+            largestFreeBlock:
+              type: integer
+            lowMemoryWarning:
+              type: boolean
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComponentHealth'
+
+    HealthCheckResult:
+      type: object
+      properties:
+        timestamp:
+          type: integer
+          format: int64
+        passed:
+          type: boolean
+        checks:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              passed:
+                type: boolean
+              message:
+                type: string
+
+    MemoryInfo:
+      type: object
+      properties:
+        freeHeap:
+          type: integer
+          description: Current free heap
+        minFreeHeap:
+          type: integer
+          description: Minimum free heap ever recorded
+        largestFreeBlock:
+          type: integer
+          description: Largest contiguous free block
+        totalHeap:
+          type: integer
+          description: Total heap size
+        usedHeap:
+          type: integer
+          description: Used heap
+        fragmentation:
+          type: number
+          format: float
+          description: Heap fragmentation percentage
+
+    ErrorEntry:
+      type: object
+      properties:
+        timestamp:
+          type: integer
+          format: int64
+        severity:
+          type: string
+          enum: [error, warning, critical]
+        component:
+          type: string
+          description: Component that generated the error
+        message:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+
+    TaskInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Task name
+        priority:
+          type: integer
+          description: Task priority
+        stackHighWaterMark:
+          type: integer
+          description: Minimum free stack space
+        state:
+          type: string
+          enum: [running, ready, blocked, suspended, deleted]
+          description: Current task state

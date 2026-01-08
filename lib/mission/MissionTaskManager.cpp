@@ -433,21 +433,21 @@ void MissionTaskManager::setupMAVLinkHandlers() {
     if (!mavlinkProcessor) {
         return;
     }
-    
-    messageCallback = [this](const mavlink_message_t& message) {
-        switch (message.msgid) {
+
+    messageCallback = [this](const MAVLinkMessage& message) {
+        switch (message.msg.msgid) {
             case MAVLINK_MSG_ID_MISSION_CURRENT:
-                handleMissionCurrent(message);
+                handleMissionCurrent(message.msg);
                 break;
             case MAVLINK_MSG_ID_MISSION_ITEM_REACHED:
-                handleMissionItemReached(message);
+                handleMissionItemReached(message.msg);
                 break;
             case MAVLINK_MSG_ID_MISSION_ACK:
-                handleMissionAck(message);
+                handleMissionAck(message.msg);
                 break;
         }
     };
-    
+
     mavlinkProcessor->onMessage(messageCallback);
 }
 
@@ -553,12 +553,12 @@ TaskStorageResult MissionTaskManager::queueTask(const String& taskId, const Task
     return TaskStorageResult::SUCCESS;
 }
 
-TaskExecutionResult MissionTaskManager::cancelAllTasks() {
+TaskStorageResult MissionTaskManager::cancelAllTasks() {
     for (auto& execution : activeExecutions) {
         stopTaskExecution(execution.first, true);
     }
     executionQueue.clear();
-    return TaskExecutionResult::SUCCESS;
+    return TaskStorageResult::SUCCESS;
 }
 
 String MissionTaskManager::getExecutionResultString(TaskExecutionResult result) {

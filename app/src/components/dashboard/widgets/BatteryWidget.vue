@@ -109,7 +109,7 @@ function goToBatteryPage() {
 </template>
 
 <style scoped lang="scss">
-@import '@/assets/styles/variables';
+@use '@/assets/styles/variables' as *;
 
 .battery-widget {
   cursor: pointer;

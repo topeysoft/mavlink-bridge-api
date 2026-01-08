@@ -18,25 +18,8 @@ export interface Zone {
   }
 }
 
-export interface Mission {
-  id: string
-  name: string
-  zones: string[]
-  attachment: string
-  schedule?: {
-    type: 'once' | 'recurring'
-    startTime: string
-    endTime?: string
-    days?: string[]
-  }
-  status: 'pending' | 'active' | 'completed' | 'failed' | 'postponed'
-  progress?: number
-  created: string
-  lastRun?: string
-  postponedReason?: string
-  postponedUntil?: string
-  weatherSafetyEnabled?: boolean
-}
+// Import Mission type from client library (matches API spec ScheduledMission)
+export type { Mission } from '../../../client/dist/index'
 
 export interface Attachment {
   id: string
@@ -88,6 +71,6 @@ export interface Activity {
   icon?: string
 }
 
-export type ViewName = 'connect' | 'dashboard' | 'attachments' | 'zones' | 'missions' | 'control' | 'monitoring' | 'schedule' | 'logs' | 'parameters' | 'geofencing' | 'rally-points' | 'battery' | 'weather' | 'settings'
+export type ViewName = 'connect' | 'dashboard' | 'attachments' | 'zones' | 'missions' | 'control' | 'monitoring' | 'schedule' | 'logs' | 'calibration' | 'rtcm' | 'parameters' | 'geofencing' | 'rally-points' | 'battery' | 'weather' | 'settings'
 
 export type Theme = 'light' | 'dark'

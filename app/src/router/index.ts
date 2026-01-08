@@ -19,6 +19,11 @@ const router = createRouter({
       component: () => import('../views/ZonesView.vue'),
     },
     {
+      path: '/zones/edit/:id?',
+      name: 'zone-editor',
+      component: () => import('../views/ZoneEditorView.vue'),
+    },
+    {
       path: '/missions',
       name: 'missions',
       component: () => import('../views/MissionsView.vue'),
@@ -27,11 +32,6 @@ const router = createRouter({
       path: '/missions/create',
       name: 'mission-editor',
       component: () => import('../views/MissionEditorView.vue'),
-    },
-    {
-      path: '/missions/planner',
-      name: 'mission-planner',
-      component: () => import('../views/MissionPlannerView.vue'),
     },
     {
       path: '/control',
@@ -77,6 +77,16 @@ const router = createRouter({
       path: '/connect',
       name: 'connect',
       component: () => import('../views/ConnectionView.vue'),
+    },
+    {
+      path: '/calibration',
+      name: 'calibration',
+      component: () => import('../views/CalibrationView.vue'),
+    },
+    {
+      path: '/rtcm',
+      name: 'rtcm',
+      component: () => import('../views/RTCMView.vue'),
     },
   ],
 })

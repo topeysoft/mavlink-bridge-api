@@ -47,6 +47,13 @@ export enum EventType {
   TASK_EXECUTION_COMPLETED = 'task_execution_completed',
   TASK_EXECUTION_FAILED = 'task_execution_failed',
   TASK_EXECUTION_CANCELLED = 'task_execution_cancelled',
+  // Resource sync events
+  ZONE_CREATED = 'zone:created',
+  ZONE_UPDATED = 'zone:updated',
+  ZONE_DELETED = 'zone:deleted',
+  MISSION_CREATED = 'mission:created',
+  MISSION_UPDATED = 'mission:updated',
+  MISSION_DELETED = 'mission:deleted',
   // Telemetry events - IMU and sensors
   SCALED_IMU = 'scaled_imu',
   RAW_IMU = 'raw_imu',

@@ -22,11 +22,6 @@ const featureGroups: FeatureGroup[] = [
     title: 'Mission & Planning',
     features: [
       {
-        key: 'missionPlanner',
-        label: 'Mission Planner',
-        description: 'Low-level waypoint-based mission planning with MAVLink commands',
-      },
-      {
         key: 'missionTemplates',
         label: 'Mission Templates',
         description: 'Pre-built mission templates for common tasks',
@@ -105,6 +100,11 @@ const featureGroups: FeatureGroup[] = [
         key: 'weatherIntegration',
         label: 'Weather Integration',
         description: 'Weather monitoring and automatic task postponement',
+      },
+      {
+        key: 'rtcmClient',
+        label: 'GPS Boost (RTK/RTCM)',
+        description: 'RTK positioning for centimeter-level GPS accuracy',
       },
       {
         key: 'customCommands',

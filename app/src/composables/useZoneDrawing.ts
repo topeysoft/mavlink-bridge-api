@@ -171,6 +171,21 @@ export function useZoneDrawing(map: Ref<L.Map | null>) {
   }
 
   /**
+   * Get bounds from GeoJSON data
+   */
+  const getBoundsFromGeoJSON = (geojson: any): L.LatLngBounds | null => {
+    if (!geojson) return null
+
+    try {
+      const geoLayer = L.geoJSON(geojson)
+      return geoLayer.getBounds()
+    } catch (error) {
+      console.error('Failed to get bounds from GeoJSON:', error)
+      return null
+    }
+  }
+
+  /**
    * Export drawn items as GeoJSON
    */
   const exportGeoJSON = () => {
@@ -235,6 +250,7 @@ export function useZoneDrawing(map: Ref<L.Map | null>) {
     isDrawing,
     initializeDrawing,
     loadGeoJSON,
+    getBoundsFromGeoJSON,
     exportGeoJSON,
     clearAll,
     zoomToZone,

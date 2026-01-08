@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include <vector>
 #include <functional>
+#include <common/mavlink.h>
 #include "../mavlink/MAVLinkCommon.h"
 #include "storage/TaskStorageManager.h"
 
@@ -30,10 +31,10 @@ enum class TaskStatus {
 };
 
 enum class TaskPriority {
-    LOW = 0,
-    NORMAL = 1,
-    HIGH = 2,
-    CRITICAL = 3
+    TASK_LOW = 0,
+    TASK_NORMAL = 1,
+    TASK_HIGH = 2,
+    TASK_CRITICAL = 3
 };
 
 struct TaskWaypoint {
@@ -88,7 +89,7 @@ struct TaskMetadata {
     uint32_t estimatedDuration; // seconds
     
     TaskMetadata() : type(TaskType::WAYPOINT_MISSION), status(TaskStatus::CREATED),
-                    priority(TaskPriority::NORMAL), createdTime(0), modifiedTime(0),
+                    priority(TaskPriority::TASK_NORMAL), createdTime(0), modifiedTime(0),
                     executionStartTime(0), executionEndTime(0), version(1), 
                     estimatedDuration(0) {}
 };

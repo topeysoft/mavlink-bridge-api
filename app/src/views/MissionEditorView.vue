@@ -7,6 +7,7 @@ import { useFeaturesStore } from '@/stores/features'
 import { useNotifications } from '@/composables/useNotifications'
 import { useDialog } from '@/composables/useDialog'
 import Breadcrumb from '@/components/common/Breadcrumb.vue'
+import type { Mission } from '@/types'
 
 const router = useRouter()
 const zonesStore = useZonesStore()
@@ -167,39 +168,80 @@ const loadDraft = () => {
   }
 }
 
-const createMission = () => {
+const createMission = async () => {
   if (!canProceedStep1.value || !canProceedStep2.value) {
     error('Please complete all required fields')
     return
   }
 
-  const missionData = {
-    name: missionName.value,
-    type: missionType.value,
-    description: missionDescription.value,
-    zones: selectedZones.value,
-    schedule: scheduleType.value !== 'now' ? {
-      type: scheduleType.value as 'once' | 'recurring',
-      startTime: scheduleType.value === 'later' ? scheduleTime.value : recurringTime.value,
-      frequency: scheduleType.value === 'recurring' ? recurringFrequency.value : undefined,
-      days: undefined
-    } : undefined,
-    priority: priority.value,
-    settings: {
-      notifyOnComplete: notifyOnComplete.value,
-      autoReturn: autoReturn.value
+  // Determine mission type based on schedule type
+  let missionType_: 'once' | 'daily' | 'weekly' | 'monthly'
+  if (scheduleType.value === 'now' || scheduleType.value === 'later') {
+    missionType_ = 'once'
+  } else {
+    // For recurring, use the frequency as the mission type
+    if (recurringFrequency.value === 'daily') {
+      missionType_ = 'daily'
+    } else if (recurringFrequency.value === 'weekly') {
+      missionType_ = 'weekly'
+    } else if (recurringFrequency.value === 'monthly') {
+      missionType_ = 'monthly'
+    } else {
+      missionType_ = 'daily' // Default
     }
   }
 
-  // TODO: Actually create the mission via store
-  console.log('Creating mission:', missionData)
-  success(`Mission "${missionData.name}" created successfully`)
+  // Determine start time
+  let startTime: string
+  if (scheduleType.value === 'now') {
+    startTime = new Date().toISOString()
+  } else if (scheduleType.value === 'later') {
+    startTime = new Date(scheduleTime.value).toISOString()
+  } else {
+    // For recurring, use today's date with the specified time
+    const today = new Date().toISOString().split('T')[0]
+    startTime = new Date(`${today}T${recurringTime.value}`).toISOString()
+  }
 
-  // Clear draft
-  localStorage.removeItem('mission_draft')
+  // Build schedule object without undefined values
+  const schedule: Mission['schedule'] = {
+    startTime
+  }
 
-  // Navigate back to missions
-  router.push('/missions')
+  if (missionType_ === 'weekly') {
+    schedule.daysOfWeek = [1, 2, 3, 4, 5] // Default to weekdays
+  }
+
+  if (missionType_ === 'monthly') {
+    schedule.dayOfMonth = 1 // Default to first day
+  }
+
+  const missionData: Mission = {
+    id: crypto.randomUUID(),
+    name: missionName.value,
+    type: missionType_,
+    zoneIds: [...selectedZones.value], // Clone the array
+    schedule,
+    priority: priority.value as 'low' | 'normal' | 'high' | 'critical',
+    enabled: true,
+    created: new Date().toISOString(),
+    lastModified: new Date().toISOString()
+  }
+
+  try {
+    console.log('Creating mission with data:', JSON.stringify(missionData, null, 2))
+    await missionsStore.addMission(missionData)
+    success(`Mission "${missionData.name}" created successfully`)
+
+    // Clear draft
+    localStorage.removeItem('mission_draft')
+
+    // Navigate back to missions
+    router.push('/missions')
+  } catch (err) {
+    console.error('Mission creation error:', err)
+    error(`Failed to create mission: ${(err as Error).message}`)
+  }
 }
 
 const backToMissions = async () => {
@@ -214,16 +256,6 @@ const backToMissions = async () => {
 
 const goToCreateZone = () => {
   router.push('/zones')
-}
-
-const switchToMissionPlanner = async () => {
-  const confirmed = await dialog.confirm(
-    'The Mission Planner provides low-level waypoint-based mission planning with MAVLink commands.\n\nAny unsaved changes here will be lost.',
-    'Switch to Mission Planner?'
-  )
-  if (confirmed) {
-    router.push('/missions/planner')
-  }
 }
 
 // Auto-save draft every 30 seconds
@@ -257,17 +289,6 @@ watch(scheduleType, (newValue) => {
       <div class="mission-editor-header">
         <div class="header-left">
           <h1 class="editor-title">Create Mission</h1>
-          <button
-            v-if="featuresStore.isFeatureEnabled('missionPlanner')"
-            class="switch-mode-link"
-            @click="switchToMissionPlanner"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-              <circle cx="12" cy="10" r="3"></circle>
-            </svg>
-            Switch to Mission Planner (Advanced)
-          </button>
         </div>
         <div class="editor-actions">
           <button class="btn btn-secondary" @click="saveDraft">Save Draft</button>
@@ -577,8 +598,8 @@ watch(scheduleType, (newValue) => {
 </template>
 
 <style scoped lang="scss">
-@import '@/assets/styles/variables';
-@import '@/assets/styles/mixins';
+@use '@/assets/styles/variables' as *;
+@use '@/assets/styles/mixins' as *;
 
 .mission-editor-view {
   min-height: 100vh;

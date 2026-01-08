@@ -3,6 +3,7 @@ import { WebSocketClient } from './core/WebSocketClient';
 import { ConfigClient } from './config/ConfigClient';
 import { WiFiClient } from './wifi/WiFiClient';
 import { RTCMClient } from './rtcm/RTCMClient';
+import { MDNSClient } from './mdns/MDNSClient';
 import { HealthClient } from './health/HealthClient';
 import { CommunicationClient } from './communication/CommunicationClient';
 import { MAVLinkCommandClient } from './mavlink/MAVLinkCommandClient';
@@ -10,6 +11,8 @@ import { MAVLinkMissionClient } from './mavlink/MAVLinkMissionClient';
 import { MAVLinkParameterClient } from './mavlink/parameters/MAVLinkParameterClient';
 import { TelemetryClient } from './telemetry/TelemetryClient';
 import { TaskClient } from './tasks/TaskClient';
+import { ZoneManager } from './resources/ZoneManager';
+import { MissionManager } from './resources/MissionManager';
 import { EventType, EventHandler, StatusPayload, ConfigChangedPayload, RTCMDataPayload, ErrorPayload, LogPayload, WiFiConnectedPayload, WiFiDisconnectedPayload, WiFiSignalUpdatePayload } from './core/EventTypes';
 import { Configuration, HealthResponse, WiFiCredentials } from './config/ConfigTypes';
 import { WiFiState, WiFiStatus, WiFiNetwork, SignalQuality } from './wifi/WiFiTypes';
@@ -38,6 +41,7 @@ export class MAVLinkBridgeClient {
   private readonly configClient: ConfigClient;
   private readonly wifiClient: WiFiClient;
   private readonly rtcmClient: RTCMClient;
+  private readonly mdnsClient: MDNSClient;
   private readonly healthClient: HealthClient;
   private readonly commClient: CommunicationClient;
   private readonly mavlinkClient: MAVLinkCommandClient;
@@ -45,6 +49,8 @@ export class MAVLinkBridgeClient {
   private readonly parameterClient: MAVLinkParameterClient;
   private readonly telemetryClient: TelemetryClient;
   private readonly taskClient: TaskClient;
+  private readonly zoneManager: ZoneManager;
+  private readonly missionManager: MissionManager;
   private readonly options: Required<MAVLinkBridgeClientOptions>;
 
   /**
@@ -78,6 +84,9 @@ export class MAVLinkBridgeClient {
     // Initialize RTCM client
     this.rtcmClient = new RTCMClient(this.httpClient, this.wsClient);
 
+    // Initialize mDNS client
+    this.mdnsClient = new MDNSClient(this.httpClient);
+
     // Initialize health client
     this.healthClient = new HealthClient(this.httpClient, this.wsClient);
 
@@ -98,6 +107,10 @@ export class MAVLinkBridgeClient {
 
     // Initialize task client
     this.taskClient = new TaskClient(this.httpClient, this.wsClient);
+
+    // Initialize resource managers
+    this.zoneManager = new ZoneManager(this.httpClient);
+    this.missionManager = new MissionManager(this.httpClient);
   }
 
   /**
@@ -107,12 +120,31 @@ export class MAVLinkBridgeClient {
     if (this.options.autoConnectWebSocket) {
       await this.wsClient.connect();
     }
+
+    // Initialize resource managers
+    await this.zoneManager.initialize();
+    await this.missionManager.initialize();
+
+    // Connect resource managers to WebSocket for real-time sync
+    this.zoneManager.connectWebSocket(this.wsClient);
+    this.missionManager.connectWebSocket(this.wsClient);
+
+    // Initial sync with server
+    await Promise.all([
+      this.zoneManager.sync().catch(console.error),
+      this.missionManager.sync().catch(console.error)
+    ]);
   }
 
   /**
    * Disconnect from the device
    */
-  disconnect (): void {
+  async disconnect (): Promise<void> {
+    // Close resource managers
+    await this.zoneManager.close();
+    await this.missionManager.close();
+
+    // Disconnect WebSocket
     this.wsClient.disconnect();
   }
 
@@ -193,6 +225,13 @@ export class MAVLinkBridgeClient {
   }
 
   /**
+   * Get mDNS client for service discovery
+   */
+  get mdns (): MDNSClient {
+    return this.mdnsClient;
+  }
+
+  /**
    * Get health client for system monitoring
    */
   get health (): HealthClient {
@@ -239,6 +278,20 @@ export class MAVLinkBridgeClient {
    */
   get tasks (): TaskClient {
     return this.taskClient;
+  }
+
+  /**
+   * Get zone manager for zone resource management
+   */
+  get zones (): ZoneManager {
+    return this.zoneManager;
+  }
+
+  /**
+   * Get mission manager for mission resource management
+   */
+  get missions (): MissionManager {
+    return this.missionManager;
   }
 
   /**
