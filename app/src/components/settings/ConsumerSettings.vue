@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import Card from '@/components/common/Card.vue'
 import HelpTooltip from '@/components/consumer/HelpTooltip.vue'
+import SetupQuickAccessCards from './SetupQuickAccessCards.vue'
 import { useNotifications } from '@/composables/useNotifications'
 
 const { success } = useNotifications()
@@ -24,13 +25,20 @@ function saveSetting(settingName: string, value: any) {
 
 <template>
   <div class="consumer-settings">
-    <h2 class="settings-title">Simple Settings</h2>
-    <p class="settings-description">
-      Adjust how your YardRover behaves. Need more options?
-      <router-link to="/settings" class="settings-link">View all settings</router-link>
-    </p>
+    <!-- Technical Setup Section -->
+    <SetupQuickAccessCards />
 
-    <div class="settings-grid">
+    <!-- Divider -->
+    <div class="section-divider"></div>
+
+    <!-- Simple Settings -->
+    <div class="settings-section">
+      <h2 class="settings-title">Simple Settings</h2>
+      <p class="settings-description">
+        Adjust how your YardRover behaves
+      </p>
+
+      <div class="settings-grid">
       <!-- Notifications -->
       <Card>
         <div class="setting-item">
@@ -169,15 +177,26 @@ function saveSetting(settingName: string, value: any) {
           </div>
         </div>
       </Card>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped lang="scss">
 .consumer-settings {
-  padding: var(--spacing-xl);
-  max-width: 1000px;
+  padding: 0;
+  max-width: 1200px;
   margin: 0 auto;
+}
+
+.section-divider {
+  height: 2px;
+  background: var(--border-color);
+  margin: var(--spacing-3xl) 0;
+}
+
+.settings-section {
+  padding: 0 var(--spacing-xl);
 }
 
 .settings-title {

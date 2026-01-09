@@ -1,25 +1,79 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBatteryStore } from '@/stores/battery'
 import { useConnectionStore } from '@/stores/connection'
+import { useCalibrationStore } from '@/stores/calibration'
+import { useRTCMStore } from '@/stores/rtcm'
 import TaskCard from '@/components/consumer/TaskCard.vue'
 import SimpleStatusCard from '@/components/consumer/SimpleStatusCard.vue'
 import MapPreviewCard from '@/components/dashboard/MapPreviewCard.vue'
 import JobWizard from '@/components/consumer/JobWizard.vue'
 import HelpTooltip from '@/components/consumer/HelpTooltip.vue'
+import OnboardingFlow from '@/components/consumer/OnboardingFlow.vue'
 import { useNotifications } from '@/composables/useNotifications'
 
 const router = useRouter()
 const { success } = useNotifications()
 const batteryStore = useBatteryStore()
 const connectionStore = useConnectionStore()
+const calibrationStore = useCalibrationStore()
+const rtcmStore = useRTCMStore()
 
 // Live data from stores
 const batteryLevel = computed(() => Math.round(batteryStore.batteryInfo.percent))
 const isConnected = computed(() => connectionStore.isConnected)
 const currentTask = ref<string>()
 const showJobWizard = ref(false)
+const showSetupFlow = ref(false)
+
+// Setup progress tracking
+interface SetupProgress {
+  tour: boolean
+  calibration: boolean
+  gpsBoost: boolean
+}
+
+const setupProgress = ref<SetupProgress>({
+  tour: false,
+  calibration: false,
+  gpsBoost: false
+})
+
+const setupIncomplete = computed(() => {
+  return calibrationStore.needsCalibration || !rtcmStore.isConnected
+})
+
+const setupTasks = computed(() => {
+  const tasks = []
+  if (calibrationStore.needsCalibration) {
+    tasks.push({ id: 'calibration', label: 'Setup Check', icon: '📏' })
+  }
+  if (!rtcmStore.isConnected) {
+    tasks.push({ id: 'gps', label: 'GPS Boost', icon: '🛰️' })
+  }
+  return tasks
+})
+
+function startSetup() {
+  showSetupFlow.value = true
+}
+
+function dismissSetupBanner() {
+  localStorage.setItem('yardrover_setup_banner_dismissed', 'true')
+}
+
+// Load setup progress on mount
+onMounted(() => {
+  const savedProgress = localStorage.getItem('yardrover_setup_progress')
+  if (savedProgress) {
+    try {
+      setupProgress.value = JSON.parse(savedProgress)
+    } catch (e) {
+      console.error('Failed to parse setup progress:', e)
+    }
+  }
+})
 
 interface Task {
   id: string
@@ -137,6 +191,37 @@ function handleJobCreated(job: any) {
       <p class="hero-subtitle">Choose a task to get started with your YardRover</p>
     </div>
 
+    <!-- Setup Banner -->
+    <div v-if="setupIncomplete" class="setup-banner">
+      <div class="setup-banner-content">
+        <div class="setup-banner-icon">⚙️</div>
+        <div class="setup-banner-text">
+          <h3 class="setup-banner-title">Complete Your Setup</h3>
+          <p class="setup-banner-description">
+            Get the most out of your YardRover by completing these setup steps
+          </p>
+          <div class="setup-tasks">
+            <div
+              v-for="task in setupTasks"
+              :key="task.id"
+              class="setup-task-chip"
+            >
+              <span>{{ task.icon }}</span>
+              <span>{{ task.label }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="setup-banner-actions">
+        <button class="btn btn-primary" @click="startSetup">
+          Complete Setup
+        </button>
+        <button class="btn btn-text" @click="dismissSetupBanner">
+          Maybe Later
+        </button>
+      </div>
+    </div>
+
     <!-- Status Overview -->
     <SimpleStatusCard
       :battery-level="batteryLevel"
@@ -203,6 +288,13 @@ function handleJobCreated(job: any) {
       :zones="mockZones"
       @complete="handleJobCreated"
     />
+
+    <!-- Setup Onboarding Flow -->
+    <OnboardingFlow
+      v-model="showSetupFlow"
+      :include-setup="true"
+      @complete="showSetupFlow = false"
+    />
   </div>
 </template>
 
@@ -238,6 +330,112 @@ function handleJobCreated(job: any) {
   color: var(--text-secondary);
   max-width: 600px;
   margin: 0 auto;
+}
+
+.setup-banner {
+  @include card;
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+  background: linear-gradient(135deg, rgba(44, 95, 45, 0.1) 0%, rgba(135, 206, 235, 0.1) 100%);
+  border: 2px solid var(--primary-green);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-xl);
+  animation: slide-in 0.5s ease-out;
+
+  @include mobile {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.setup-banner-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+  flex: 1;
+
+  @include mobile {
+    flex-direction: column;
+  }
+}
+
+.setup-banner-icon {
+  font-size: 64px;
+  flex-shrink: 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.setup-banner-text {
+  flex: 1;
+}
+
+.setup-banner-title {
+  margin: 0 0 var(--spacing-xs) 0;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.setup-banner-description {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+}
+
+.setup-tasks {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.setup-task-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.setup-banner-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+
+  @include mobile {
+    width: 100%;
+
+    .btn {
+      width: 100%;
+    }
+  }
 }
 
 .tasks-section {

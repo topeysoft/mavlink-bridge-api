@@ -34,7 +34,24 @@ export class HttpClient {
   private tokenProvider: TokenProvider | null = null;
 
   constructor(baseUrl: string, timeout = 10000) {
-    this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+    // Normalize base URL and ensure proper protocol
+    let normalizedUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+
+    // Auto-detect protocol based on browser context (if running in browser)
+    if (typeof window !== 'undefined') {
+      // If URL doesn't have a protocol, infer from current page
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        const isSecure = window.location.protocol === 'https:';
+        normalizedUrl = `${isSecure ? 'https' : 'http'}://${normalizedUrl}`;
+      }
+    } else {
+      // Node.js environment - default to http if no protocol specified
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+    }
+
+    this.baseUrl = normalizedUrl;
     this.timeout = timeout;
   }
 
@@ -204,7 +221,12 @@ export class HttpClient {
         if (error.message.includes('CORS')) {
           throw new HttpError(0, `CORS error - Device may not allow requests from this origin`);
         }
-        
+
+        // Check for SSL/TLS certificate errors
+        if (error.message.includes('certificate') || error.message.includes('SSL') || error.message.includes('TLS')) {
+          throw new HttpError(0, `SSL/TLS error - Certificate may be invalid or self-signed. Check device HTTPS configuration.`);
+        }
+
         throw new HttpError(0, `HTTP request failed: ${error.message}`);
       }
 

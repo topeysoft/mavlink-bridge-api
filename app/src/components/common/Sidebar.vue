@@ -44,6 +44,7 @@ const icons: Record<string, string> = {
 // Consumer-friendly labels for navigation items
 interface NavItemConfig extends NavItem {
   consumerLabel?: string
+  consumerHidden?: boolean // Hide from consumer sidebar (accessible via settings)
 }
 
 const allNavItems: NavItemConfig[] = [
@@ -55,8 +56,8 @@ const allNavItems: NavItemConfig[] = [
   { name: 'monitoring', label: 'Live Monitoring', icon: 'monitor', requiresFeature: 'systemMonitoring' },
   { name: 'schedule', label: 'Schedule & Calendar', consumerLabel: 'Schedule', icon: 'calendar_month', requiresFeature: 'missionScheduling' },
   { name: 'logs', label: 'Activity Logs', icon: 'description', requiresFeature: 'activityLogs' },
-  { name: 'calibration', label: 'Calibration', consumerLabel: 'Setup', icon: 'calibration' },
-  { name: 'rtcm', label: 'RTK Positioning', consumerLabel: 'GPS Boost', icon: 'rtcm', requiresFeature: 'rtcmClient' },
+  { name: 'calibration', label: 'Calibration', consumerLabel: 'Setup', icon: 'calibration', consumerHidden: true },
+  { name: 'rtcm', label: 'RTK Positioning', consumerLabel: 'GPS Boost', icon: 'rtcm', requiresFeature: 'rtcmClient', consumerHidden: true },
   { name: 'parameters', label: 'Parameters', icon: 'tune', requiresFeature: 'parameterConfiguration' },
   { name: 'battery', label: 'Battery', icon: 'battery', requiresFeature: 'batteryManagement' },
   { name: 'weather', label: 'Weather', icon: 'cloud', requiresFeature: 'weatherIntegration' },
@@ -67,6 +68,9 @@ const navItems = computed(() => {
   const isConsumerMode = featuresStore.userMode === 'consumer'
 
   return allNavItems.filter(item => {
+    // Hide consumer-hidden items in consumer mode
+    if (isConsumerMode && item.consumerHidden) return false
+
     if (!item.requiresFeature) return true
     return featuresStore.isFeatureEnabled(item.requiresFeature)
   }).map(item => ({

@@ -1,17 +1,18 @@
 /**
- * Router navigation guards for authentication
+ * Router navigation guards for authentication and onboarding
  */
 
 import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useConnectionStore } from '../stores/connection'
+import { useOnboardingStore } from '../stores/onboarding'
 
 /**
  * Check if route requires authentication
  */
 export function requiresAuth(route: RouteLocationNormalized): boolean {
   // Public routes (no auth required)
-  const publicRoutes = ['login', 'setup', 'connect']
+  const publicRoutes = ['login', 'setup', 'connect', 'onboarding']
   return !publicRoutes.includes(route.name as string)
 }
 
@@ -25,15 +26,28 @@ export async function authGuard(
 ): Promise<void> {
   const authStore = useAuthStore()
   const connectionStore = useConnectionStore()
+  const onboardingStore = useOnboardingStore()
 
   // Public routes that don't need auth (but might need connection for login/setup)
-  const publicRoutes = ['login', 'setup', 'connect']
+  const publicRoutes = ['login', 'setup', 'connect', 'onboarding']
   const isPublicRoute = publicRoutes.includes(to.name as string)
 
-  // FIRST PRIORITY: Check connection status
-  // If not connected and trying to access a protected route, redirect to connect
+  // FIRST PRIORITY: Check if user needs onboarding (first-time setup)
+  // If onboarding is not complete and trying to access protected route, redirect to onboarding
+  if (!onboardingStore.isOnboardingComplete && !isPublicRoute) {
+    next({ name: 'onboarding', query: { redirect: to.fullPath } })
+    return
+  }
+
+  // Check connection status
+  // If not connected and trying to access a protected route, redirect to onboarding/connect
   if (!connectionStore.isConnected && !isPublicRoute) {
-    next({ name: 'connect', query: { redirect: to.fullPath } })
+    // If onboarding is not complete, go to onboarding, otherwise go to connect page
+    if (!onboardingStore.isOnboardingComplete) {
+      next({ name: 'onboarding', query: { redirect: to.fullPath } })
+    } else {
+      next({ name: 'connect', query: { redirect: to.fullPath } })
+    }
     return
   }
 
@@ -236,5 +250,27 @@ export function operatorGuard(
     return
   }
 
+  next()
+}
+
+/**
+ * Onboarding guard - manages unified onboarding flow
+ */
+export function onboardingGuard(
+  to: RouteLocationNormalized,
+  from: RouteLocationNormalized,
+  next: NavigationGuardNext
+): void {
+  const onboardingStore = useOnboardingStore()
+  const authStore = useAuthStore()
+  const connectionStore = useConnectionStore()
+
+  // If onboarding is complete and user is authenticated, redirect to dashboard
+  if (onboardingStore.isOnboardingComplete && authStore.isAuthenticated && connectionStore.isConnected) {
+    next({ name: 'dashboard' })
+    return
+  }
+
+  // Allow access to onboarding page
   next()
 }

@@ -21,6 +21,9 @@ rtcm:
   enabled: false
   source:
     port: 2101
+tls:
+  enabled: false
+  port: 443
 security:
   enabled: true
   setup_completed: true

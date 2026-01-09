@@ -1,10 +1,18 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { authGuard, setupGuard, loginGuard, connectionGuard } from './guards'
+import { authGuard, setupGuard, loginGuard, connectionGuard, onboardingGuard } from './guards'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    // Public routes (no auth or connection required initially)
+    // Onboarding route (unified setup flow)
+    {
+      path: '/onboarding',
+      name: 'onboarding',
+      component: () => import('../pages/OnboardingPage.vue'),
+      beforeEnter: onboardingGuard,
+      meta: { public: true, requiresConnection: false, requiresAuth: false },
+    },
+    // Legacy public routes (kept for backwards compatibility, but redirect to onboarding if appropriate)
     {
       path: '/connect',
       name: 'connect',

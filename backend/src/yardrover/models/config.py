@@ -94,6 +94,24 @@ class RTCMConfig(BaseModel):
     source: NTRIPConfig = Field(default_factory=NTRIPConfig)
 
 
+class TLSConfig(BaseModel):
+    """TLS/SSL configuration for HTTPS."""
+
+    enabled: bool = Field(default=False, description="Enable HTTPS/TLS")
+    cert_file: Optional[Path] = Field(default=None, description="Path to SSL certificate file")
+    key_file: Optional[Path] = Field(default=None, description="Path to SSL private key file")
+    ca_certs: Optional[Path] = Field(default=None, description="Path to CA certificates bundle")
+    port: int = Field(default=443, ge=1, le=65535, description="HTTPS port (default 443)")
+
+    @field_validator("cert_file", "key_file", "ca_certs")
+    @classmethod
+    def expand_path(cls, v: Optional[Path]) -> Optional[Path]:
+        """Expand and resolve path."""
+        if v is None:
+            return None
+        return v.expanduser().resolve()
+
+
 class SecurityConfig(BaseModel):
     """Security and authentication configuration."""
 
@@ -143,6 +161,7 @@ class Configuration(BaseModel):
     serial: SerialConfig = Field(default_factory=SerialConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     rtcm: RTCMConfig = Field(default_factory=RTCMConfig)
+    tls: TLSConfig = Field(default_factory=TLSConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
 
     model_config = {"extra": "allow"}  # Allow extra fields for future compatibility
@@ -190,6 +209,13 @@ class Settings(BaseSettings):
     ntrip_username: Optional[str] = None
     ntrip_password: Optional[str] = None
 
+    # TLS/SSL settings
+    tls_enabled: bool = Field(default=False)
+    tls_cert_file: Optional[Path] = None
+    tls_key_file: Optional[Path] = None
+    tls_ca_certs: Optional[Path] = None
+    tls_port: int = Field(default=443, ge=1, le=65535)
+
     # Server settings
     host: str = Field(default="0.0.0.0")
     port: int = Field(default=8000, ge=1, le=65535)
@@ -220,7 +246,7 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = Field(default=60)
     cors_origins: list[str] = Field(default_factory=lambda: ["*"])
 
-    @field_validator("storage_path", "resource_storage_path")
+    @field_validator("storage_path", "resource_storage_path", "tls_cert_file", "tls_key_file", "tls_ca_certs")
     @classmethod
     def expand_path(cls, v: Optional[Path]) -> Optional[Path]:
         """Expand path, keeping relative paths as-is for development."""
@@ -267,6 +293,13 @@ class Settings(BaseSettings):
                     username=self.ntrip_username,
                     password=self.ntrip_password,
                 ),
+            ),
+            tls=TLSConfig(
+                enabled=self.tls_enabled,
+                cert_file=self.tls_cert_file,
+                key_file=self.tls_key_file,
+                ca_certs=self.tls_ca_certs,
+                port=self.tls_port,
             ),
             security=SecurityConfig(
                 enabled=self.security_enabled,

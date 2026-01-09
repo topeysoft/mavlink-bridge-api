@@ -7,3 +7,5 @@ node_modules/
 client/dist
 console/dist
 .DS_Store
+backend/certs/key.pem
+backend/certs/cert.pem

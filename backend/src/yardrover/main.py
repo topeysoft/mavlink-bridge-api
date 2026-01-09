@@ -124,6 +124,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             ]
 
             if not config_manager.config.security.setup_completed or not admin_keys:
+                # Determine protocol and port for setup URL
+                protocol = "https" if settings.tls_enabled else "http"
+                port = settings.tls_port if settings.tls_enabled else settings.port
+
                 logger.warning(
                     "first_boot_detected",
                     setup_completed=config_manager.config.security.setup_completed,
@@ -132,7 +136,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 )
                 logger.warning(
                     "setup_instructions",
-                    web_url=f"http://{config_manager.config.device.hostname}.local:{settings.port}",
+                    web_url=f"{protocol}://{config_manager.config.device.hostname}.local:{port}",
                     note="Navigate to /setup to create your admin credentials",
                 )
             else:
@@ -168,16 +172,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await mdns_manager.start()
             logger.info("mdns_manager_initialized")
 
-            # Advertise HTTP API service
+            # Advertise HTTP/HTTPS API service
             if mdns_manager:
+                # Use HTTPS service type if TLS is enabled
+                service_type = "_https._tcp" if settings.tls_enabled else "_http._tcp"
+                service_port = settings.tls_port if settings.tls_enabled else settings.port
+
                 await mdns_manager.add_service(
                     service_name=config_manager.config.device.name,
-                    service_type="_http._tcp",
-                    port=settings.port,
+                    service_type=service_type,
+                    port=service_port,
                     txt_records={
                         "version": "2.0.0",
                         "device": "yardrover",
                         "api": "rest",
+                        "tls": "true" if settings.tls_enabled else "false",
                     },
                 )
         except Exception as e:
@@ -474,13 +483,50 @@ def run() -> None:
     """Run the application (CLI entry point)."""
     import uvicorn
 
-    uvicorn.run(
-        "yardrover.main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=settings.reload,
-        log_level=settings.log_level.lower(),
-    )
+    # Determine if TLS is enabled and configure accordingly
+    if settings.tls_enabled:
+        if not settings.tls_cert_file or not settings.tls_key_file:
+            logger.error(
+                "tls_configuration_error",
+                message="TLS enabled but cert_file or key_file not provided",
+            )
+            raise ValueError("TLS enabled but cert_file or key_file not configured")
+
+        # Use TLS port when TLS is enabled
+        port = settings.tls_port
+
+        logger.info(
+            "starting_with_tls",
+            host=settings.host,
+            port=port,
+            cert_file=str(settings.tls_cert_file),
+        )
+
+        uvicorn.run(
+            "yardrover.main:app",
+            host=settings.host,
+            port=port,
+            reload=settings.reload,
+            log_level=settings.log_level.lower(),
+            ssl_keyfile=str(settings.tls_key_file),
+            ssl_certfile=str(settings.tls_cert_file),
+            ssl_ca_certs=str(settings.tls_ca_certs) if settings.tls_ca_certs else None,
+        )
+    else:
+        logger.info(
+            "starting_without_tls",
+            host=settings.host,
+            port=settings.port,
+            note="Running in HTTP mode (TLS disabled)",
+        )
+
+        uvicorn.run(
+            "yardrover.main:app",
+            host=settings.host,
+            port=settings.port,
+            reload=settings.reload,
+            log_level=settings.log_level.lower(),
+        )
 
 
 if __name__ == "__main__":

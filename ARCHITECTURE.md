@@ -1,0 +1,489 @@
+# YardRover Architecture
+
+This document describes the detailed architecture, authentication flows, and system design of the YardRover project.
+
+## System Overview
+
+YardRover is an autonomous yard utility machine with a distributed architecture:
+
+```
+┌─────────────────────┐     ┌─────────────────────┐     ┌─────────────────────┐
+│   Vue 3 Web App     │────▶│  FastAPI Backend    │────▶│  MAVLink Vehicle    │
+│  (Browser Client)   │ HTTP│  (Raspberry Pi)     │ UART│  (Flight Controller)│
+└─────────────────────┘     └─────────────────────┘     └─────────────────────┘
+         │                           │
+         │                           │
+         └───────── WebSocket ───────┘
+              (Real-time Telemetry)
+```
+
+### Components
+
+1. **Backend API** (`backend/src/yardrover/`)
+   - Python/FastAPI server running on Raspberry Pi
+   - MAVLink integration for vehicle control
+   - WebSocket server for real-time telemetry
+   - REST API for configuration and control
+   - Authentication and RBAC system
+   - mDNS service discovery
+
+2. **Web Application** (`app/src/`)
+   - Vue 3 + TypeScript frontend
+   - Custom components (NO Quasar dependency)
+   - Pinia state management
+   - Real-time dashboard with WebSocket integration
+   - Responsive design for mobile/desktop
+
+3. **Client Library** (`client/src/`)
+   - TypeScript library for device communication
+   - Type-safe API wrappers
+   - WebSocket client with auto-reconnection
+   - Authentication client with token management
+   - Shared types between backend and frontend
+
+4. **Console Tool** (`console/src/`)
+   - CLI for device management and testing
+   - Uses the same client library as web app
+
+## Authentication & Security Architecture
+
+### Security Model
+
+YardRover uses **owner-only access** with physical device reset capability:
+
+```
+┌──────────────────────────────────────────┐
+│  First Boot (Setup Mode)                │
+│  - Auto-detected on startup             │
+│  - Creates admin API key                │
+│  - No auth required for setup           │
+└──────────────────────────────────────────┘
+                ↓
+┌──────────────────────────────────────────┐
+│  Normal Operation                        │
+│  - Login with API key                    │
+│  - Receive JWT token (30 days)          │
+│  - Auto token injection on requests     │
+│  - Session monitoring & warnings        │
+└──────────────────────────────────────────┘
+                ↓
+┌──────────────────────────────────────────┐
+│  Physical Reset (if needed)              │
+│  - Access device console                │
+│  - Set YARDROVER_DEBUG=true             │
+│  - Call /api/setup/reset endpoint       │
+│  - Returns to setup mode                │
+└──────────────────────────────────────────┘
+```
+
+### Authentication Components
+
+**Backend** (`backend/src/yardrover/`):
+- `api/auth.py` - Login, API key management endpoints
+- `api/setup.py` - First-boot setup endpoints
+- `auth/api_keys.py` - API key generation and verification (bcrypt)
+- `auth/jwt_handler.py` - JWT token creation and validation
+- `auth/dependencies.py` - FastAPI auth dependencies
+- `auth/rbac.py` - Role-based access control
+
+**Client Library** (`client/src/auth/`):
+- `AuthClient.ts` - Full auth client with token management
+- `AuthTypes.ts` - TypeScript types for auth (Role, Permission, etc.)
+
+**Frontend** (`app/src/`):
+- `stores/auth.ts` - Pinia auth store
+- `pages/LoginPage.vue` - Login interface
+- `pages/SetupPage.vue` - First-boot setup wizard
+- `router/guards.ts` - Route protection logic
+
+### First-Time Setup Flow
+
+1. **Backend boots in setup mode** (no admin API keys exist)
+2. **User accesses web interface** at device's mDNS hostname or IP
+3. **Setup wizard guides user** through device naming and credential creation
+4. **API key generated** and shown once (user must save it)
+5. **Device exits setup mode** and requires authentication
+6. **User logs in** with API key to access dashboard
+
+### Role-Based Access Control (RBAC)
+
+**Roles:**
+- **ADMIN** - Full system access (manage users, config, control)
+- **OPERATOR** - Control and operate vehicle (no user management)
+- **VIEWER** - Read-only access to status and telemetry
+
+**Permissions:** Fine-grained permissions for specific actions (view, control, configure, manage)
+
+### Security Features
+
+- ✅ API keys hashed with bcrypt (never stored in plaintext)
+- ✅ JWT tokens for stateless authentication (30-day default expiry)
+- ✅ Rate limiting to prevent brute force attacks
+- ✅ CORS configured for allowed origins only
+- ✅ Session timeout warnings (5 minutes before expiry)
+- ✅ Automatic token injection via HttpClient
+- ✅ Physical reset requirement for lost credentials
+
+## Onboarding System Architecture
+
+The onboarding system provides a unified wizard for first-time users.
+
+### Onboarding Flow
+
+```
+┌──────────────────────────────────────────┐
+│  1. Welcome & Mode Selection            │
+│     Choose: Consumer or Technical mode   │
+└──────────────────────────────────────────┘
+                ↓
+┌──────────────────────────────────────────┐
+│  2. Connection                           │
+│     Discover device via mDNS or manual   │
+└──────────────────────────────────────────┘
+                ↓
+┌──────────────────────────────────────────┐
+│  3. Authentication                       │
+│     Login or proceed to setup            │
+└──────────────────────────────────────────┘
+                ↓
+┌──────────────────────────────────────────┐
+│  4. Configuration                        │
+│     Name device & create admin API key   │
+└──────────────────────────────────────────┘
+                ↓
+┌──────────────────────────────────────────┐
+│  5. Optional: Calibration (Consumer)     │
+│     Sensor & compass calibration         │
+└──────────────────────────────────────────┘
+                ↓
+┌──────────────────────────────────────────┐
+│  6. Optional: GPS Boost                  │
+│     RTK/NTRIP configuration              │
+└──────────────────────────────────────────┘
+                ↓
+┌──────────────────────────────────────────┐
+│  7. Optional: Quick Tour                 │
+│     Feature overview                     │
+└──────────────────────────────────────────┘
+                ↓
+┌──────────────────────────────────────────┐
+│  8. Completion                           │
+│     Ready to use!                        │
+└──────────────────────────────────────────┘
+```
+
+### Key Components
+
+- **OnboardingStore** (`app/src/stores/onboarding.ts`) - Centralized state management
+- **SetupWizard** (`app/src/components/onboarding/SetupWizard.vue`) - Main wizard orchestrator
+- **Step Components** (`app/src/components/onboarding/steps/`) - Modular steps for each phase
+- **Router Guards** (`app/src/router/guards.ts`) - Redirect first-time users to onboarding
+
+### Features
+
+**Progress Persistence:**
+- State saved to localStorage
+- Users can resume interrupted onboarding
+- Step completion tracked
+- Optional steps can be skipped
+
+**Error Recovery:**
+- Connection loss handling
+- Graceful error messages with recovery options
+- Ability to go back to previous steps
+
+**Mode Adaptation:**
+- Consumer mode: Friendly language, emojis, guided wizards
+- Technical mode: Technical terminology, detailed status, direct access
+
+## TLS/HTTPS Configuration
+
+YardRover supports secure HTTPS/TLS communication.
+
+### Setup Options
+
+**Option A: Development with Self-Signed Certificates**
+```bash
+cd backend
+./scripts/generate_certs.sh ./certs
+export YARDROVER_TLS_ENABLED=true
+export YARDROVER_TLS_CERT_FILE=./certs/cert.pem
+export YARDROVER_TLS_KEY_FILE=./certs/key.pem
+export YARDROVER_TLS_PORT=8443
+```
+
+**Option B: Production with Let's Encrypt (Raspberry Pi)**
+```bash
+sudo apt-get install certbot
+sudo certbot certonly --standalone -d yardrover.yourdomain.com
+export YARDROVER_TLS_ENABLED=true
+export YARDROVER_TLS_CERT_FILE=/etc/letsencrypt/live/yardrover.yourdomain.com/fullchain.pem
+export YARDROVER_TLS_KEY_FILE=/etc/letsencrypt/live/yardrover.yourdomain.com/privkey.pem
+export YARDROVER_TLS_PORT=443
+```
+
+**Option C: Production with Reverse Proxy (Recommended)**
+
+Use Nginx or Caddy as HTTPS termination proxy:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name yardrover.local;
+
+    ssl_certificate /etc/ssl/certs/yardrover.crt;
+    ssl_certificate_key /etc/ssl/private/yardrover.key;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /ws {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+### mDNS Service Discovery
+
+When TLS is enabled:
+- Service type changes from `_http._tcp` to `_https._tcp`
+- TXT record includes `tls=true` for client detection
+- Port advertised matches configured TLS port
+
+### Best Practices
+
+⚠️ **Self-signed certificates** will trigger browser security warnings. For production, use certificates from a trusted CA.
+
+✅ **Recommended**: Use a reverse proxy (Nginx/Caddy) for production. Benefits:
+- Automatic certificate management and renewal
+- Additional security headers and rate limiting
+- Better performance with HTTP/2 and caching
+- Easier certificate updates without backend restarts
+
+## Data Flow
+
+### Real-time Telemetry
+
+```
+MAVLink Vehicle ────▶ Backend (UART) ────▶ Backend Parser
+                                                │
+                                                ▼
+                                         WebSocket Server
+                                                │
+                                                ▼
+                                         Web App Dashboard
+                                                │
+                                                ▼
+                                         Pinia Stores
+                                                │
+                                                ▼
+                                         Vue Components
+```
+
+### Command Execution
+
+```
+User Action (Web App)
+    │
+    ▼
+API Call (Client Library)
+    │
+    ▼
+FastAPI Endpoint
+    │
+    ▼
+MAVLink Command Builder
+    │
+    ▼
+UART → Flight Controller
+```
+
+## State Management
+
+### Frontend State (Pinia Stores)
+
+- `authStore` - Authentication state and tokens
+- `connectionStore` - Device connection management
+- `devicesStore` - Saved devices and discovery
+- `telemetryStore` - Real-time telemetry data
+- `featuresStore` - User mode and feature flags
+- `onboardingStore` - Onboarding progress and state
+
+### Backend State
+
+- In-memory connection tracking
+- SQLite database for persistent data:
+  - API keys (hashed)
+  - Device configuration
+  - User preferences
+  - Activity logs
+
+## Configuration System
+
+### Environment Variables
+
+```bash
+# Security
+YARDROVER_SECURITY_ENABLED=true
+YARDROVER_JWT_SECRET=your-secret-key
+YARDROVER_ACCESS_TOKEN_EXPIRE_MINUTES=43200
+
+# TLS
+YARDROVER_TLS_ENABLED=true
+YARDROVER_TLS_CERT_FILE=/path/to/cert.pem
+YARDROVER_TLS_KEY_FILE=/path/to/key.pem
+
+# Network
+YARDROVER_HOST=0.0.0.0
+YARDROVER_PORT=8000
+YARDROVER_CORS_ORIGINS=["*"]
+
+# MAVLink
+YARDROVER_MAVLINK_CONNECTION=serial
+YARDROVER_MAVLINK_PORT=/dev/ttyAMA0
+YARDROVER_MAVLINK_BAUDRATE=57600
+```
+
+### Config File (`backend/config.yaml`)
+
+YAML configuration with same structure as environment variables. Environment variables take precedence.
+
+## Network Architecture
+
+### Service Discovery (mDNS)
+
+- Service type: `_yardrover._tcp` (HTTP) or `_yardrover._tcp` (HTTPS)
+- TXT records include:
+  - `version=1.0.0`
+  - `model=YardRover`
+  - `tls=true/false`
+  - `auth_required=true/false`
+
+### API Endpoints
+
+**Authentication:**
+- `POST /api/auth/login` - Login with API key
+- `POST /api/auth/logout` - Logout and invalidate token
+- `GET /api/auth/keys` - List API keys (admin only)
+- `POST /api/auth/keys` - Create new API key (admin only)
+
+**Setup:**
+- `GET /api/setup/status` - Check setup mode status
+- `POST /api/setup/complete` - Complete first-time setup
+
+**Device Management:**
+- `GET /api/status` - Device status and health
+- `GET /api/config` - Device configuration
+- `PUT /api/config` - Update configuration
+
+**MAVLink Control:**
+- `POST /api/mavlink/arm` - Arm/disarm vehicle
+- `POST /api/mavlink/mode` - Change flight mode
+- `POST /api/mavlink/command` - Send custom MAVLink command
+
+**WebSocket:**
+- `WS /ws/telemetry` - Real-time telemetry stream
+
+## Development Architecture
+
+### Frontend Build Pipeline
+
+```
+TypeScript/Vue Files → Vite → Transpile → Bundle → Optimized JS/CSS
+                                   │
+                                   ▼
+                              Type Check
+                                   │
+                                   ▼
+                              SCSS Compilation
+```
+
+### Backend Development
+
+- FastAPI with Uvicorn for development
+- Auto-reload on code changes
+- OpenAPI/Swagger docs at `/docs`
+- Type hints and Pydantic validation
+
+### Client Library
+
+- Built with TypeScript
+- Generates type definitions for frontend
+- Must be rebuilt when types change
+
+## Testing Strategy
+
+### Backend Tests
+- Unit tests with pytest
+- Integration tests for API endpoints
+- MAVLink message parsing tests
+- Authentication flow tests
+
+### Frontend Tests
+- Component tests (planned)
+- E2E tests (planned)
+- Manual testing with real devices
+
+## Deployment Architecture
+
+### Production Deployment (Raspberry Pi)
+
+```
+┌─────────────────────────────────────────┐
+│  Raspberry Pi                           │
+│                                         │
+│  ┌────────────┐      ┌────────────┐   │
+│  │   Nginx    │─────▶│  YardRover │   │
+│  │ (HTTPS/443)│      │ Backend    │   │
+│  └────────────┘      │ (HTTP/8000)│   │
+│                      └────────────┘   │
+│                           │            │
+│                           ▼            │
+│                      ┌────────────┐   │
+│                      │  MAVLink   │   │
+│                      │  /dev/ttyX │   │
+│                      └────────────┘   │
+└─────────────────────────────────────────┘
+```
+
+### Systemd Service
+
+YardRover runs as a systemd service for:
+- Auto-start on boot
+- Process management
+- Logging to journalctl
+- Automatic restart on failure
+
+## Performance Considerations
+
+- **WebSocket Throttling**: Telemetry updates limited to 10Hz to prevent frontend overload
+- **Connection Pooling**: Backend maintains single MAVLink connection, multiplexed to clients
+- **State Debouncing**: Frontend debounces rapid state updates
+- **Lazy Loading**: Dashboard widgets loaded on-demand
+- **Code Splitting**: Vue components split for faster initial load
+
+## Security Considerations
+
+- **No Plaintext Secrets**: All API keys hashed with bcrypt
+- **HTTPS-Only in Production**: Self-signed certs acceptable for local network
+- **CORS Restrictions**: Configured for specific origins in production
+- **Rate Limiting**: Prevents brute force attacks on auth endpoints
+- **Input Validation**: Pydantic models validate all API inputs
+- **SQL Injection Prevention**: ORM-based database access
+- **XSS Prevention**: Vue's automatic escaping
+
+## Future Architecture Enhancements
+
+- [ ] Multi-device support (manage multiple YardRovers)
+- [ ] Cloud synchronization for mission data
+- [ ] Mobile app with native client
+- [ ] Video streaming integration
+- [ ] Advanced mission planning with AI assistance
+- [ ] Fleet management capabilities
