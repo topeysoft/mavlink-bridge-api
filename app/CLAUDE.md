@@ -34,10 +34,19 @@
 
 ```
 app/src/
+├── pages/                   # Standalone route pages (pre-auth, public)
+│   ├── ConnectionPage.vue  # Device connection page
+│   ├── LoginPage.vue        # Login/authentication page
+│   └── SetupPage.vue        # First-time setup wizard
+├── views/                   # Main app route views (authenticated)
+│   ├── DashboardView.vue
+│   ├── SettingsView.vue
+│   └── [feature]View.vue
+├── layouts/                 # Reusable layout components
+│   └── StandaloneLayout.vue # Layout for pages/ (logo + theme toggle)
 ├── components/
 │   ├── [feature]/           # Feature-based organization
 │   └── common/              # Shared components
-├── views/                   # Route/page components
 ├── stores/                  # Pinia stores (composition API)
 ├── types/                   # TypeScript type definitions
 ├── assets/
@@ -46,6 +55,119 @@ app/src/
 │       ├── mixins.scss      # Reusable SCSS mixins
 │       └── index.scss       # Global styles
 └── router/                  # Vue Router configuration
+```
+
+## File Organization Patterns
+
+### Naming Conventions
+
+**IMPORTANT**: Follow these strict naming patterns to maintain consistency:
+
+1. **Pages (`pages/`)** - Standalone route pages (pre-authentication/public)
+   - Naming: `*Page.vue` (e.g., `ConnectionPage.vue`, `LoginPage.vue`, `SetupPage.vue`)
+   - Purpose: Entry points for unauthenticated or standalone flows
+   - Characteristics:
+     - Use `StandaloneLayout` wrapper
+     - Hide sidebar/header via App.vue logic
+     - Have route guards (connectionGuard, loginGuard, setupGuard)
+     - Redirect authenticated users away
+
+2. **Views (`views/`)** - Main application route views (authenticated)
+   - Naming: `*View.vue` (e.g., `DashboardView.vue`, `SettingsView.vue`)
+   - Purpose: Main app routes requiring authentication
+   - Characteristics:
+     - Require authentication to access
+     - Show sidebar + header
+     - Protected by authGuard
+
+3. **Components (`components/`)** - Reusable UI components
+   - Naming: Descriptive name **WITHOUT** "View" suffix
+   - Examples: `DeviceDiscoveryCard.vue`, `TechnicalConnection.vue`, `Header.vue`
+   - Purpose: Reusable pieces of UI that can be composed
+   - Characteristics:
+     - Imported and used by pages/views
+     - No routing logic
+     - Focused, single-purpose components
+
+4. **Layouts (`layouts/`)** - Layout wrapper components
+   - Naming: `*Layout.vue` (e.g., `StandaloneLayout.vue`)
+   - Purpose: Provide consistent page structure
+   - Characteristics:
+     - Wrap entire pages
+     - Provide common elements (header, theme toggle)
+     - Use `<slot>` for content
+
+### When to Use Each Directory
+
+**Use `pages/` when:**
+- Creating a new standalone, full-page route
+- Building pre-authentication flows (connection, login, setup)
+- Page should hide sidebar/header
+- Page needs special routing guards
+
+**Use `views/` when:**
+- Creating a new authenticated application page
+- Building main app features that require login
+- Page should show sidebar/header
+- Page is part of the main application flow
+
+**Use `components/` when:**
+- Building reusable UI pieces
+- Creating sub-components used by pages/views
+- Component needs to be imported by multiple parents
+- Component has no routing logic
+
+**Use `layouts/` when:**
+- Creating reusable page structure/templates
+- Building wrapper components used by multiple pages
+- Providing common page elements (headers, navigation, footers)
+
+### Example File Structure
+
+```
+pages/
+  ConnectionPage.vue      # Route: /connect
+  LoginPage.vue           # Route: /login
+  SetupPage.vue           # Route: /setup
+
+views/
+  DashboardView.vue       # Route: /dashboard (auth required)
+  SettingsView.vue        # Route: /settings (auth required)
+  ParametersView.vue      # Route: /parameters (auth required)
+
+components/
+  connection/
+    TechnicalConnection.vue    # Used by ConnectionPage
+    ConsumerConnection.vue     # Used by ConnectionPage
+    DeviceDiscoveryCard.vue    # Used by TechnicalConnection
+  common/
+    Header.vue
+    Sidebar.vue
+    Modal.vue
+
+layouts/
+  StandaloneLayout.vue     # Used by ConnectionPage, LoginPage, SetupPage
+```
+
+### Migration Pattern
+
+If you have a view in the wrong directory:
+
+1. **Check its purpose**: Is it pre-auth (pages/) or authenticated (views/)?
+2. **Rename appropriately**: Add "Page" suffix if moving to pages/
+3. **Extract reusable parts**: Move sub-components to components/
+4. **Update imports**: Update router and any other imports
+5. **Use layout**: Wrap pages/ with StandaloneLayout
+
+Example migration:
+```
+# Before
+views/ConnectionView.vue  # Wrong location, contains ConsumerConnectionView
+
+# After
+pages/ConnectionPage.vue  # Correct location and naming
+components/connection/TechnicalConnection.vue   # Extracted component
+components/connection/ConsumerConnection.vue    # Moved and renamed
 ```
 
 ## Code Conventions

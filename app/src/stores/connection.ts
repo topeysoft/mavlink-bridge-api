@@ -29,6 +29,8 @@ export interface SavedDevice {
   url: string
   lastConnected?: string
   favorite?: boolean
+  authStatus?: 'needs_setup' | 'needs_login' | 'authenticated' | 'unknown'
+  setupChecked?: boolean
 }
 
 interface PersistedConnection {
@@ -266,6 +268,68 @@ export const useConnectionStore = defineStore('connection', () => {
    */
   function clearError(): void {
     connectionError.value = null
+  }
+
+  /**
+   * Check auth/setup status for a device
+   */
+  async function checkDeviceAuthStatus(deviceUrl: string): Promise<'needs_setup' | 'needs_login' | 'authenticated' | 'unknown'> {
+    try {
+      // Create a temporary client to check auth status
+      const tempClient = createClient(deviceUrl, {
+        httpTimeout: 5000,
+        autoConnectWebSocket: false
+      })
+
+      // Check setup status (this endpoint should be public)
+      try {
+        const authClient = (tempClient as any).authClient
+        if (authClient) {
+          const setupStatus = await authClient.getSetupStatus()
+          if (setupStatus.in_setup_mode) {
+            return 'needs_setup'
+          }
+        }
+      } catch (error) {
+        // Setup check failed, likely needs login
+      }
+
+      // Try to access a protected endpoint to check if authenticated
+      try {
+        await tempClient.getConfiguration()
+        return 'authenticated'
+      } catch (error: any) {
+        // Check if it's an auth error (401/403)
+        const isAuthError = error?.status === 401 ||
+                           error?.status === 403 ||
+                           error?.message?.includes('401') ||
+                           error?.message?.includes('Unauthorized')
+
+        if (isAuthError) {
+          return 'needs_login'
+        }
+      }
+
+      return 'unknown'
+    } catch (error) {
+      console.error('Failed to check auth status:', error)
+      return 'unknown'
+    }
+  }
+
+  /**
+   * Update auth status for a discovered or saved device
+   */
+  async function updateDeviceAuthStatus(deviceId: string): Promise<void> {
+    const device = savedDevices.value.find(d => d.id === deviceId)
+    if (!device) return
+
+    const status = await checkDeviceAuthStatus(device.url)
+    device.authStatus = status
+    device.setupChecked = true
+
+    // Persist updated device info
+    localStorage.setItem('yardrover_saved_devices', JSON.stringify(savedDevices.value))
   }
 
   /**
@@ -593,6 +657,8 @@ export const useConnectionStore = defineStore('connection', () => {
     removeSavedDevice,
     toggleFavorite,
     clearError,
-    getClient
+    getClient,
+    checkDeviceAuthStatus,
+    updateDeviceAuthStatus
   }
 })

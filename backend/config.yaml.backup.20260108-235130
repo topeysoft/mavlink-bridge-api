@@ -23,7 +23,7 @@ rtcm:
     port: 2101
 security:
   enabled: true
-  setup_completed: true
+  setup_completed: false
   require_auth_during_setup: false
   jwt_algorithm: HS256
   access_token_expire_minutes: 43200

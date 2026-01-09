@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, provide, onMounted, computed } from 'vue'
-import { RouterView } from 'vue-router'
+import { RouterView, useRoute, useRouter } from 'vue-router'
 import Sidebar from './components/common/Sidebar.vue'
 import Header from './components/common/Header.vue'
 import KeyboardShortcutsModal from './components/common/KeyboardShortcutsModal.vue'
@@ -10,17 +10,44 @@ import OfflineBanner from './components/common/OfflineBanner.vue'
 import OnboardingFlow from './components/consumer/OnboardingFlow.vue'
 import ConfirmDialog from './components/common/ConfirmDialog.vue'
 import AlertDialog from './components/common/AlertDialog.vue'
+import SessionTimeout from './components/auth/SessionTimeout.vue'
 import { useThemeStore } from './stores/theme'
 import { useFeaturesStore } from './stores/features'
 import { useConnectionStore } from './stores/connection'
+import { useAuthStore } from './stores/auth'
 import { useSidebar } from './composables/useSidebar'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 import type { ConfirmOptions, AlertOptions } from './composables/useDialog'
 
+const route = useRoute()
+const router = useRouter()
 const themeStore = useThemeStore()
 const featuresStore = useFeaturesStore()
 const connectionStore = useConnectionStore()
+const authStore = useAuthStore()
 const { mainContentMargin, mainContentWidth } = useSidebar()
+
+// Determine if we should show the full app (sidebar + header + routes)
+// or just standalone views (connection/setup/login)
+const showFullApp = computed(() => {
+  // Don't show full app if disconnected
+  if (!connectionStore.isConnected) {
+    return false
+  }
+
+  // Don't show full app if in setup mode (first-time setup)
+  if (authStore.needsSetup) {
+    return false
+  }
+
+  // Don't show full app if not authenticated
+  if (!authStore.isAuthenticated) {
+    return false
+  }
+
+  // Show full app if connected, setup is complete, and authenticated
+  return true
+})
 
 // Keyboard shortcuts
 const showShortcuts = ref(false)
@@ -161,19 +188,29 @@ const handleEmergencyStop = async () => {
     <!-- Offline Detection Banner -->
     <OfflineBanner />
 
-    <Sidebar />
-    <main class="main-content" :style="{ marginLeft: mainContentMargin, width: mainContentWidth }">
-      <Header />
-      <div class="view-container">
-        <ErrorBoundary>
-          <RouterView v-slot="{ Component, route }">
-            <Transition name="page">
-              <component :is="Component" :key="route.path" />
-            </Transition>
-          </RouterView>
-        </ErrorBoundary>
-      </div>
-    </main>
+    <!-- Full App Layout (only when connected, setup complete, and authenticated) -->
+    <template v-if="showFullApp">
+      <Sidebar />
+      <main class="main-content" :style="{ marginLeft: mainContentMargin, width: mainContentWidth }">
+        <Header />
+        <div class="view-container">
+          <ErrorBoundary>
+            <RouterView v-slot="{ Component, route }">
+              <Transition name="page">
+                <component :is="Component" :key="route.path" />
+              </Transition>
+            </RouterView>
+          </ErrorBoundary>
+        </div>
+      </main>
+    </template>
+
+    <!-- Standalone Views (connection, setup, login) -->
+    <div v-else class="standalone-container">
+      <ErrorBoundary>
+        <RouterView />
+      </ErrorBoundary>
+    </div>
 
     <!-- Keyboard Shortcuts Modal -->
     <KeyboardShortcutsModal
@@ -189,6 +226,9 @@ const handleEmergencyStop = async () => {
 
     <!-- Toast Notifications -->
     <ToastContainer ref="toastContainer" />
+
+    <!-- Session Timeout Warning -->
+    <SessionTimeout />
 
     <!-- Dialogs -->
     <ConfirmDialog
@@ -384,5 +424,10 @@ textarea:focus-visible {
   left: 0;
   right: 0;
   width: 100%;
+}
+
+.standalone-container {
+  min-height: 100vh;
+  width: 100vw;
 }
 </style>

@@ -47,7 +47,6 @@ interface NavItemConfig extends NavItem {
 }
 
 const allNavItems: NavItemConfig[] = [
-  { name: 'connect', label: 'Connect Device', icon: 'wifi' },
   { name: 'dashboard', label: 'Dashboard', consumerLabel: 'Home', icon: 'dashboard' },
   { name: 'attachments', label: 'Attachments', icon: 'extension' },
   { name: 'zones', label: 'Coverage Zones', consumerLabel: 'My Areas', icon: 'place' },

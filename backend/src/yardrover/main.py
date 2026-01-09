@@ -14,7 +14,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 # Import API routers
-from yardrover.api import auth, config, health, mavlink, mdns, missions, resources, rtcm, websocket, wifi, zones
+from yardrover.api import auth, config, health, mavlink, mdns, missions, peripherals, resources, rtcm, setup, websocket, wifi, zones
 
 # Import auth components
 from yardrover.auth import Role, get_api_key_manager
@@ -43,6 +43,9 @@ from yardrover.resources.storage import ResourceStorage
 # Import RTCM components
 from yardrover.rtcm.router import RTCMOutputRouter
 
+# Import peripheral components
+from yardrover.peripherals import PeripheralManager
+
 # Configure logging before anything else
 settings = Settings()
 configure_logging(settings.log_level, settings.log_format)
@@ -61,6 +64,7 @@ ws_manager: Optional[WebSocketManager] = None
 mavlink_router: Optional[DataRouter] = None
 resource_storage: Optional[ResourceStorage] = None
 rtcm_router: Optional[RTCMOutputRouter] = None
+peripheral_manager: Optional[PeripheralManager] = None
 
 
 @asynccontextmanager
@@ -69,7 +73,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     Handles startup and shutdown of background tasks and services.
     """
-    global event_bus, config_manager, storage, health_monitor, wifi_manager, mdns_manager, ws_manager, mavlink_router, resource_storage, rtcm_router
+    global event_bus, config_manager, storage, health_monitor, wifi_manager, mdns_manager, ws_manager, mavlink_router, resource_storage, rtcm_router, peripheral_manager
 
     logger.info("yardrover_starting", version="2.0.0")
 
@@ -113,21 +117,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 access_token_expire_minutes=config_manager.config.security.access_token_expire_minutes,
             )
 
-            # Create default admin API key if none exist
+            # Check if setup is needed
             api_key_manager = get_api_key_manager()
-            if not api_key_manager.list_keys():
-                admin_key, plaintext_key = api_key_manager.create_key(
-                    name="Default Admin",
-                    role=Role.ADMIN,
-                    description="Auto-generated admin key on first startup",
+            admin_keys = [
+                key for key in api_key_manager.list_keys() if key.role == Role.ADMIN
+            ]
+
+            if not config_manager.config.security.setup_completed or not admin_keys:
+                logger.warning(
+                    "first_boot_detected",
+                    setup_completed=config_manager.config.security.setup_completed,
+                    has_admin_keys=len(admin_keys) > 0,
+                    note="Device is in SETUP MODE. Access the web interface to complete setup.",
                 )
                 logger.warning(
-                    "default_admin_key_created",
-                    api_key=plaintext_key,
-                    note="SAVE THIS KEY! It will not be shown again.",
+                    "setup_instructions",
+                    web_url=f"http://{config_manager.config.device.hostname}.local:{settings.port}",
+                    note="Navigate to /setup to create your admin credentials",
                 )
-
-            logger.info("authentication_initialized", security_enabled=True)
+            else:
+                logger.info(
+                    "authentication_initialized",
+                    security_enabled=True,
+                    admin_keys_count=len(admin_keys),
+                )
         else:
             logger.warning("authentication_disabled", note="All endpoints are publicly accessible")
 
@@ -255,15 +268,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             )
             rtcm_router = None
 
-        # 10. Store managers in app state for API dependencies
+        # 10. Initialize peripheral manager
+        try:
+            peripheral_manager = PeripheralManager(event_bus)
+            await peripheral_manager.start()
+            peripherals.set_manager(peripheral_manager)
+            logger.info("peripheral_manager_initialized")
+        except Exception as e:
+            logger.warning(
+                "peripheral_manager_initialization_failed",
+                error=str(e),
+                note="Peripheral features will be unavailable",
+            )
+            peripheral_manager = None
+
+        # 11. Store managers in app state for API dependencies
         app.state.wifi_manager = wifi_manager
         app.state.mdns_manager = mdns_manager
         app.state.ws_manager = ws_manager
         app.state.mavlink_router = mavlink_router
         app.state.resource_storage = resource_storage
         app.state.rtcm_router = rtcm_router
+        app.state.peripheral_manager = peripheral_manager
 
-        # 11. Start background tasks
+        # 12. Start background tasks
         health_task = asyncio.create_task(health_monitor.run())
         background_tasks.append(health_task)
         logger.info("background_tasks_started", count=len(background_tasks))
@@ -275,6 +303,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         # Shutdown
         logger.info("yardrover_shutting_down")
+
+        # Stop peripheral manager
+        if peripheral_manager:
+            await peripheral_manager.stop()
+            logger.info("peripheral_manager_stopped")
 
         # Stop RTCM client and router
         if rtcm_router:
@@ -422,6 +455,7 @@ async def general_exception_handler(
 
 
 # Register API routers
+app.include_router(setup.router)  # Setup endpoints (no auth required for initial setup)
 app.include_router(auth.router)  # Auth endpoints (login, API key management)
 app.include_router(health.router)  # Health check (allow anonymous by default)
 app.include_router(config.router)
@@ -433,6 +467,7 @@ app.include_router(zones.router)
 app.include_router(missions.router)
 app.include_router(resources.router)
 app.include_router(rtcm.router)
+app.include_router(peripherals.router)
 
 
 def run() -> None:

@@ -98,11 +98,22 @@ class SecurityConfig(BaseModel):
     """Security and authentication configuration."""
 
     enabled: bool = Field(default=True, description="Enable authentication")
+    setup_completed: bool = Field(default=False, description="Whether initial setup has been completed")
+    require_auth_during_setup: bool = Field(
+        default=False, description="Require authentication during setup mode"
+    )
     jwt_secret: Optional[str] = Field(default=None, description="JWT secret key")
     jwt_algorithm: str = Field(default="HS256", description="JWT algorithm")
     access_token_expire_minutes: int = Field(
         default=60 * 24 * 30,  # 30 days
         description="Access token expiration in minutes",
+    )
+    session_timeout_minutes: int = Field(
+        default=60 * 24 * 7,  # 7 days of inactivity
+        description="Session timeout after inactivity (minutes)",
+    )
+    session_timeout_warning_minutes: int = Field(
+        default=5, description="Minutes before timeout to show warning"
     )
     api_key_header: str = Field(default="X-API-Key", description="API key header name")
     allow_anonymous_health: bool = Field(
@@ -194,9 +205,13 @@ class Settings(BaseSettings):
 
     # Security settings
     security_enabled: bool = Field(default=True)
+    setup_completed: bool = Field(default=False)
+    require_auth_during_setup: bool = Field(default=False)
     jwt_secret: Optional[str] = Field(default=None)
     jwt_algorithm: str = Field(default="HS256")
     access_token_expire_minutes: int = Field(default=60 * 24 * 30)  # 30 days
+    session_timeout_minutes: int = Field(default=60 * 24 * 7)  # 7 days
+    session_timeout_warning_minutes: int = Field(default=5)
     api_key_header: str = Field(default="X-API-Key")
     allow_anonymous_health: bool = Field(default=True)
     allow_anonymous_docs: bool = Field(default=False)
@@ -255,9 +270,13 @@ class Settings(BaseSettings):
             ),
             security=SecurityConfig(
                 enabled=self.security_enabled,
+                setup_completed=self.setup_completed,
+                require_auth_during_setup=self.require_auth_during_setup,
                 jwt_secret=self.jwt_secret,
                 jwt_algorithm=self.jwt_algorithm,
                 access_token_expire_minutes=self.access_token_expire_minutes,
+                session_timeout_minutes=self.session_timeout_minutes,
+                session_timeout_warning_minutes=self.session_timeout_warning_minutes,
                 api_key_header=self.api_key_header,
                 allow_anonymous_health=self.allow_anonymous_health,
                 allow_anonymous_docs=self.allow_anonymous_docs,

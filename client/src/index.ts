@@ -18,7 +18,26 @@ export type {
 
 // Core exports
 export { HttpClient, HttpError } from './core/HttpClient';
+export type { TokenProvider, RequestOptions } from './core/HttpClient';
 export { WebSocketClient } from './core/WebSocketClient';
+
+// Auth exports
+export { AuthClient } from './auth/AuthClient';
+export {
+  Role,
+  Permission,
+  type LoginRequest,
+  type LoginResponse,
+  type TokenData,
+  type APIKeyCreateRequest,
+  type APIKeyCreateResponse,
+  type APIKeyListItem,
+  type CurrentUser,
+  type SetupStatus,
+  type CompleteSetupRequest,
+  type CompleteSetupResponse,
+  type AuthState,
+} from './auth/AuthTypes';
 export {
   EventType,
   WebSocketMessage,

@@ -83,7 +83,7 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
 </script>
 
 <template>
-  <div class="consumer-connection-view">
+  <div class="consumer-connection">
     <!-- Header -->
     <div class="connection-header">
       <h1>Let's Connect Your YardRover</h1>
@@ -261,39 +261,48 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
 </template>
 
 <style scoped lang="scss">
-.consumer-connection-view {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  padding: var(--spacing-xl);
+@use '@/assets/styles/variables' as *;
+@use '@/assets/styles/mixins' as *;
+@use 'sass:color';
+
+.consumer-connection {
+  padding: 2rem;
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  @media (min-width: 768px) {
+    padding: 2rem 3rem;
+  }
 }
 
 .connection-header {
   text-align: center;
   margin-bottom: var(--spacing-2xl);
-  max-width: 600px;
+  width: 100%;
 
   h1 {
     font-size: var(--font-size-3xl);
     font-weight: 800;
-    color: var(--text-primary);
+    color: white;
     margin-bottom: var(--spacing-md);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   }
 
   .subtitle {
     font-size: var(--font-size-lg);
-    color: var(--text-secondary);
+    color: rgba(255, 255, 255, 0.9);
   }
 }
 
 .step-card {
-  background: white;
-  border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  border-radius: 16px;
   padding: var(--spacing-2xl);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
-  max-width: 600px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   width: 100%;
   text-align: center;
 
@@ -367,7 +376,7 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
     left: 0;
     right: 0;
     bottom: 0;
-    border: 3px solid var(--primary-green);
+    border: 3px solid $primary;
     border-radius: 50%;
     animation: radar-pulse 2s ease-out infinite;
 
@@ -436,7 +445,7 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
   text-align: left;
 
   &:hover {
-    border-color: var(--primary-green);
+    border-color: $primary;
     transform: translateX(4px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
@@ -506,7 +515,7 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
   gap: var(--spacing-sm);
   background: none;
   border: none;
-  color: var(--primary-green);
+  color: $primary;
   font-weight: 600;
   cursor: pointer;
   padding: var(--spacing-sm);
@@ -525,12 +534,13 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
 .manual-setup {
   margin-top: var(--spacing-xl);
   padding: var(--spacing-xl);
-  background: #f0f9ff;
-  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  border-radius: 12px;
 
   h3 {
     font-size: var(--font-size-lg);
     font-weight: 600;
+    color: var(--text-primary);
     margin-bottom: var(--spacing-sm);
   }
 
@@ -550,10 +560,12 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
       border: 2px solid var(--border-color);
       border-radius: var(--radius-md);
       font-size: var(--font-size-base);
+      background: var(--bg-primary);
+      color: var(--text-primary);
 
       &:focus {
         outline: none;
-        border-color: var(--primary-green);
+        border-color: $primary;
       }
     }
   }
@@ -577,7 +589,7 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
     justify-content: center;
     width: 36px;
     height: 36px;
-    background: var(--primary-green);
+    background: $primary;
     color: white;
     border-radius: 50%;
     font-weight: 700;
@@ -606,19 +618,19 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-md) var(--spacing-xl);
-  background: var(--primary-green);
+  background: $primary;
   color: white;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   font-size: var(--font-size-base);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 
   &:hover {
-    background: var(--primary-green-light);
+    background: color.adjust($primary, $lightness: -10%);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(44, 95, 45, 0.3);
+    box-shadow: 0 4px 12px rgba($primary, 0.3);
   }
 
   svg {
@@ -636,18 +648,18 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
   svg {
     width: 60px;
     height: 60px;
-    color: var(--primary-green);
+    color: $primary;
   }
 }
 
 .saved-devices-section {
   margin-top: var(--spacing-2xl);
   width: 100%;
-  max-width: 600px;
 
   h3 {
     font-size: var(--font-size-lg);
     font-weight: 600;
+    color: white;
     margin-bottom: var(--spacing-md);
     text-align: left;
   }
@@ -664,7 +676,7 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-md);
-  background: white;
+  background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -672,7 +684,7 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
   text-align: left;
 
   &:hover {
-    border-color: var(--primary-green);
+    border-color: $primary;
     transform: translateX(4px);
   }
 
@@ -688,7 +700,7 @@ function getDeviceIcon(device: MAVLinkBridgeDevice): string {
 }
 
 @media (max-width: 768px) {
-  .consumer-connection-view {
+  .consumer-connection {
     padding: var(--spacing-lg);
   }
 

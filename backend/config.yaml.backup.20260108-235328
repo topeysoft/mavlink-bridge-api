@@ -7,7 +7,7 @@ network:
   ap:
     enabled: true
     ssid: YardRover-Setup
-    password: yardrover123
+    password: "iaAV_M2Ap3NS6GQ3"
   mdns:
     enabled: true
 serial:
@@ -23,9 +23,10 @@ rtcm:
     port: 2101
 security:
   enabled: true
-  setup_completed: true
+  setup_completed: false
   require_auth_during_setup: false
   jwt_algorithm: HS256
+  jwt_secret: "glcNEa1hssBfW38U0JXrUVC8DRqwq2mesrXop5dtlp0"
   access_token_expire_minutes: 43200
   session_timeout_minutes: 10080
   session_timeout_warning_minutes: 5

@@ -90,6 +90,17 @@ class MessageType(str, Enum):
     TASK_EXECUTION_FAILED = "task.execution.failed"
     TASK_EXECUTION_CANCELLED = "task.execution.cancelled"
 
+    # Peripheral events
+    PERIPHERAL_CONNECTED = "peripheral.connected"
+    PERIPHERAL_DISCONNECTED = "peripheral.disconnected"
+    PERIPHERAL_STATUS_CHANGED = "peripheral.status.changed"
+    PERIPHERAL_TELEMETRY = "peripheral.telemetry"
+    PERIPHERAL_ERROR = "peripheral.error"
+    PERIPHERAL_ENABLED = "peripheral.enabled"
+    PERIPHERAL_DISABLED = "peripheral.disabled"
+    PERIPHERAL_COMMAND_SENT = "peripheral.command.sent"
+    PERIPHERAL_COMMAND_RESPONSE = "peripheral.command.response"
+
     # Client commands
     SUBSCRIBE = "subscribe"
     UNSUBSCRIBE = "unsubscribe"
@@ -227,6 +238,35 @@ class ResourceEventMessage(BaseModel):
     )
 
 
+class PeripheralEventMessage(BaseModel):
+    """Peripheral event notification (connection, status change, etc.)."""
+
+    peripheral_id: str = Field(..., description="Peripheral identifier")
+    peripheral_type: str = Field(..., description="Peripheral type")
+    event: str = Field(..., description="Event type (connected/disconnected/etc.)")
+    data: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Event-specific data"
+    )
+
+
+class PeripheralTelemetryMessage(BaseModel):
+    """Peripheral telemetry data update."""
+
+    peripheral_id: str = Field(..., description="Peripheral identifier")
+    peripheral_type: str = Field(..., description="Peripheral type")
+    telemetry: Dict[str, Any] = Field(..., description="Telemetry data")
+    timestamp: datetime = Field(
+        default_factory=datetime.utcnow,
+        description="Telemetry timestamp"
+    )
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
 class ConnectionInfo(BaseModel):
     """WebSocket connection information."""
 
@@ -265,5 +305,7 @@ MessageData = Union[
     MAVLinkMessageData,
     TelemetryUpdateMessage,
     ResourceEventMessage,
+    PeripheralEventMessage,
+    PeripheralTelemetryMessage,
     Dict[str, Any],
 ]

@@ -1,0 +1,76 @@
+# YardRover Secure Configuration
+# This is a production-ready configuration with security best practices
+
+device:
+  name: YardRover
+  hostname: yardrover-pi  # Change for production
+
+network:
+  wifi:
+    auto_connect: true
+    # Set these via environment variables instead:
+    # YARDROVER_WIFI_SSID and YARDROVER_WIFI_PASSWORD
+  ap:
+    enabled: true
+    ssid: YardRover-Setup
+    # ⚠️ IMPORTANT: Change this to a strong random password!
+    # Generate with: python3 -c "import secrets; print(secrets.token_urlsafe(12))"
+    password: "CHANGE-ME-TO-STRONG-PASSWORD"
+  mdns:
+    enabled: true
+
+serial:
+  port: /dev/ttyS0  # Raspberry Pi UART
+  baudrate: 57600
+  timeout: 1.0
+
+storage:
+  base_path: /var/lib/yardrover
+  resources_path: /var/lib/yardrover/resources
+
+rtcm:
+  enabled: false
+  source:
+    port: 2101
+
+security:
+  # ✅ Authentication enabled by default
+  enabled: true
+
+  # ⚠️ CRITICAL: Set a strong JWT secret!
+  # Generate with: python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+  # Or set via: export YARDROVER_JWT_SECRET="your_secret"
+  jwt_secret: "CHANGE-ME-TO-RANDOM-SECRET"  # REQUIRED FOR PRODUCTION
+
+  # Setup mode (will be set to true after first setup)
+  setup_completed: false
+  require_auth_during_setup: false
+
+  # JWT settings
+  jwt_algorithm: HS256
+  access_token_expire_minutes: 43200  # 30 days
+  session_timeout_minutes: 10080  # 7 days of inactivity
+  session_timeout_warning_minutes: 5
+
+  # API key settings
+  api_key_header: X-API-Key
+
+  # Public endpoints
+  allow_anonymous_health: true  # Allow /api/health without auth
+  allow_anonymous_docs: false   # Require auth for /docs
+
+  # Rate limiting (prevents brute force)
+  rate_limit_enabled: true
+  rate_limit_requests: 100
+  rate_limit_window_seconds: 60
+
+  # ⚠️ CRITICAL: Restrict CORS to known origins ONLY!
+  # Development:
+  cors_origins:
+    - 'http://localhost:5173'  # Vue dev server
+    - 'http://localhost:3000'  # Alternative dev port
+
+  # Production (uncomment and modify):
+  # cors_origins:
+  #   - 'https://yardrover.example.com'
+  #   - 'https://app.yardrover.example.com'

@@ -388,6 +388,7 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 @use '@/assets/styles/variables' as *;
+@use 'sass:color';
 
 .logs-view {
   padding: 24px;
@@ -782,7 +783,7 @@ onUnmounted(() => {
   color: white;
 
   &:hover:not(:disabled) {
-    background: darken($primary, 5%);
+    background: color.adjust($primary, $lightness: -5%);
   }
 }
 

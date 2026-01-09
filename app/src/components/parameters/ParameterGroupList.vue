@@ -80,6 +80,7 @@ function isExpanded(groupName: string) {
 </template>
 
 <style scoped lang="scss">
+@use 'sass:color';
 .parameter-group-list {
   display: flex;
   flex-direction: column;
@@ -102,7 +103,7 @@ function isExpanded(groupName: string) {
   transition: background 0.2s;
 
   &:hover {
-    background: darken(#f5f5f5, 3%);
+    background: color.adjust(#f5f5f5, $lightness: -3%);
   }
 
   .header-left {

@@ -1,4 +1,9 @@
 /**
+ * Token provider function type
+ */
+export type TokenProvider = () => string | null;
+
+/**
  * Request options for HTTP methods
  */
 export interface RequestOptions {
@@ -26,10 +31,25 @@ export class HttpClient {
   private readonly baseUrl: string;
   private readonly timeout: number;
   private readonly activeRequests = new Set<AbortController>();
+  private tokenProvider: TokenProvider | null = null;
 
   constructor(baseUrl: string, timeout = 10000) {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.timeout = timeout;
+  }
+
+  /**
+   * Set token provider for automatic token injection
+   */
+  setTokenProvider(provider: TokenProvider): void {
+    this.tokenProvider = provider;
+  }
+
+  /**
+   * Clear token provider
+   */
+  clearTokenProvider(): void {
+    this.tokenProvider = null;
   }
 
   /**
@@ -92,6 +112,14 @@ export class HttpClient {
         ...options?.headers,
       };
 
+      // Inject auth token if available and not already provided
+      if (this.tokenProvider && !headers['Authorization'] && !headers['authorization']) {
+        const token = this.tokenProvider();
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      }
+
       const config: RequestInit = {
         method,
         headers,
@@ -114,6 +142,12 @@ export class HttpClient {
         } catch {
           // Handle common HTTP status codes with helpful messages
           switch (response.status) {
+            case 401:
+              errorMessage = `Authentication required (401) - Please log in`;
+              break;
+            case 403:
+              errorMessage = `Access forbidden (403) - Insufficient permissions`;
+              break;
             case 404:
               errorMessage = `Endpoint not found (404) - Check device firmware version or API compatibility`;
               break;
@@ -292,12 +326,26 @@ export class HttpError extends Error {
   }
   
   /**
+   * Check if error is an authentication error (401)
+   */
+  isAuthError(): boolean {
+    return this.status === 401;
+  }
+
+  /**
+   * Check if error is a permission error (403)
+   */
+  isPermissionError(): boolean {
+    return this.status === 403;
+  }
+
+  /**
    * Check if error is a timeout error
    */
   isTimeoutError(): boolean {
     return this.status === 0 && this.message.includes('timeout');
   }
-  
+
   /**
    * Check if error suggests device is unreachable
    */
@@ -313,6 +361,12 @@ export class HttpError extends Error {
    * Get a user-friendly description of the error
    */
   getUserFriendlyMessage(): string {
+    if (this.isAuthError()) {
+      return 'Authentication required - Please log in to continue';
+    }
+    if (this.isPermissionError()) {
+      return 'Access forbidden - You do not have permission to perform this action';
+    }
     if (this.isTimeoutError()) {
       return 'Request timed out - Device may be slow to respond or unreachable';
     }
@@ -328,7 +382,7 @@ export class HttpError extends Error {
     if (this.status >= 500) {
       return 'Device error - The device encountered an internal error';
     }
-    
+
     return this.message;
   }
 }

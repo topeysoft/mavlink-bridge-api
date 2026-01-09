@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConnectionStore } from '@/stores/connection'
+import { useAuthStore } from '@/stores/auth'
+import AuthStatusBadge from './AuthStatusBadge.vue'
 import type { MAVLinkBridgeDevice } from '@mavlinkbridge/api-client'
 
 const props = defineProps<{
@@ -10,6 +12,11 @@ const props = defineProps<{
 
 const router = useRouter()
 const connectionStore = useConnectionStore()
+const authStore = useAuthStore()
+
+// Auth status checking
+const isCheckingAuth = ref(false)
+const authStatus = ref<'needs_setup' | 'needs_login' | 'authenticated' | 'unknown'>('unknown')
 
 // Computed
 const deviceUrl = computed(() => {
@@ -42,15 +49,57 @@ const statusBadge = computed(() => {
   return { label: 'Not Provisioned', color: 'var(--text-light)' }
 })
 
+// CTA button text and action
+const ctaButton = computed(() => {
+  if (isCurrentDevice.value) {
+    return { text: 'Connected', icon: 'check', disabled: true }
+  }
+
+  switch (authStatus.value) {
+    case 'needs_setup':
+      return { text: 'Setup Device', icon: 'settings', disabled: false }
+    case 'needs_login':
+      return { text: 'Login', icon: 'login', disabled: false }
+    case 'authenticated':
+      return { text: 'Connect', icon: 'arrow', disabled: false }
+    default:
+      return { text: 'Connect', icon: 'arrow', disabled: false }
+  }
+})
+
 // Actions
+async function checkAuthStatus() {
+  isCheckingAuth.value = true
+  try {
+    authStatus.value = await connectionStore.checkDeviceAuthStatus(deviceUrl.value)
+  } catch (error) {
+    console.error('Failed to check auth status:', error)
+    authStatus.value = 'unknown'
+  } finally {
+    isCheckingAuth.value = false
+  }
+}
+
 async function handleConnect() {
   const success = await connectionStore.connect(deviceUrl.value, props.device.name)
 
   if (success) {
-    // Navigate to dashboard after successful connection
-    router.push({ name: 'dashboard' })
+    // Check auth status after connection and route accordingly
+    if (authStatus.value === 'needs_setup') {
+      router.push({ name: 'setup' })
+    } else if (authStatus.value === 'needs_login') {
+      router.push({ name: 'login', query: { redirect: '/' } })
+    } else {
+      // If authenticated or unknown, go to dashboard
+      router.push({ name: 'dashboard' })
+    }
   }
 }
+
+// Check auth status on mount
+onMounted(() => {
+  checkAuthStatus()
+})
 </script>
 
 <template>
@@ -73,6 +122,9 @@ async function handleConnect() {
       </div>
 
       <div class="device-badges">
+        <!-- Auth Status Badge -->
+        <AuthStatusBadge :status="authStatus" :checking="isCheckingAuth" />
+
         <!-- Status Badge -->
         <div class="status-badge" :style="{ backgroundColor: statusBadge.color }">
           {{ statusBadge.label }}
@@ -93,16 +145,26 @@ async function handleConnect() {
     <div class="device-actions">
       <button
         class="btn btn-primary"
-        :disabled="isConnecting || isCurrentDevice"
+        :disabled="isConnecting || ctaButton.disabled"
         @click="handleConnect"
       >
-        <svg v-if="isCurrentDevice" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <!-- Icon based on CTA type -->
+        <svg v-if="ctaButton.icon === 'check'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 6L9 17l-5-5"/>
+        </svg>
+        <svg v-else-if="ctaButton.icon === 'settings'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"/>
+        </svg>
+        <svg v-else-if="ctaButton.icon === 'login'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+          <polyline points="10 17 15 12 10 7"/>
+          <line x1="15" y1="12" x2="3" y2="12"/>
         </svg>
         <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M17 8l4 4m0 0l-4 4m4-4H3"/>
         </svg>
-        {{ isCurrentDevice ? 'Connected' : 'Connect' }}
+        {{ ctaButton.text }}
       </button>
     </div>
   </div>

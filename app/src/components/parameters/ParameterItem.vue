@@ -225,6 +225,7 @@ function handleReset() {
 </template>
 
 <style scoped lang="scss">
+@use 'sass:color';
 .parameter-item {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -349,7 +350,7 @@ function handleReset() {
           cursor: pointer;
 
           &:hover {
-            background: darken(#2c5f2d, 10%);
+            background: color.adjust(#2c5f2d, $lightness: -10%);
           }
         }
 
@@ -362,7 +363,7 @@ function handleReset() {
           border: none;
 
           &:hover {
-            background: darken(#2c5f2d, 10%);
+            background: color.adjust(#2c5f2d, $lightness: -10%);
           }
         }
 

@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useThemeStore } from '@/stores/theme'
 import { useFeaturesStore } from '@/stores/features'
 import { useConnectionStore } from '@/stores/connection'
 import { useBatteryStore } from '@/stores/battery'
+import { useAuthStore } from '@/stores/auth'
 import { useSidebar } from '@/composables/useSidebar'
+import { useDialog } from '@/composables/useDialog'
 import Modal from '@/components/common/Modal.vue'
 import Button from '@/components/common/Button.vue'
 
@@ -15,9 +17,41 @@ const themeStore = useThemeStore()
 const featuresStore = useFeaturesStore()
 const connectionStore = useConnectionStore()
 const batteryStore = useBatteryStore()
+const authStore = useAuthStore()
 const { toggleSidebar, isMobile } = useSidebar()
+const { confirm } = useDialog()
+const toast = inject<any>('toast')
 
 const showEmergencyConfirm = ref(false)
+const isDisconnecting = ref(false)
+
+// Session expiry time remaining
+const sessionTimeRemaining = computed(() => {
+  if (!authStore.isAuthenticated || !authStore.timeUntilExpiry) return null
+
+  const totalSeconds = Math.floor(authStore.timeUntilExpiry / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+
+  // Only show if less than 1 hour remaining
+  if (totalSeconds > 3600) return null
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  return `${minutes}m`
+})
+
+// Determine session expiry color based on time remaining
+const sessionExpiryColor = computed(() => {
+  if (!authStore.timeUntilExpiry) return 'var(--text-secondary)'
+
+  const minutesRemaining = Math.floor(authStore.timeUntilExpiry / 1000 / 60)
+
+  if (minutesRemaining <= 5) return 'var(--status-danger)'
+  if (minutesRemaining <= 15) return 'var(--status-warning)'
+  return 'var(--status-success)'
+})
 
 // Battery level from live data
 const batteryLevel = computed(() => Math.round(batteryStore.batteryInfo.percent))
@@ -54,6 +88,13 @@ const pageTitle = computed(() => {
 
 // Connection status
 const connectionStatus = computed(() => {
+  if (isDisconnecting.value) {
+    return {
+      label: 'Disconnecting...',
+      color: 'var(--status-warning)',
+      icon: 'connecting'
+    }
+  }
   if (connectionStore.isConnected) {
     return {
       label: connectionStore.currentDeviceName || 'Connected',
@@ -83,8 +124,81 @@ const connectionStatus = computed(() => {
   }
 })
 
-function navigateToConnect() {
-  router.push({ name: 'connect' })
+// Dynamic tooltip based on connection state
+const connectionTooltip = computed(() => {
+  if (isDisconnecting.value) {
+    return 'Disconnecting...'
+  }
+  if (connectionStore.isConnecting) {
+    return 'Connecting...'
+  }
+  if (connectionStore.isConnected) {
+    return `Click to disconnect from ${connectionStore.currentDeviceName || 'device'}`
+  }
+  return 'Click to connect to a device'
+})
+
+/**
+ * Handle connection status click - disconnect if connected, navigate to connect if not
+ */
+async function handleConnectionClick() {
+  // Do nothing while connecting or disconnecting
+  if (connectionStore.isConnecting || isDisconnecting.value) {
+    return
+  }
+
+  if (connectionStore.isConnected) {
+    // Show confirmation dialog before disconnecting
+    const deviceName = connectionStore.currentDeviceName || 'device'
+    const confirmed = await confirm(
+      `This will disconnect from your YardRover device. Any active operations will be stopped and you'll need to reconnect to continue.`,
+      `Disconnect from ${deviceName}?`,
+      {
+        confirmText: 'Disconnect',
+        cancelText: 'Cancel',
+        variant: 'warning',
+        icon: '⚠️'
+      }
+    )
+
+    if (confirmed) {
+      await handleDisconnect()
+    }
+  } else {
+    // Navigate to connect page if not connected
+    router.push({ name: 'connect' })
+  }
+}
+
+/**
+ * Disconnect from current device
+ */
+async function handleDisconnect() {
+  const deviceName = connectionStore.currentDeviceName || 'device'
+  isDisconnecting.value = true
+
+  try {
+    await connectionStore.disconnect()
+
+    // Show success notification
+    toast?.value?.addToast({
+      message: `Disconnected from ${deviceName}`,
+      type: 'success',
+      duration: 3000,
+      dismissible: true
+    })
+  } catch (error) {
+    // Show error notification
+    console.error('Failed to disconnect:', error)
+    toast?.value?.addToast({
+      message: `Failed to disconnect: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      type: 'error',
+      duration: 5000,
+      dismissible: true
+    })
+  } finally {
+    isDisconnecting.value = false
+  }
 }
 
 function handleEmergencyStop() {
@@ -152,12 +266,30 @@ const modeLabel = computed(() => {
     </div>
 
     <div class="header-right">
+      <!-- Session Expiry Indicator (only shown when < 1 hour remaining) -->
+      <div
+        v-if="sessionTimeRemaining"
+        class="session-expiry"
+        :class="{ warning: authStore.willExpireSoon }"
+        :title="`Session expires in ${sessionTimeRemaining}`"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="{ color: sessionExpiryColor }">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span :style="{ color: sessionExpiryColor }">{{ sessionTimeRemaining }}</span>
+      </div>
+
       <!-- Connection Status Indicator -->
       <div
         class="connection-status"
-        :class="{ connected: connectionStore.isConnected, connecting: connectionStore.isConnecting }"
-        @click="navigateToConnect"
-        :title="`${connectionStatus.label} - Click to manage connection`"
+        :class="{
+          connected: connectionStore.isConnected,
+          connecting: connectionStore.isConnecting || isDisconnecting,
+          clickable: !connectionStore.isConnecting && !isDisconnecting
+        }"
+        @click="handleConnectionClick"
+        :title="connectionTooltip"
       >
         <svg v-if="connectionStatus.icon === 'connected'" viewBox="0 0 24 24" fill="currentColor" :style="{ color: connectionStatus.color }">
           <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
@@ -448,22 +580,51 @@ const modeLabel = computed(() => {
   }
 }
 
+.session-expiry {
+  @include flex-center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s;
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  span {
+    white-space: nowrap;
+  }
+
+  &.warning {
+    animation: session-pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes session-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
 .connection-status {
   @include flex-center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   background: var(--bg-secondary);
   border-radius: var(--radius-md);
-  cursor: pointer;
   transition: all 0.2s;
   font-size: var(--font-size-sm);
   font-weight: 600;
   border: 1px solid var(--border-color);
-
-  &:hover {
-    background: var(--bg-tertiary);
-    transform: translateY(-1px);
-  }
+  cursor: default;
 
   svg {
     width: 20px;
@@ -474,16 +635,44 @@ const modeLabel = computed(() => {
     white-space: nowrap;
   }
 
+  &.clickable {
+    cursor: pointer;
+
+    &:hover {
+      background: var(--bg-tertiary);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
   &.connected {
     border-color: var(--status-success);
+
+    &.clickable:hover {
+      border-color: var(--status-warning);
+    }
   }
 
   &.connecting {
     border-color: var(--status-warning);
+    cursor: wait;
 
     .spinner {
       animation: spin 1s linear infinite;
     }
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 

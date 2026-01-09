@@ -1,5 +1,6 @@
 import { HttpClient } from './core/HttpClient';
 import { WebSocketClient } from './core/WebSocketClient';
+import { AuthClient } from './auth/AuthClient';
 import { ConfigClient } from './config/ConfigClient';
 import { WiFiClient } from './wifi/WiFiClient';
 import { RTCMClient } from './rtcm/RTCMClient';
@@ -38,6 +39,7 @@ export interface MAVLinkBridgeClientOptions {
 export class MAVLinkBridgeClient {
   private readonly httpClient: HttpClient;
   private readonly wsClient: WebSocketClient;
+  public readonly authClient: AuthClient;
   private readonly configClient: ConfigClient;
   private readonly wifiClient: WiFiClient;
   private readonly rtcmClient: RTCMClient;
@@ -68,6 +70,12 @@ export class MAVLinkBridgeClient {
 
     // Initialize HTTP client
     this.httpClient = new HttpClient(deviceUrl, this.options.httpTimeout);
+
+    // Initialize auth client
+    this.authClient = new AuthClient(deviceUrl, this.options.httpTimeout);
+
+    // Set up token provider for automatic token injection
+    this.httpClient.setTokenProvider(() => this.authClient.getAuthToken());
 
     // Initialize WebSocket client
     const wsUrl = deviceUrl.replace(/^http/, 'ws') + '/ws';
