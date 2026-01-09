@@ -7,14 +7,16 @@ import KeyboardShortcutsModal from './components/common/KeyboardShortcutsModal.v
 import ToastContainer from './components/common/ToastContainer.vue'
 import ErrorBoundary from './components/common/ErrorBoundary.vue'
 import OfflineBanner from './components/common/OfflineBanner.vue'
-import OnboardingFlow from './components/consumer/OnboardingFlow.vue'
 import ConfirmDialog from './components/common/ConfirmDialog.vue'
 import AlertDialog from './components/common/AlertDialog.vue'
 import SessionTimeout from './components/auth/SessionTimeout.vue'
+import ConnectionStatusToast from './components/common/ConnectionStatusToast.vue'
 import { useThemeStore } from './stores/theme'
 import { useFeaturesStore } from './stores/features'
 import { useConnectionStore } from './stores/connection'
+import { useConnectionOrchestrator } from './stores/connectionOrchestrator'
 import { useAuthStore } from './stores/auth'
+import { useOnboardingStore } from './stores/onboarding'
 import { useSidebar } from './composables/useSidebar'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 import type { ConfirmOptions, AlertOptions } from './composables/useDialog'
@@ -24,7 +26,9 @@ const router = useRouter()
 const themeStore = useThemeStore()
 const featuresStore = useFeaturesStore()
 const connectionStore = useConnectionStore()
+const orchestrator = useConnectionOrchestrator()
 const authStore = useAuthStore()
+const onboardingStore = useOnboardingStore()
 const { mainContentMargin, mainContentWidth } = useSidebar()
 
 // Determine if we should show the full app (sidebar + header + routes)
@@ -100,37 +104,51 @@ const handleAlertClose = () => {
   }
 }
 
-// Onboarding
-const showOnboarding = ref(false)
+const isInitializing = ref(true)
 
 onMounted(async () => {
-  // Attempt to auto-reconnect to last connected device
-  if (connectionStore.hasPersistedConnection()) {
-    const reconnected = await connectionStore.autoReconnect()
+  // Smart connection on app load
+  const result = await orchestrator.smartConnect({
+    silent: true,
+    context: 'app-load',
+    onProgress: (state) => {
+      // Progress is shown via ConnectionStatusToast component
+      console.log('[App] Connection progress:', state)
+    }
+  })
 
-    if (reconnected) {
-      toastContainer.value?.addToast({
-        message: `Reconnected to ${connectionStore.currentDeviceName}`,
-        type: 'success',
-        duration: 3000
-      })
+  if (result.success) {
+    // Successfully auto-connected
+    toastContainer.value?.addToast({
+      message: `Connected to ${result.device?.name}`,
+      type: 'success',
+      duration: 2000
+    })
+
+    // Route based on onboarding state
+    if (!onboardingStore.isOnboardingComplete) {
+      await router.push('/onboarding')
+    } else if (!authStore.isAuthenticated) {
+      // Connected but not authenticated - will be handled by router guards
     } else {
-      // Only show error if we had a persisted connection but failed to reconnect
-      toastContainer.value?.addToast({
-        message: 'Could not reconnect to your device. Please connect manually.',
-        type: 'warning',
-        duration: 5000
-      })
+      // Fully connected and authenticated - go to dashboard if on root
+      if (route.path === '/' || route.path === '/connect') {
+        await router.push('/dashboard')
+      }
+    }
+  } else if (result.requiresUI) {
+    // Auto-connect failed - router guards will redirect to appropriate page
+    console.log('[App] Auto-connect failed:', result.reason)
+
+    // Determine where to route based on onboarding status
+    if (!onboardingStore.isOnboardingComplete) {
+      await router.push('/onboarding')
+    } else {
+      // Will be redirected by router guards
     }
   }
 
-  // Show onboarding for first-time consumer mode users
-  const hasCompletedOnboarding = localStorage.getItem('yardrover_onboarding_completed')
-  if (!hasCompletedOnboarding && featuresStore.userMode === 'consumer') {
-    setTimeout(() => {
-      showOnboarding.value = true
-    }, 500)
-  }
+  isInitializing.value = false
 
   // Listen for battery notifications
   window.addEventListener('battery-notification', handleBatteryNotification as EventListener)
@@ -218,14 +236,11 @@ const handleEmergencyStop = async () => {
       :shortcuts="shortcuts"
     />
 
-    <!-- Consumer Onboarding -->
-    <OnboardingFlow
-      v-model="showOnboarding"
-      @complete="showOnboarding = false"
-    />
-
     <!-- Toast Notifications -->
     <ToastContainer ref="toastContainer" />
+
+    <!-- Connection Status Toast -->
+    <ConnectionStatusToast />
 
     <!-- Session Timeout Warning -->
     <SessionTimeout />

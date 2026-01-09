@@ -10,6 +10,7 @@ from .api_keys import get_api_key_manager
 from .jwt_handler import get_jwt_handler
 from .models import Permission, Role, SecurityContext
 from .rbac import get_role_permissions
+from .users import get_user_manager
 
 logger = structlog.get_logger(__name__)
 
@@ -51,17 +52,41 @@ async def get_current_api_key(
                     headers={"WWW-Authenticate": "Bearer"},
                 )
 
+            # Parse subject: format is "type:id" (e.g., "user:uuid" or "api_key:uuid")
+            subject_parts = token_data.sub.split(":", 1)
+            if len(subject_parts) == 2:
+                subject_type, subject_id = subject_parts
+            else:
+                # Backward compatibility: assume api_key if no prefix
+                subject_type = "api_key"
+                subject_id = token_data.sub
+
+            # Get subject name based on type
+            subject_name = f"JWT:{subject_id}"
+            if subject_type == "user":
+                user_manager = get_user_manager()
+                user = user_manager.get_user(subject_id)
+                if user:
+                    subject_name = user.username
+            elif subject_type == "api_key":
+                api_key_manager = get_api_key_manager()
+                api_key = api_key_manager.get_key(subject_id)
+                if api_key:
+                    subject_name = api_key.name
+
             # Create security context from token
             context = SecurityContext(
-                api_key_id=token_data.sub,
-                api_key_name=f"JWT:{token_data.sub}",
+                subject_id=subject_id,
+                subject_type=subject_type,
+                subject_name=subject_name,
                 role=token_data.role,
                 permissions=token_data.permissions,
             )
 
             logger.debug(
                 "jwt_authentication_successful",
-                subject=token_data.sub,
+                subject_type=subject_type,
+                subject_id=subject_id,
                 role=token_data.role.value,
             )
 
@@ -88,8 +113,9 @@ async def get_current_api_key(
         # Create security context
         permissions = get_role_permissions(api_key.role)
         context = SecurityContext(
-            api_key_id=api_key.key_id,
-            api_key_name=api_key.name,
+            subject_id=api_key.key_id,
+            subject_type="api_key",
+            subject_name=api_key.name,
             role=api_key.role,
             permissions=permissions,
         )

@@ -55,16 +55,21 @@ YardRover uses **owner-only access** with physical device reset capability:
 ┌──────────────────────────────────────────┐
 │  First Boot (Setup Mode)                │
 │  - Auto-detected on startup             │
-│  - Creates admin API key                │
+│  - Creates admin user account           │
+│  - Creates admin API key for automation │
 │  - No auth required for setup           │
 └──────────────────────────────────────────┘
                 ↓
 ┌──────────────────────────────────────────┐
-│  Normal Operation                        │
-│  - Login with API key                    │
-│  - Receive JWT token (30 days)          │
-│  - Auto token injection on requests     │
-│  - Session monitoring & warnings        │
+│  Normal Operation - Three Login Methods │
+│                                          │
+│  1. Username/Password (for normal use)  │
+│  2. PIN (4-6 digits, consumer mode)     │
+│  3. API Key (automation/CLI)            │
+│                                          │
+│  → Receive JWT token (30 days)          │
+│  → Auto token injection on requests     │
+│  → Session monitoring & warnings        │
 └──────────────────────────────────────────┘
                 ↓
 ┌──────────────────────────────────────────┐
@@ -72,6 +77,7 @@ YardRover uses **owner-only access** with physical device reset capability:
 │  - Access device console                │
 │  - Set YARDROVER_DEBUG=true             │
 │  - Call /api/setup/reset endpoint       │
+│  - Clears all users and API keys        │
 │  - Returns to setup mode                │
 └──────────────────────────────────────────┘
 ```
@@ -79,31 +85,42 @@ YardRover uses **owner-only access** with physical device reset capability:
 ### Authentication Components
 
 **Backend** (`backend/src/yardrover/`):
-- `api/auth.py` - Login, API key management endpoints
-- `api/setup.py` - First-boot setup endpoints
+- `api/auth.py` - Login endpoints (password/PIN/API key), credential management
+- `api/setup.py` - First-boot setup endpoints (creates user + API key)
+- `auth/users.py` - User account management with password/PIN support
 - `auth/api_keys.py` - API key generation and verification (bcrypt)
 - `auth/jwt_handler.py` - JWT token creation and validation
-- `auth/dependencies.py` - FastAPI auth dependencies
+- `auth/dependencies.py` - FastAPI auth dependencies (handles both users and API keys)
 - `auth/rbac.py` - Role-based access control
+- `auth/models.py` - User, APIKey, SecurityContext models
 
 **Client Library** (`client/src/auth/`):
-- `AuthClient.ts` - Full auth client with token management
-- `AuthTypes.ts` - TypeScript types for auth (Role, Permission, etc.)
+- `AuthClient.ts` - Full auth client with multiple login methods
+- `AuthTypes.ts` - TypeScript types for auth (Role, Permission, User, etc.)
 
 **Frontend** (`app/src/`):
 - `stores/auth.ts` - Pinia auth store
-- `pages/LoginPage.vue` - Login interface
-- `pages/SetupPage.vue` - First-boot setup wizard
+- `pages/LoginPage.vue` - Mode-adaptive login interface (password/PIN/API key)
+- `components/onboarding/steps/ConfigurationStep.vue` - Setup wizard with user creation
+- `components/settings/SecuritySettings.vue` - Password and PIN management
 - `router/guards.ts` - Route protection logic
 
 ### First-Time Setup Flow
 
-1. **Backend boots in setup mode** (no admin API keys exist)
+1. **Backend boots in setup mode** (no admin users or API keys exist)
 2. **User accesses web interface** at device's mDNS hostname or IP
-3. **Setup wizard guides user** through device naming and credential creation
-4. **API key generated** and shown once (user must save it)
+3. **Setup wizard guides user** through:
+   - Device naming
+   - Creating admin user account (username + password)
+   - Optionally setting a PIN (for quick consumer mode login)
+4. **System creates**:
+   - Admin user account with credentials
+   - Admin API key for automation (shown once, user must save it)
 5. **Device exits setup mode** and requires authentication
-6. **User logs in** with API key to access dashboard
+6. **User can now log in** with:
+   - Username and password
+   - PIN (if set during setup)
+   - API key (for automation/CLI)
 
 ### Role-Based Access Control (RBAC)
 
@@ -116,13 +133,18 @@ YardRover uses **owner-only access** with physical device reset capability:
 
 ### Security Features
 
+- ✅ Multiple authentication methods (password/PIN/API key)
+- ✅ Passwords and PINs hashed with bcrypt (never stored in plaintext)
 - ✅ API keys hashed with bcrypt (never stored in plaintext)
 - ✅ JWT tokens for stateless authentication (30-day default expiry)
+- ✅ Unified SecurityContext for both users and API keys
 - ✅ Rate limiting to prevent brute force attacks
 - ✅ CORS configured for allowed origins only
 - ✅ Session timeout warnings (5 minutes before expiry)
 - ✅ Automatic token injection via HttpClient
 - ✅ Physical reset requirement for lost credentials
+- ✅ Password change functionality
+- ✅ PIN management (set/remove) for consumer mode
 
 ## Onboarding System Architecture
 
@@ -148,7 +170,8 @@ The onboarding system provides a unified wizard for first-time users.
                 ↓
 ┌──────────────────────────────────────────┐
 │  4. Configuration                        │
-│     Name device & create admin API key   │
+│     Name device & create admin account   │
+│     (username/password + optional PIN)   │
 └──────────────────────────────────────────┘
                 ↓
 ┌──────────────────────────────────────────┐
@@ -318,22 +341,59 @@ UART → Flight Controller
 
 ### Backend State
 
-- In-memory connection tracking
-- SQLite database for persistent data:
+- In-memory storage for:
+  - User accounts (username, hashed password, hashed PIN)
   - API keys (hashed)
+  - Connection tracking
+- (Future: SQLite database for persistent data):
+  - User accounts
+  - API keys
   - Device configuration
   - User preferences
   - Activity logs
 
 ## Configuration System
 
-### Environment Variables
+### Environment Modes (Recommended)
+
+**Quick development setup:**
 
 ```bash
+# Single variable enables all dev-friendly defaults
+YARDROVER_ENVIRONMENT=development
+```
+
+This automatically configures:
+- `log_level=DEBUG` (verbose logging)
+- `debug=true` (debug mode)
+- `reload=true` (hot reload)
+- `allow_anonymous_docs=true` (public /docs endpoint)
+- `rate_limit_enabled=false` (no rate limiting)
+
+**Production mode** (default):
+
+```bash
+YARDROVER_ENVIRONMENT=production  # Secure defaults
+```
+
+### Environment Variables
+
+All environment variables are prefixed with `YARDROVER_`:
+
+```bash
+# Environment Mode
+YARDROVER_ENVIRONMENT=development  # or production (default)
+
 # Security
 YARDROVER_SECURITY_ENABLED=true
 YARDROVER_JWT_SECRET=your-secret-key
 YARDROVER_ACCESS_TOKEN_EXPIRE_MINUTES=43200
+
+# Development (optional - auto-set by YARDROVER_ENVIRONMENT)
+YARDROVER_DEBUG=false
+YARDROVER_RELOAD=false
+YARDROVER_LOG_LEVEL=INFO
+YARDROVER_ALLOW_ANONYMOUS_DOCS=false
 
 # TLS
 YARDROVER_TLS_ENABLED=true
@@ -346,14 +406,17 @@ YARDROVER_PORT=8000
 YARDROVER_CORS_ORIGINS=["*"]
 
 # MAVLink
-YARDROVER_MAVLINK_CONNECTION=serial
-YARDROVER_MAVLINK_PORT=/dev/ttyAMA0
-YARDROVER_MAVLINK_BAUDRATE=57600
+YARDROVER_SERIAL_PORT=/dev/ttyAMA0
+YARDROVER_SERIAL_BAUDRATE=57600
 ```
 
 ### Config File (`backend/config.yaml`)
 
 YAML configuration with same structure as environment variables. Environment variables take precedence.
+
+**Template files:**
+- `backend/.env.example` - Production defaults with documentation
+- `backend/.env.development` - Pre-configured development settings
 
 ## Network Architecture
 
@@ -370,7 +433,14 @@ YAML configuration with same structure as environment variables. Environment var
 
 **Authentication:**
 - `POST /api/auth/login` - Login with API key
+- `POST /api/auth/login/password` - Login with username/password
+- `POST /api/auth/login/pin` - Login with PIN
 - `POST /api/auth/logout` - Logout and invalidate token
+- `POST /api/auth/password/change` - Change password
+- `POST /api/auth/pin/set` - Set or update PIN
+- `POST /api/auth/pin/remove` - Remove PIN
+- `GET /api/auth/users` - List users (admin only)
+- `POST /api/auth/users` - Create new user (admin only)
 - `GET /api/auth/keys` - List API keys (admin only)
 - `POST /api/auth/keys` - Create new API key (admin only)
 

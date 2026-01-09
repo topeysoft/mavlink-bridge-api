@@ -52,12 +52,25 @@ if (featuresStore.isFeatureEnabled('systemMonitoring')) {
 
 ### 4. Authentication Flow
 
-**First Boot** → Setup mode (no auth) → Create admin API key → **Normal Operation** → Login required
+**First Boot** → Setup mode (no auth) → Create admin user account + API key → **Normal Operation** → Login required
 
-- API keys hashed with bcrypt
+**Three Authentication Methods:**
+- **Username/Password** - For normal users
+- **PIN** (4-6 digits) - Quick login for consumer mode
+- **API Key** - For automation and CLI tools
+
+**Implementation:**
+- Passwords, PINs, and API keys hashed with bcrypt
 - JWT tokens (30-day expiry) automatically injected on requests
+- Unified SecurityContext handles both users and API keys
+- Password change and PIN management in settings
 - Physical device reset required if credentials lost
 - Router guards protect authenticated routes
+
+**Key Files:**
+- Backend: `backend/src/yardrover/auth/users.py`, `backend/src/yardrover/api/auth.py`
+- Client: `client/src/auth/AuthClient.ts` (loginWithPassword, loginWithPin, login)
+- Frontend: `app/src/pages/LoginPage.vue`, `app/src/components/settings/SecuritySettings.vue`
 
 ### 5. File Organization
 
@@ -183,13 +196,15 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed auth flows.
 
 ## Development Commands
 
-```bash
-# Backend (HTTP)
-cd backend && .venv/bin/uvicorn yardrover.main:app --reload
+### Quick Start (Development Mode)
 
-# Backend (HTTPS with self-signed cert)
-cd backend && ./scripts/generate_certs.sh ./certs
-export YARDROVER_TLS_ENABLED=true YARDROVER_TLS_CERT_FILE=./certs/cert.pem YARDROVER_TLS_KEY_FILE=./certs/key.pem YARDROVER_TLS_PORT=8443
+```bash
+# Backend with development defaults (debug, hot reload, /docs enabled)
+export YARDROVER_ENVIRONMENT=development
+cd backend && .venv/bin/python -m yardrover.main
+
+# Or use the development config template
+cp backend/.env.development backend/.env
 cd backend && .venv/bin/python -m yardrover.main
 
 # App
@@ -197,6 +212,33 @@ cd app && npm run dev
 
 # Client library (build before app)
 cd client && npm run build
+```
+
+### Environment Modes
+
+**Development Mode** (`YARDROVER_ENVIRONMENT=development`):
+- ✅ Debug logging (`DEBUG`)
+- ✅ Hot reload enabled
+- ✅ API docs public (`/docs`)
+- ✅ Rate limiting disabled
+- ✅ Permissive CORS
+
+**Production Mode** (`YARDROVER_ENVIRONMENT=production` - default):
+- ❌ Info logging (`INFO`)
+- ❌ Hot reload disabled
+- ❌ API docs require auth
+- ✅ Rate limiting enabled
+- ⚠️ Strict CORS (configure `YARDROVER_CORS_ORIGINS`)
+
+Individual settings can override environment defaults (see `backend/.env.example`).
+
+### Other Commands
+
+```bash
+# Backend with HTTPS (self-signed cert for dev)
+cd backend && ./scripts/generate_certs.sh ./certs
+export YARDROVER_TLS_ENABLED=true YARDROVER_TLS_CERT_FILE=./certs/cert.pem YARDROVER_TLS_KEY_FILE=./certs/key.pem YARDROVER_TLS_PORT=8443
+cd backend && .venv/bin/python -m yardrover.main
 
 # Tests
 cd backend && .venv/bin/pytest
@@ -252,9 +294,9 @@ const label = isConsumerMode.value ? 'My Jobs' : 'Missions'
 ## Quick File Reference
 
 **Auth & Security:**
-- Backend: `backend/src/yardrover/api/auth.py`, `backend/src/yardrover/auth/`
-- Client: `client/src/auth/AuthClient.ts`
-- Frontend: `app/src/stores/auth.ts`, `app/src/pages/LoginPage.vue`, `app/src/router/guards.ts`
+- Backend: `backend/src/yardrover/api/auth.py`, `backend/src/yardrover/auth/` (users.py, api_keys.py, jwt_handler.py)
+- Client: `client/src/auth/AuthClient.ts` (loginWithPassword, loginWithPin, login, changePassword, setPin, removePin)
+- Frontend: `app/src/stores/auth.ts`, `app/src/pages/LoginPage.vue`, `app/src/components/settings/SecuritySettings.vue`, `app/src/router/guards.ts`
 
 **Onboarding:**
 - Store: `app/src/stores/onboarding.ts`

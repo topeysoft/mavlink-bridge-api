@@ -37,13 +37,38 @@ export enum Permission {
 }
 
 /**
- * Login request
+ * Login request with API key
  */
 export interface LoginRequest {
   /**
    * API key for authentication
    */
   api_key: string;
+}
+
+/**
+ * Login request with username and password
+ */
+export interface UserLoginRequest {
+  /**
+   * Username
+   */
+  username: string;
+
+  /**
+   * Password
+   */
+  password: string;
+}
+
+/**
+ * Login request with PIN
+ */
+export interface PinLoginRequest {
+  /**
+   * 4-6 digit PIN
+   */
+  pin: string;
 }
 
 /**
@@ -271,6 +296,26 @@ export interface CompleteSetupRequest {
   device_name: string;
 
   /**
+   * Admin username
+   */
+  username: string;
+
+  /**
+   * Admin password (min 8 characters)
+   */
+  password: string;
+
+  /**
+   * Optional display name
+   */
+  display_name?: string;
+
+  /**
+   * Optional PIN (4-6 digits) for consumer mode
+   */
+  pin?: string;
+
+  /**
    * Name for the admin API key
    */
   admin_key_name?: string;
@@ -291,6 +336,16 @@ export interface CompleteSetupResponse {
   success: boolean;
 
   /**
+   * Created user ID
+   */
+  user_id: string;
+
+  /**
+   * Created username
+   */
+  username: string;
+
+  /**
    * Generated admin API key (shown only once!)
    */
   api_key: string;
@@ -300,6 +355,46 @@ export interface CompleteSetupResponse {
    */
   device_name: string;
 
+  /**
+   * Success message
+   */
+  message: string;
+}
+
+/**
+ * Change password request
+ */
+export interface ChangePasswordRequest {
+  /**
+   * Current password
+   */
+  old_password: string;
+
+  /**
+   * New password (min 8 characters)
+   */
+  new_password: string;
+}
+
+/**
+ * Set PIN request
+ */
+export interface SetPinRequest {
+  /**
+   * 4-6 digit PIN
+   */
+  pin: string;
+
+  /**
+   * Current password for verification
+   */
+  password: string;
+}
+
+/**
+ * Generic success response
+ */
+export interface SuccessResponse {
   /**
    * Success message
    */

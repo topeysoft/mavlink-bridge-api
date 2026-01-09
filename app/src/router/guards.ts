@@ -5,6 +5,7 @@
 import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useConnectionStore } from '../stores/connection'
+import { useConnectionOrchestrator } from '../stores/connectionOrchestrator'
 import { useOnboardingStore } from '../stores/onboarding'
 
 /**
@@ -18,6 +19,7 @@ export function requiresAuth(route: RouteLocationNormalized): boolean {
 
 /**
  * Authentication guard - redirects to login if not authenticated
+ * Now uses smart connection orchestrator for better UX
  */
 export async function authGuard(
   to: RouteLocationNormalized,
@@ -26,6 +28,7 @@ export async function authGuard(
 ): Promise<void> {
   const authStore = useAuthStore()
   const connectionStore = useConnectionStore()
+  const orchestrator = useConnectionOrchestrator()
   const onboardingStore = useOnboardingStore()
 
   // Public routes that don't need auth (but might need connection for login/setup)
@@ -40,9 +43,17 @@ export async function authGuard(
   }
 
   // Check connection status
-  // If not connected and trying to access a protected route, redirect to onboarding/connect
+  // If not connected and trying to access a protected route, try smart connection first
   if (!connectionStore.isConnected && !isPublicRoute) {
-    // If onboarding is not complete, go to onboarding, otherwise go to connect page
+    // For first navigation (app load), this will be handled by App.vue
+    // For subsequent navigations, redirect to appropriate connection page
+    if (from.name === undefined) {
+      // First navigation - let App.vue handle it
+      next()
+      return
+    }
+
+    // Not first navigation - redirect based on onboarding status
     if (!onboardingStore.isOnboardingComplete) {
       next({ name: 'onboarding', query: { redirect: to.fullPath } })
     } else {

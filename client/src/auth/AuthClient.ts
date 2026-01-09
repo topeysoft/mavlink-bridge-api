@@ -6,6 +6,8 @@ import { HttpClient } from '../core/HttpClient';
 import type {
   LoginRequest,
   LoginResponse,
+  UserLoginRequest,
+  PinLoginRequest,
   APIKeyCreateRequest,
   APIKeyCreateResponse,
   APIKeyListItem,
@@ -13,6 +15,9 @@ import type {
   SetupStatus,
   CompleteSetupRequest,
   CompleteSetupResponse,
+  ChangePasswordRequest,
+  SetPinRequest,
+  SuccessResponse,
   Role,
   AuthState,
 } from './AuthTypes';
@@ -175,6 +180,42 @@ export class AuthClient {
   }
 
   /**
+   * Login with username and password
+   */
+  async loginWithPassword(username: string, password: string): Promise<LoginResponse> {
+    const request: UserLoginRequest = { username, password };
+    const response = await this.http.post<LoginResponse>('/api/auth/login/password', request);
+
+    // Store token
+    this.token = response.access_token;
+    this.expiresAt = Date.now() + response.expires_in * 1000;
+    this.role = response.role;
+
+    // Save to storage
+    this.saveTokenToStorage(response.access_token, response.expires_in, response.role);
+
+    return response;
+  }
+
+  /**
+   * Login with PIN
+   */
+  async loginWithPin(pin: string): Promise<LoginResponse> {
+    const request: PinLoginRequest = { pin };
+    const response = await this.http.post<LoginResponse>('/api/auth/login/pin', request);
+
+    // Store token
+    this.token = response.access_token;
+    this.expiresAt = Date.now() + response.expires_in * 1000;
+    this.role = response.role;
+
+    // Save to storage
+    this.saveTokenToStorage(response.access_token, response.expires_in, response.role);
+
+    return response;
+  }
+
+  /**
    * Logout (clear token)
    */
   logout(): void {
@@ -306,6 +347,61 @@ export class AuthClient {
         },
       }
     );
+  }
+
+  /**
+   * Change password (authenticated users only)
+   */
+  async changePassword(oldPassword: string, newPassword: string): Promise<SuccessResponse> {
+    const token = this.getAuthToken();
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+
+    const request: ChangePasswordRequest = {
+      old_password: oldPassword,
+      new_password: newPassword,
+    };
+
+    return await this.http.post<SuccessResponse>('/api/auth/password/change', request, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  /**
+   * Set or update PIN (authenticated users only)
+   */
+  async setPin(pin: string, password: string): Promise<SuccessResponse> {
+    const token = this.getAuthToken();
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+
+    const request: SetPinRequest = { pin, password };
+
+    return await this.http.post<SuccessResponse>('/api/auth/pin/set', request, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  /**
+   * Remove PIN (authenticated users only)
+   */
+  async removePin(password: string): Promise<SuccessResponse> {
+    const token = this.getAuthToken();
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+
+    return await this.http.delete<SuccessResponse>(`/api/auth/pin?password=${encodeURIComponent(password)}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
   }
 
   // Setup endpoints (no auth required)

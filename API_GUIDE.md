@@ -29,7 +29,12 @@ import { MAVLinkBridge } from '@yardrover/client'
 
 ## Authentication
 
-### Login with API Key
+YardRover supports three authentication methods:
+- **Username/Password** - For normal users
+- **PIN** (4-6 digits) - Quick login for consumer mode
+- **API Key** - For automation, CLI tools, and advanced users
+
+### Login with Username and Password
 
 ```typescript
 import { MAVLinkBridge } from '../../../client/dist/index'
@@ -37,14 +42,43 @@ import { MAVLinkBridge } from '../../../client/dist/index'
 const client = new MAVLinkBridge('http://yardrover.local:8000')
 
 try {
-  // Login with API key
-  const response = await client.authClient.login('yr_your_api_key_here')
+  // Login with username and password
+  const response = await client.authClient.loginWithPassword('admin', 'mypassword')
 
   console.log('Logged in successfully')
   console.log('Token expires:', response.expires_at)
-  console.log('User role:', response.user.role)
+  console.log('User role:', response.role)
 
   // Token is automatically stored and injected on all future requests
+} catch (error) {
+  console.error('Login failed:', error.message)
+}
+```
+
+### Login with PIN
+
+```typescript
+// Quick login with 4-6 digit PIN (consumer mode)
+try {
+  const response = await client.authClient.loginWithPin('1234')
+
+  console.log('Logged in with PIN')
+  console.log('User:', response.user.display_name)
+} catch (error) {
+  console.error('PIN login failed:', error.message)
+}
+```
+
+### Login with API Key
+
+```typescript
+// Login with API key (for automation and CLI)
+try {
+  const response = await client.authClient.login('yr_your_api_key_here')
+
+  console.log('Logged in with API key')
+  console.log('Token expires:', response.expires_at)
+  console.log('Role:', response.role)
 } catch (error) {
   console.error('Login failed:', error.message)
 }
@@ -69,6 +103,38 @@ if (client.authClient.isAuthenticated()) {
 await client.authClient.logout()
 ```
 
+### Change Password
+
+```typescript
+// Change user password (requires authentication)
+try {
+  await client.authClient.changePassword('oldpassword', 'newpassword')
+  console.log('Password updated successfully')
+} catch (error) {
+  console.error('Failed to change password:', error.message)
+}
+```
+
+### Manage PIN
+
+```typescript
+// Set or update PIN (requires password for verification)
+try {
+  await client.authClient.setPin('1234', 'mypassword')
+  console.log('PIN set successfully')
+} catch (error) {
+  console.error('Failed to set PIN:', error.message)
+}
+
+// Remove PIN
+try {
+  await client.authClient.removePin('mypassword')
+  console.log('PIN removed')
+} catch (error) {
+  console.error('Failed to remove PIN:', error.message)
+}
+```
+
 ### Setup Mode
 
 #### Check Setup Status
@@ -89,19 +155,25 @@ if (status.in_setup_mode) {
 #### Complete Setup
 
 ```typescript
-// Complete first-time setup
+// Complete first-time setup with user account
 try {
   const response = await client.authClient.completeSetup({
     device_name: 'My YardRover',
-    admin_key_name: 'Owner',
+    username: 'admin',
+    password: 'securepassword',
+    display_name: 'Admin User',
+    pin: '1234',  // Optional: 4-6 digit PIN for quick login
+    admin_key_name: 'Admin API Key',  // API key created for automation
   })
 
   console.log('Setup complete!')
-  console.log('Save this API key:', response.api_key)
+  console.log('Username:', response.username)
+  console.log('User ID:', response.user_id)
+  console.log('API Key (for automation):', response.api_key)
   console.log('Device name:', response.device_name)
 
-  // IMPORTANT: Show API key to user and prompt them to save it
-  // It will never be shown again!
+  // IMPORTANT: Show credentials and API key to user
+  // API key will never be shown again!
 } catch (error) {
   console.error('Setup failed:', error.message)
 }
@@ -414,11 +486,19 @@ logging:
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
 | POST | `/api/auth/login` | Login with API key | No |
+| POST | `/api/auth/login/password` | Login with username/password | No |
+| POST | `/api/auth/login/pin` | Login with PIN | No |
 | POST | `/api/auth/logout` | Logout and invalidate token | Yes |
 | GET | `/api/auth/me` | Get current user info | Yes |
+| POST | `/api/auth/password/change` | Change password | Yes |
+| POST | `/api/auth/pin/set` | Set or update PIN | Yes |
+| POST | `/api/auth/pin/remove` | Remove PIN | Yes |
 | GET | `/api/auth/keys` | List API keys | Yes (Admin) |
 | POST | `/api/auth/keys` | Create new API key | Yes (Admin) |
 | DELETE | `/api/auth/keys/{key_id}` | Delete API key | Yes (Admin) |
+| GET | `/api/auth/users` | List users | Yes (Admin) |
+| POST | `/api/auth/users` | Create new user | Yes (Admin) |
+| DELETE | `/api/auth/users/{user_id}` | Delete user | Yes (Admin) |
 
 ### Setup Endpoints
 
@@ -540,26 +620,55 @@ try {
 
 ## Development vs Production
 
-### Development Configuration
+### Quick Setup with Environment Modes
+
+**Development Mode** (one variable sets all dev-friendly defaults):
 
 ```bash
-# Use HTTP with self-signed certs
+# Single variable enables: debug, hot reload, /docs, DEBUG logging, no rate limits
+YARDROVER_ENVIRONMENT=development
+
+# Alternatively, copy the dev template
+cp backend/.env.development backend/.env
+```
+
+**Production Mode** (default - secure by default):
+
+```bash
+# Default mode (or explicitly set)
+YARDROVER_ENVIRONMENT=production
+
+# Recommended production settings
+YARDROVER_TLS_ENABLED=true
+YARDROVER_TLS_CERT_FILE=/etc/letsencrypt/live/yardrover.local/fullchain.pem
+YARDROVER_TLS_KEY_FILE=/etc/letsencrypt/live/yardrover.local/privkey.pem
+YARDROVER_CORS_ORIGINS=["https://yardrover.local"]
+```
+
+### Environment Mode Defaults
+
+| Setting | Development | Production |
+|---------|-------------|------------|
+| `log_level` | `DEBUG` | `INFO` |
+| `debug` | `true` | `false` |
+| `reload` | `true` | `false` |
+| `allow_anonymous_docs` | `true` | `false` |
+| `rate_limit_enabled` | `false` | `true` |
+| `cors_origins` | `["*"]` | `["*"]` (configure for prod) |
+
+All defaults can be overridden by setting the specific environment variable.
+
+### Legacy Configuration (Still Supported)
+
+```bash
+# Manual configuration (individual flags)
 YARDROVER_TLS_ENABLED=false
 YARDROVER_PORT=8000
 YARDROVER_CORS_ORIGINS=["http://localhost:5173"]
 YARDROVER_LOG_LEVEL=DEBUG
-```
-
-### Production Configuration
-
-```bash
-# Use HTTPS with Let's Encrypt
-YARDROVER_TLS_ENABLED=true
-YARDROVER_TLS_CERT_FILE=/etc/letsencrypt/live/yardrover.local/fullchain.pem
-YARDROVER_TLS_KEY_FILE=/etc/letsencrypt/live/yardrover.local/privkey.pem
-YARDROVER_TLS_PORT=443
-YARDROVER_CORS_ORIGINS=["https://yardrover.local"]
-YARDROVER_LOG_LEVEL=INFO
+YARDROVER_DEBUG=true
+YARDROVER_RELOAD=true
+YARDROVER_ALLOW_ANONYMOUS_DOCS=true
 ```
 
 ## Troubleshooting
@@ -573,10 +682,12 @@ YARDROVER_LOG_LEVEL=INFO
 
 ### Authentication Fails
 
-1. **Verify API key is correct** (starts with `yr_`)
-2. **Check setup mode status**: Device may need initial setup
-3. **Verify security is enabled** in backend config
-4. **Check token expiry** - may need to re-login
+1. **Verify credentials are correct** (username/password or PIN)
+2. **For API keys**: Verify key starts with `yr_` and is valid
+3. **Check setup mode status**: Device may need initial setup
+4. **Verify security is enabled** in backend config
+5. **Check token expiry** - may need to re-login
+6. **For PIN**: Ensure PIN was set (not all users have PIN enabled)
 
 ### WebSocket Not Connecting
 

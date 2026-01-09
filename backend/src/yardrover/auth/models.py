@@ -136,11 +136,24 @@ class TokenData(BaseModel):
 class SecurityContext(BaseModel):
     """Security context for authenticated requests."""
 
-    api_key_id: str = Field(..., description="API key ID")
-    api_key_name: str = Field(..., description="API key name")
+    # Subject identifier (either API key ID or user ID)
+    subject_id: str = Field(..., description="API key ID or user ID")
+    subject_type: str = Field(..., description="Type of subject: 'api_key' or 'user'")
+    subject_name: str = Field(..., description="API key name or username")
     role: Role = Field(..., description="Role")
     permissions: list[Permission] = Field(default_factory=list)
     authenticated: bool = Field(default=True)
+
+    # Backward compatibility aliases
+    @property
+    def api_key_id(self) -> str:
+        """Backward compatibility: return subject_id."""
+        return self.subject_id
+
+    @property
+    def api_key_name(self) -> str:
+        """Backward compatibility: return subject_name."""
+        return self.subject_name
 
     def has_permission(self, permission: Permission) -> bool:
         """Check if context has specific permission."""
@@ -229,3 +242,71 @@ class APIKeyListItem(BaseModel):
     last_used_at: Optional[datetime]
     enabled: bool
     description: Optional[str]
+
+
+class User(BaseModel):
+    """User account with username/password authentication."""
+
+    user_id: str = Field(..., description="Unique identifier for the user")
+    username: str = Field(..., min_length=1, max_length=64, description="Unique username")
+    role: Role = Field(default=Role.VIEWER, description="Role assigned to this user")
+    hashed_password: str = Field(..., description="Bcrypt hashed password")
+    hashed_pin: Optional[str] = Field(default=None, description="Optional bcrypt hashed PIN (4-6 digits)")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    last_login_at: Optional[datetime] = Field(default=None)
+    enabled: bool = Field(default=True)
+    display_name: Optional[str] = Field(default=None, max_length=128, description="Display name")
+
+    def is_valid(self) -> bool:
+        """Check if user is valid (enabled)."""
+        return self.enabled
+
+
+class UserLoginRequest(BaseModel):
+    """Login request with username and password."""
+
+    username: str = Field(..., min_length=1, max_length=64, description="Username")
+    password: str = Field(..., min_length=1, max_length=128, description="Password")
+
+
+class PinLoginRequest(BaseModel):
+    """Login request with PIN."""
+
+    pin: str = Field(..., min_length=4, max_length=6, pattern=r"^\d+$", description="4-6 digit PIN")
+
+
+class ChangePasswordRequest(BaseModel):
+    """Request to change user password."""
+
+    old_password: str = Field(..., min_length=1, max_length=128, description="Current password")
+    new_password: str = Field(..., min_length=8, max_length=128, description="New password (min 8 chars)")
+
+
+class SetPinRequest(BaseModel):
+    """Request to set or update user PIN."""
+
+    pin: str = Field(..., min_length=4, max_length=6, pattern=r"^\d+$", description="4-6 digit PIN")
+    password: str = Field(..., min_length=1, max_length=128, description="Current password for verification")
+
+
+class UserCreateRequest(BaseModel):
+    """Request to create a new user."""
+
+    username: str = Field(..., min_length=1, max_length=64, description="Unique username")
+    password: str = Field(..., min_length=8, max_length=128, description="Password (min 8 chars)")
+    role: Role = Field(default=Role.VIEWER, description="Role for this user")
+    display_name: Optional[str] = Field(default=None, max_length=128, description="Display name")
+    pin: Optional[str] = Field(default=None, min_length=4, max_length=6, pattern=r"^\d+$", description="Optional 4-6 digit PIN")
+
+
+class UserListItem(BaseModel):
+    """User list item (no sensitive data)."""
+
+    user_id: str
+    username: str
+    role: Role
+    created_at: datetime
+    last_login_at: Optional[datetime]
+    enabled: bool
+    display_name: Optional[str]
+    has_pin: bool = Field(description="Whether user has PIN configured")

@@ -172,9 +172,16 @@ watch(() => connectionStore.isConnected, (isConnected) => {
 })
 
 // Initialize onboarding if not started
-onMounted(() => {
+onMounted(async () => {
   if (onboardingStore.status === 'not-started') {
     onboardingStore.startOnboarding()
+  }
+
+  // Skip connection step if already connected
+  if (connectionStore.isConnected && onboardingStore.currentPhase === 'connection') {
+    console.log('[SetupWizard] Already connected, skipping connection step')
+    onboardingStore.completeStep('connection')
+    onboardingStore.setPhase('authentication')
   }
 })
 </script>

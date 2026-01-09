@@ -75,7 +75,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """
     global event_bus, config_manager, storage, health_monitor, wifi_manager, mdns_manager, ws_manager, mavlink_router, resource_storage, rtcm_router, peripheral_manager
 
-    logger.info("yardrover_starting", version="2.0.0")
+    logger.info(
+        "yardrover_starting",
+        version="2.0.0",
+        environment=settings.environment,
+        debug=settings.debug,
+        reload=settings.reload,
+        log_level=settings.log_level,
+        allow_anonymous_docs=settings.allow_anonymous_docs,
+        rate_limit_enabled=settings.rate_limit_enabled,
+    )
 
     # Initialize core services
     background_tasks = []

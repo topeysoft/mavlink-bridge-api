@@ -9,13 +9,21 @@ from yardrover.auth import (
     APIKeyCreateRequest,
     APIKeyCreateResponse,
     APIKeyListItem,
+    ChangePasswordRequest,
     LoginRequest,
     LoginResponse,
+    PinLoginRequest,
     Role,
     SecurityContext,
+    SetPinRequest,
+    UserCreateRequest,
+    UserListItem,
+    UserLoginRequest,
     create_access_token,
     get_api_key_manager,
+    get_user_manager,
     require_admin,
+    require_authenticated,
 )
 from yardrover.auth.rbac import get_role_permissions
 
@@ -53,15 +61,16 @@ async def login(request: LoginRequest) -> LoginResponse:
     # Get permissions for role
     permissions = get_role_permissions(api_key.role)
 
-    # Create JWT token
+    # Create JWT token with subject type
     token = create_access_token(
-        subject=api_key.key_id,
+        subject=f"api_key:{api_key.key_id}",
         role=api_key.role,
         permissions=[p.value for p in permissions],
     )
 
     logger.info(
         "user_logged_in",
+        subject_type="api_key",
         key_id=api_key.key_id,
         key_name=api_key.name,
         role=api_key.role.value,
@@ -75,6 +84,117 @@ async def login(request: LoginRequest) -> LoginResponse:
         token_type="bearer",
         expires_in=expires_in,
         role=api_key.role,
+    )
+
+
+@router.post("/login/password", response_model=LoginResponse)
+async def login_with_password(request: UserLoginRequest) -> LoginResponse:
+    """Login with username and password and receive JWT token.
+
+    This endpoint exchanges username and password for a JWT token that can
+    be used for subsequent requests. JWT tokens have a limited lifetime.
+
+    Args:
+        request: Login request with username and password
+
+    Returns:
+        JWT access token and metadata
+
+    Raises:
+        HTTPException: If credentials are invalid
+    """
+    user_manager = get_user_manager()
+    user = user_manager.verify_user_password(request.username, request.password)
+
+    if user is None:
+        logger.warning("login_failed", reason="invalid_credentials", username=request.username)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password",
+        )
+
+    # Get permissions for role
+    permissions = get_role_permissions(user.role)
+
+    # Create JWT token with subject type
+    token = create_access_token(
+        subject=f"user:{user.user_id}",
+        role=user.role,
+        permissions=[p.value for p in permissions],
+    )
+
+    logger.info(
+        "user_logged_in",
+        subject_type="user",
+        user_id=user.user_id,
+        username=user.username,
+        role=user.role.value,
+    )
+
+    # Calculate expiration (30 days default)
+    expires_in = 60 * 60 * 24 * 30
+
+    return LoginResponse(
+        access_token=token,
+        token_type="bearer",
+        expires_in=expires_in,
+        role=user.role,
+    )
+
+
+@router.post("/login/pin", response_model=LoginResponse)
+async def login_with_pin(request: PinLoginRequest) -> LoginResponse:
+    """Login with PIN and receive JWT token.
+
+    This endpoint exchanges a PIN for a JWT token that can be used for
+    subsequent requests. JWT tokens have a limited lifetime.
+
+    Args:
+        request: Login request with PIN
+
+    Returns:
+        JWT access token and metadata
+
+    Raises:
+        HTTPException: If PIN is invalid
+    """
+    user_manager = get_user_manager()
+    user = user_manager.verify_user_pin(request.pin)
+
+    if user is None:
+        logger.warning("login_failed", reason="invalid_pin")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid PIN",
+        )
+
+    # Get permissions for role
+    permissions = get_role_permissions(user.role)
+
+    # Create JWT token with subject type
+    token = create_access_token(
+        subject=f"user:{user.user_id}",
+        role=user.role,
+        permissions=[p.value for p in permissions],
+    )
+
+    logger.info(
+        "user_logged_in",
+        subject_type="user",
+        user_id=user.user_id,
+        username=user.username,
+        role=user.role.value,
+        method="pin",
+    )
+
+    # Calculate expiration (30 days default)
+    expires_in = 60 * 60 * 24 * 30
+
+    return LoginResponse(
+        access_token=token,
+        token_type="bearer",
+        expires_in=expires_in,
+        role=user.role,
     )
 
 
@@ -308,7 +428,7 @@ async def update_api_key_role(
 
 @router.get("/me", response_model=dict)
 async def get_current_user(
-    context: SecurityContext = Depends(require_admin),
+    context: SecurityContext = Depends(require_authenticated),
 ) -> dict:
     """Get current authenticated user information.
 
@@ -319,9 +439,290 @@ async def get_current_user(
         Current user information
     """
     return {
-        "api_key_id": context.api_key_id,
-        "api_key_name": context.api_key_name,
+        "subject_id": context.subject_id,
+        "subject_type": context.subject_type,
+        "subject_name": context.subject_name,
         "role": context.role.value,
         "permissions": [p.value for p in context.permissions],
         "authenticated": context.authenticated,
+        # Backward compatibility
+        "api_key_id": context.api_key_id,
+        "api_key_name": context.api_key_name,
     }
+
+
+# ============================================================================
+# User Management Endpoints
+# ============================================================================
+
+
+@router.post("/users", response_model=dict)
+async def create_user(
+    request: UserCreateRequest,
+    context: SecurityContext = Depends(require_admin),
+) -> dict:
+    """Create a new user account (admin only).
+
+    Args:
+        request: User creation request
+        context: Security context (admin required)
+
+    Returns:
+        Created user information
+
+    Raises:
+        HTTPException: If creation fails or username exists
+    """
+    user_manager = get_user_manager()
+
+    try:
+        user = user_manager.create_user(
+            username=request.username,
+            password=request.password,
+            role=request.role,
+            display_name=request.display_name,
+            pin=request.pin,
+        )
+
+        logger.info(
+            "user_created",
+            user_id=user.user_id,
+            username=user.username,
+            role=user.role.value,
+            created_by=context.subject_name,
+        )
+
+        return {
+            "user_id": user.user_id,
+            "username": user.username,
+            "role": user.role.value,
+            "display_name": user.display_name,
+            "has_pin": user.hashed_pin is not None,
+            "created_at": user.created_at.isoformat(),
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.get("/users", response_model=list[UserListItem])
+async def list_users(
+    context: SecurityContext = Depends(require_admin),
+) -> list[UserListItem]:
+    """List all user accounts (admin only).
+
+    Args:
+        context: Security context (admin required)
+
+    Returns:
+        List of users (no sensitive data)
+    """
+    user_manager = get_user_manager()
+    users = user_manager.list_users()
+
+    return [
+        UserListItem(
+            user_id=user.user_id,
+            username=user.username,
+            role=user.role,
+            created_at=user.created_at,
+            last_login_at=user.last_login_at,
+            enabled=user.enabled,
+            display_name=user.display_name,
+            has_pin=user.hashed_pin is not None,
+        )
+        for user in users
+    ]
+
+
+@router.post("/password/change")
+async def change_password(
+    request: ChangePasswordRequest,
+    context: SecurityContext = Depends(require_authenticated),
+) -> dict[str, str]:
+    """Change current user's password.
+
+    Args:
+        request: Password change request
+        context: Security context (authenticated user)
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If password change fails
+    """
+    # Only allow users to change their own password
+    if context.subject_type != "user":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password change is only available for user accounts, not API keys",
+        )
+
+    user_manager = get_user_manager()
+
+    if not user_manager.change_password(
+        context.subject_id, request.old_password, request.new_password
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password change failed. Please check your current password and try again.",
+        )
+
+    logger.info("password_changed", user_id=context.subject_id, username=context.subject_name)
+
+    return {"message": "Password changed successfully"}
+
+
+@router.post("/pin/set")
+async def set_pin(
+    request: SetPinRequest,
+    context: SecurityContext = Depends(require_authenticated),
+) -> dict[str, str]:
+    """Set or update PIN for current user.
+
+    Args:
+        request: PIN setup request
+        context: Security context (authenticated user)
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If PIN setup fails
+    """
+    # Only allow users to set PIN
+    if context.subject_type != "user":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="PIN setup is only available for user accounts, not API keys",
+        )
+
+    user_manager = get_user_manager()
+
+    if not user_manager.set_pin(context.subject_id, request.pin, request.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="PIN setup failed. Please check your password and try again.",
+        )
+
+    logger.info("pin_set", user_id=context.subject_id, username=context.subject_name)
+
+    return {"message": "PIN set successfully"}
+
+
+@router.delete("/pin")
+async def remove_pin(
+    password: str,
+    context: SecurityContext = Depends(require_authenticated),
+) -> dict[str, str]:
+    """Remove PIN for current user.
+
+    Args:
+        password: Current password for verification
+        context: Security context (authenticated user)
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If PIN removal fails
+    """
+    # Only allow users to remove PIN
+    if context.subject_type != "user":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="PIN removal is only available for user accounts, not API keys",
+        )
+
+    user_manager = get_user_manager()
+
+    if not user_manager.remove_pin(context.subject_id, password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="PIN removal failed. Please check your password and try again.",
+        )
+
+    logger.info("pin_removed", user_id=context.subject_id, username=context.subject_name)
+
+    return {"message": "PIN removed successfully"}
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    context: SecurityContext = Depends(require_admin),
+) -> dict[str, str]:
+    """Delete a user account permanently (admin only).
+
+    Args:
+        user_id: User ID to delete
+        context: Security context (admin required)
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If user not found or attempting self-deletion
+    """
+    # Prevent self-deletion
+    if user_id == context.subject_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own user account",
+        )
+
+    user_manager = get_user_manager()
+
+    if not user_manager.delete_user(user_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    logger.info(
+        "user_deleted",
+        user_id=user_id,
+        deleted_by=context.subject_name,
+    )
+
+    return {"message": "User deleted successfully"}
+
+
+@router.patch("/users/{user_id}/role")
+async def update_user_role(
+    user_id: str,
+    role: Role,
+    context: SecurityContext = Depends(require_admin),
+) -> dict[str, str]:
+    """Update a user's role (admin only).
+
+    Args:
+        user_id: User ID to update
+        role: New role
+        context: Security context (admin required)
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If user not found
+    """
+    user_manager = get_user_manager()
+
+    if not user_manager.update_user_role(user_id, role):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    logger.info(
+        "user_role_updated",
+        user_id=user_id,
+        new_role=role.value,
+        updated_by=context.subject_name,
+    )
+
+    return {"message": f"User role updated to {role.value}"}

@@ -1,9 +1,9 @@
 """Pydantic models for configuration management."""
 
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -183,6 +183,12 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Environment mode (controls defaults for dev vs production)
+    environment: Literal["development", "production"] = Field(
+        default="production",
+        description="Environment mode: 'development' or 'production'. Sets smart defaults for logging, debugging, and security.",
+    )
+
     # Device settings
     device_name: str = Field(default="YardRover")
     device_hostname: str = Field(default="yardrover-pi")
@@ -222,12 +228,12 @@ class Settings(BaseSettings):
     workers: int = Field(default=2, ge=1, le=16)
 
     # Logging settings
-    log_level: str = Field(default="INFO")
+    log_level: Optional[str] = Field(default=None)
     log_format: str = Field(default="json")
 
     # Development settings
-    debug: bool = Field(default=False)
-    reload: bool = Field(default=False)
+    debug: Optional[bool] = Field(default=None)
+    reload: Optional[bool] = Field(default=None)
 
     # Security settings
     security_enabled: bool = Field(default=True)
@@ -240,11 +246,54 @@ class Settings(BaseSettings):
     session_timeout_warning_minutes: int = Field(default=5)
     api_key_header: str = Field(default="X-API-Key")
     allow_anonymous_health: bool = Field(default=True)
-    allow_anonymous_docs: bool = Field(default=False)
-    rate_limit_enabled: bool = Field(default=True)
+    allow_anonymous_docs: Optional[bool] = Field(default=None)
+    rate_limit_enabled: Optional[bool] = Field(default=None)
     rate_limit_requests: int = Field(default=100)
     rate_limit_window_seconds: int = Field(default=60)
-    cors_origins: list[str] = Field(default_factory=lambda: ["*"])
+    cors_origins: Optional[list[str]] = Field(default=None)
+
+    @model_validator(mode="after")
+    def apply_environment_defaults(self) -> "Settings":
+        """Apply environment-specific defaults if not explicitly set.
+
+        Development mode defaults:
+        - log_level: DEBUG
+        - debug: True
+        - reload: True
+        - allow_anonymous_docs: True
+        - rate_limit_enabled: False
+        - cors_origins: ["*"]
+
+        Production mode defaults:
+        - log_level: INFO
+        - debug: False
+        - reload: False
+        - allow_anonymous_docs: False
+        - rate_limit_enabled: True
+        - cors_origins: ["*"]
+        """
+        is_dev = self.environment == "development"
+
+        # Apply defaults only if not explicitly set
+        if self.log_level is None:
+            self.log_level = "DEBUG" if is_dev else "INFO"
+
+        if self.debug is None:
+            self.debug = is_dev
+
+        if self.reload is None:
+            self.reload = is_dev
+
+        if self.allow_anonymous_docs is None:
+            self.allow_anonymous_docs = is_dev
+
+        if self.rate_limit_enabled is None:
+            self.rate_limit_enabled = not is_dev
+
+        if self.cors_origins is None:
+            self.cors_origins = ["*"]
+
+        return self
 
     @field_validator("storage_path", "resource_storage_path", "tls_cert_file", "tls_key_file", "tls_ca_certs")
     @classmethod
