@@ -58,7 +58,7 @@ interface NavItemConfig extends NavItem {
 
 const allNavItems: NavItemConfig[] = [
   { name: 'dashboard', label: 'nav.dashboard', icon: 'dashboard' },
-  { name: 'attachments', label: 'nav.attachments', icon: 'extension' },
+  { name: 'peripherals', label: 'nav.peripherals', icon: 'extension' },
   { name: 'zones', label: 'nav.zones', icon: 'place' },
   { name: 'missions', label: 'nav.missions', icon: 'assignment', requiresFeature: 'missionTemplates' },
   { name: 'control', label: 'nav.control', icon: 'control', requiresFeature: 'vehicleControl' },

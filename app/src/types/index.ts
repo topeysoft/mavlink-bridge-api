@@ -21,14 +21,18 @@ export interface Zone {
 // Import Mission type from client library (matches API spec ScheduledMission)
 export type { Mission } from '../../../client/dist/index'
 
-export interface Attachment {
-  id: string
-  name: string
-  type: string
-  status: 'available' | 'active' | 'maintenance'
-  hours: number
-  lastService?: string
-}
+// Import peripheral types from client library
+export type {
+  Peripheral,
+  PeripheralType,
+  PeripheralState,
+  PeripheralHealth,
+  PeripheralMetadata,
+  PeripheralStatus,
+  PeripheralTelemetry,
+  PeripheralCapability,
+  PeripheralCompatibilityRule
+} from '../../../client/dist/index'
 
 export interface MAVLinkMessage {
   id: number
@@ -71,6 +75,6 @@ export interface Activity {
   icon?: string
 }
 
-export type ViewName = 'connect' | 'dashboard' | 'attachments' | 'zones' | 'missions' | 'control' | 'monitoring' | 'schedule' | 'logs' | 'calibration' | 'rtcm' | 'parameters' | 'geofencing' | 'rally-points' | 'battery' | 'weather' | 'settings'
+export type ViewName = 'connect' | 'dashboard' | 'peripherals' | 'zones' | 'missions' | 'control' | 'monitoring' | 'schedule' | 'logs' | 'calibration' | 'rtcm' | 'parameters' | 'geofencing' | 'rally-points' | 'battery' | 'weather' | 'settings'
 
 export type Theme = 'light' | 'dark'

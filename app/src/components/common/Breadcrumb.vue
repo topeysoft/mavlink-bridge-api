@@ -32,7 +32,7 @@ const breadcrumbs = computed(() => {
   ]
 
   const routeNames: Record<string, string> = {
-    attachments: 'Attachments',
+    peripherals: 'Peripherals',
     zones: 'Coverage Zones',
     missions: 'Missions',
     'mission-editor': 'Create Mission',

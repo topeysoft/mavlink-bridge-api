@@ -14,6 +14,7 @@ import { TelemetryClient } from './telemetry/TelemetryClient';
 import { TaskClient } from './tasks/TaskClient';
 import { ZoneManager } from './resources/ZoneManager';
 import { MissionManager } from './resources/MissionManager';
+import { PeripheralClient } from './peripherals/PeripheralClient';
 import { EventType, EventHandler, StatusPayload, ConfigChangedPayload, RTCMDataPayload, ErrorPayload, LogPayload, WiFiConnectedPayload, WiFiDisconnectedPayload, WiFiSignalUpdatePayload } from './core/EventTypes';
 import { Configuration, HealthResponse, WiFiCredentials } from './config/ConfigTypes';
 import { WiFiState, WiFiStatus, WiFiNetwork, SignalQuality } from './wifi/WiFiTypes';
@@ -53,6 +54,7 @@ export class MAVLinkBridgeClient {
   private readonly taskClient: TaskClient;
   private readonly zoneManager: ZoneManager;
   private readonly missionManager: MissionManager;
+  private readonly peripheralClient: PeripheralClient;
   private readonly options: Required<MAVLinkBridgeClientOptions>;
 
   /**
@@ -121,6 +123,9 @@ export class MAVLinkBridgeClient {
     // Initialize resource managers
     this.zoneManager = new ZoneManager(this.httpClient);
     this.missionManager = new MissionManager(this.httpClient);
+
+    // Initialize peripheral client
+    this.peripheralClient = new PeripheralClient(this.httpClient);
   }
 
   /**
@@ -334,6 +339,13 @@ export class MAVLinkBridgeClient {
    */
   get missions (): MissionManager {
     return this.missionManager;
+  }
+
+  /**
+   * Get peripheral client for peripheral management
+   */
+  get peripherals (): PeripheralClient {
+    return this.peripheralClient;
   }
 
   /**

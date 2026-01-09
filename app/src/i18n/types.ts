@@ -17,7 +17,7 @@ export interface MessageSchema {
   }
   nav: {
     dashboard: string
-    attachments: string
+    peripherals: string
     zones: string
     missions: string
     control: string

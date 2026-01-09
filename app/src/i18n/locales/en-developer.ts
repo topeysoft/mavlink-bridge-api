@@ -18,7 +18,7 @@ export default {
   },
   nav: {
     dashboard: 'Dashboard',
-    attachments: 'Attachments',
+    peripherals: 'Peripheral Manager',
     zones: 'Coverage Zones',
     missions: 'Missions',
     control: 'Vehicle Control',

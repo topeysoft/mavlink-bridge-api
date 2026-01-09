@@ -76,7 +76,7 @@ const pageTitle = computed(() => {
   const titles: Record<string, string> = {
     connect: 'Connect Device',
     dashboard: 'Dashboard',
-    attachments: 'Attachments',
+    peripherals: featuresStore.userMode === 'consumer' ? 'Tools' : 'Peripherals',
     zones: 'Coverage Zones',
     missions: 'Missions',
     monitoring: 'Live Monitoring',

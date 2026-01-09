@@ -212,6 +212,25 @@ export {
   ResourceStorageConfig
 } from './resources/ResourceTypes';
 
+// Peripheral management exports
+export { PeripheralClient } from './peripherals/PeripheralClient';
+export {
+  PeripheralType,
+  PeripheralState,
+  PeripheralHealth,
+  PeripheralCapability,
+  PeripheralCompatibilityRule,
+  PeripheralMetadata,
+  PeripheralStatus,
+  PeripheralTelemetry,
+  Peripheral,
+  PeripheralListResponse,
+  PeripheralOperationResponse,
+  PeripheralCommandRequest,
+  CompatibilityCheckResponse,
+  PeripheralStats
+} from './peripherals/PeripheralTypes';
+
 
 // Version info
 export const VERSION = '1.0.0';

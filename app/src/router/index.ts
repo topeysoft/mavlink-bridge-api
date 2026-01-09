@@ -47,9 +47,9 @@ const router = createRouter({
           component: () => import('../views/DashboardView.vue'),
         },
         {
-          path: 'attachments',
-          name: 'attachments',
-          component: () => import('../views/AttachmentsView.vue'),
+          path: 'peripherals',
+          name: 'peripherals',
+          component: () => import('../views/PeripheralsView.vue'),
         },
         {
           path: 'zones',

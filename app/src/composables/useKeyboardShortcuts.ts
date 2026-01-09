@@ -106,7 +106,7 @@ export function useKeyboardShortcuts() {
     // Number keys 1-6 for navigation
     const routes = [
       { key: '1', name: 'dashboard', description: 'Go to Dashboard' },
-      { key: '2', name: 'attachments', description: 'Go to Attachments' },
+      { key: '2', name: 'peripherals', description: 'Go to Peripherals' },
       { key: '3', name: 'zones', description: 'Go to Zones' },
       { key: '4', name: 'missions', description: 'Go to Missions' },
       { key: '5', name: 'monitoring', description: 'Go to Monitoring' },

@@ -18,7 +18,7 @@ export default {
   },
   nav: {
     dashboard: '🏠 Home',
-    attachments: '🔧 Tools',
+    peripherals: '🔧 Tools',
     zones: '📍 My Areas',
     missions: '📋 My Jobs',
     control: 'Control',
