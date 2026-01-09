@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import { useFeaturesStore } from '@/stores/features'
 import type { UserMode } from '@/stores/features'
 import Card from '@/components/common/Card.vue'
+import InfoBanner from '@/components/common/InfoBanner.vue'
+import SettingsSection from '@/components/settings/SettingsSection.vue'
 import { useDialog } from '@/composables/useDialog'
 
 const featuresStore = useFeaturesStore()
@@ -58,19 +60,18 @@ function getModeColor(mode: UserMode): string {
 </script>
 
 <template>
-  <Card>
-    <template #header>
-      <div class="section-header">
-        <div>
-          <div class="card-title">User Mode</div>
-          <div class="card-subtitle">Choose your experience level to show relevant features</div>
-        </div>
-        <div class="current-mode-badge" :style="{ borderColor: getModeColor(currentMode) }">
-          <div class="mode-dot" :style="{ backgroundColor: getModeColor(currentMode) }"></div>
-          {{ modes.find(m => m.value === currentMode)?.label }}
-        </div>
+  <SettingsSection
+    title="User Mode"
+    description="Choose your experience level to show relevant features"
+  >
+    <template #actions>
+      <div class="current-mode-badge" :style="{ borderColor: getModeColor(currentMode) }">
+        <div class="mode-dot" :style="{ backgroundColor: getModeColor(currentMode) }"></div>
+        {{ modes.find(m => m.value === currentMode)?.label }}
       </div>
     </template>
+
+  <Card :no-padding="true">
 
     <div class="mode-grid">
       <div
@@ -97,41 +98,17 @@ function getModeColor(mode: UserMode): string {
       </div>
     </div>
 
-    <div class="mode-info">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="12" y1="16" x2="12" y2="12"></line>
-        <line x1="12" y1="8" x2="12.01" y2="8"></line>
-      </svg>
+    <InfoBanner variant="info">
       <p>
         You can switch modes at any time. Advanced features will be hidden in Consumer Mode to keep the
         interface simple and focused.
       </p>
-    </div>
+    </InfoBanner>
   </Card>
+  </SettingsSection>
 </template>
 
 <style scoped lang="scss">
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  width: 100%;
-  padding: var(--spacing-lg);
-}
-
-.card-title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-xs);
-}
-
-.card-subtitle {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
 .current-mode-badge {
   display: flex;
   align-items: center;
@@ -165,7 +142,7 @@ function getModeColor(mode: UserMode): string {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
-  padding: 0 var(--spacing-lg) var(--spacing-lg);
+  padding: var(--spacing-lg);
 }
 
 .mode-card {
@@ -241,29 +218,6 @@ function getModeColor(mode: UserMode): string {
   svg {
     width: 14px;
     height: 14px;
-  }
-}
-
-.mode-info {
-  display: flex;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: rgba(59, 130, 246, 0.05);
-  border-top: 1px solid var(--border-color);
-  color: var(--text-secondary);
-
-  svg {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    color: #3b82f6;
-    margin-top: 2px;
-  }
-
-  p {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    line-height: 1.6;
   }
 }
 </style>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { useConnectionStore } from '@/stores/connection'
 import { useAuthStore } from '@/stores/auth'
@@ -15,6 +16,8 @@ import GPSBoostStep from './steps/GPSBoostStep.vue'
 import TourStep from './steps/TourStep.vue'
 import CompletionStep from './steps/CompletionStep.vue'
 import type { UserType } from '@/stores/onboarding'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const onboardingStore = useOnboardingStore()
@@ -181,6 +184,8 @@ onMounted(async () => {
   if (connectionStore.isConnected && onboardingStore.currentPhase === 'connection') {
     console.log('[SetupWizard] Already connected, skipping connection step')
     onboardingStore.completeStep('connection')
+    // Check if we need setup, if so skip directly to configuration
+    // AuthenticationStep will auto-skip to configuration if setup is needed
     onboardingStore.setPhase('authentication')
   }
 })

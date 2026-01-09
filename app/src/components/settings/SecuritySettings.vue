@@ -4,6 +4,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useConnectionStore } from '@/stores/connection'
 import { useFeaturesStore } from '@/stores/features'
 import { useDialog } from '@/composables/useDialog'
+import InfoBanner from '@/components/common/InfoBanner.vue'
+import PinInput from '@/components/common/PinInput.vue'
 
 const authStore = useAuthStore()
 const connectionStore = useConnectionStore()
@@ -35,7 +37,7 @@ const isManagingPin = ref(false)
 const pinError = ref<string | null>(null)
 const currentPinStatus = ref<'none' | 'set' | 'unknown'>('unknown')
 
-const pinValid = computed(() => pin.value.length >= 4 && pin.value.length <= 6 && /^\d+$/.test(pin.value))
+const pinValid = computed(() => pin.value.length === 6 && /^\d+$/.test(pin.value))
 const pinsMatch = computed(() => pin.value === confirmPin.value)
 
 async function handlePasswordChange() {
@@ -88,7 +90,7 @@ async function handleSetPin() {
   if (!pin.value || !confirmPin.value || !pinPassword.value) return
 
   if (!pinValid.value) {
-    pinError.value = 'PIN must be 4-6 digits'
+    pinError.value = 'PIN must be exactly 6 digits'
     return
   }
 
@@ -185,7 +187,7 @@ async function handleRemovePin() {
 <template>
   <div class="security-settings">
     <div class="settings-section">
-      <h3>{{ isConsumerMode ? '🔐 Security Settings' : 'Security' }}</h3>
+      <h3>Security</h3>
       <p class="section-description">
         {{ isConsumerMode
           ? 'Manage your password and PIN for logging in'
@@ -293,7 +295,7 @@ async function handleRemovePin() {
         <div class="setting-header">
           <div class="setting-info">
             <h4>PIN Login</h4>
-            <p>{{ currentPinStatus === 'set' ? 'Quick login with 4-6 digit PIN' : 'Set up quick PIN login' }}</p>
+            <p>{{ currentPinStatus === 'set' ? 'Quick login with 6-digit PIN' : 'Set up quick 6-digit PIN login' }}</p>
           </div>
           <button
             class="btn btn-outline btn-sm"
@@ -304,37 +306,35 @@ async function handleRemovePin() {
         </div>
 
         <div v-if="showPinManagement" class="setting-content">
+          <InfoBanner variant="info" icon="💡" style="margin-bottom: 1.5rem;">
+            <p style="margin: 0;">
+              <strong>Why 6 digits?</strong> Six-digit PINs provide better security (1 million possible combinations) while remaining easy to remember.
+            </p>
+          </InfoBanner>
+
           <form @submit.prevent="handleSetPin" class="security-form">
-            <div class="form-group">
-              <label for="pin">{{ currentPinStatus === 'set' ? 'New PIN' : 'Create PIN' }}</label>
-              <input
-                id="pin"
+            <div class="form-group-pin">
+              <label>{{ currentPinStatus === 'set' ? 'New PIN' : 'Create PIN' }}</label>
+              <PinInput
                 v-model="pin"
-                type="password"
-                inputmode="numeric"
-                pattern="[0-9]*"
-                placeholder="4-6 digits"
+                :length="6"
                 :disabled="isManagingPin"
-                maxlength="6"
-                required
+                :auto-submit="false"
+                :error="pin.length > 0 && !pinValid"
               />
               <small class="form-hint" :class="{ 'hint-error': pin.length > 0 && !pinValid }">
-                {{ pinValid || pin.length === 0 ? '4-6 digit numbers' : '⚠️ Invalid PIN' }}
+                {{ pinValid || pin.length === 0 ? 'Must be exactly 6 digits' : '⚠️ Must be 6 digits' }}
               </small>
             </div>
 
-            <div class="form-group">
-              <label for="confirmPin">Confirm PIN</label>
-              <input
-                id="confirmPin"
+            <div class="form-group-pin">
+              <label>Confirm PIN</label>
+              <PinInput
                 v-model="confirmPin"
-                type="password"
-                inputmode="numeric"
-                pattern="[0-9]*"
-                placeholder="Re-enter PIN"
+                :length="6"
                 :disabled="isManagingPin"
-                maxlength="6"
-                required
+                :auto-submit="false"
+                :error="confirmPin.length > 0 && !pinsMatch"
               />
               <small class="form-hint" :class="{ 'hint-error': confirmPin.length > 0 && !pinsMatch }">
                 {{ pinsMatch || confirmPin.length === 0 ? 'Must match above' : '⚠️ Does not match' }}
@@ -391,18 +391,14 @@ async function handleRemovePin() {
         </div>
       </div>
 
-      <div class="security-note">
-        <span class="note-icon">💡</span>
-        <div class="note-content">
-          <strong>{{ isConsumerMode ? 'Security Tip' : 'Important' }}</strong>
-          <p>
-            {{ isConsumerMode
-              ? 'Keep your password safe and choose a PIN that\'s easy to remember but hard to guess.'
-              : 'Use strong passwords and keep your credentials secure. If you lose access, physical device reset is required.'
-            }}
-          </p>
-        </div>
-      </div>
+      <InfoBanner variant="info" icon="💡" :title="isConsumerMode ? 'Security Tip' : 'Important'">
+        <p>
+          {{ isConsumerMode
+            ? 'Keep your password safe and choose a PIN that\'s easy to remember but hard to guess.'
+            : 'Use strong passwords and keep your credentials secure. If you lose access, physical device reset is required.'
+          }}
+        </p>
+      </InfoBanner>
     </div>
   </div>
 </template>
@@ -473,6 +469,34 @@ async function handleRemovePin() {
 }
 
 .security-form {
+  .form-group-pin {
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+
+    label {
+      display: block;
+      font-weight: 600;
+      color: $dark;
+      font-size: 0.95rem;
+      text-align: center;
+    }
+
+    .form-hint {
+      display: block;
+      font-size: 0.85rem;
+      color: $grey-6;
+      text-align: center;
+
+      &.hint-error {
+        color: #dc2626;
+        font-weight: 600;
+      }
+    }
+  }
+
   .form-group {
     margin-bottom: 1.25rem;
 
@@ -568,39 +592,6 @@ async function handleRemovePin() {
         background: #dc2626;
         color: white;
       }
-    }
-  }
-}
-
-.security-note {
-  display: flex;
-  gap: 1rem;
-  padding: 1rem;
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  border-radius: 8px;
-  margin-top: 1.5rem;
-
-  .note-icon {
-    font-size: 1.5rem;
-    flex-shrink: 0;
-  }
-
-  .note-content {
-    flex: 1;
-
-    strong {
-      display: block;
-      font-weight: 600;
-      color: $dark;
-      margin-bottom: 0.25rem;
-    }
-
-    p {
-      margin: 0;
-      font-size: 0.9rem;
-      color: $grey-6;
-      line-height: 1.5;
     }
   }
 }

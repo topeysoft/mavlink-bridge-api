@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import { switchLocale } from '@/i18n'
 
 /**
  * User mode determines which features are available
@@ -175,6 +176,9 @@ export const useFeaturesStore = defineStore('features', () => {
   function setUserMode(mode: UserMode) {
     userMode.value = mode
     localStorage.setItem('yardrover_user_mode', mode)
+
+    // Switch i18n locale based on mode
+    switchLocale(mode)
 
     // Reset to preset when changing modes
     if (!useCustomFlags.value) {

@@ -46,6 +46,13 @@ async function checkSetupStatus() {
     const status = await authClient.getSetupStatus()
     needsSetup.value = status.in_setup_mode
 
+    // If setup is needed, skip this step and go directly to ConfigurationStep
+    // where the actual account creation happens
+    if (needsSetup.value) {
+      console.log('[AuthenticationStep] Setup required - skipping to configuration')
+      emit('complete')
+    }
+
   } catch (error) {
     console.error('Failed to check setup status:', error)
     loginError.value = 'Failed to check device status. Please check your connection.'

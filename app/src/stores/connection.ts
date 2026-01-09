@@ -22,6 +22,7 @@ import { useGpsStore } from './gps'
 import { useImuStore } from './imu'
 import { useCompassStore } from './compass'
 import { useVehicleStore } from './vehicle'
+import { useAuthStore } from './auth'
 
 export interface SavedDevice {
   id: string
@@ -155,6 +156,13 @@ export const useConnectionStore = defineStore('connection', () => {
       currentDeviceUrl.value = deviceUrl
       currentDeviceName.value = finalDeviceName
       lastConnectionTime.value = new Date().toISOString()
+
+      // Initialize auth state from client (syncs localStorage token to auth store)
+      const authStore = useAuthStore()
+      const authClient = (newClient as any).authClient
+      if (authClient) {
+        authStore.initializeFromClient(authClient)
+      }
 
       // Subscribe to all telemetry data
       setupTelemetrySubscriptions(newClient)

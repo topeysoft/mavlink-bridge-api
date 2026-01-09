@@ -35,101 +35,93 @@ const router = createRouter({
       meta: { public: true, requiresConnection: true, requiresAuth: false },
     },
     // Protected routes (all require both connection and authentication)
+    // Wrapped in AppLayout for sidebar and header
     {
       path: '/',
-      name: 'dashboard',
-      component: () => import('../views/DashboardView.vue'),
+      component: () => import('../layouts/AppLayout.vue'),
       meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/attachments',
-      name: 'attachments',
-      component: () => import('../views/AttachmentsView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/zones',
-      name: 'zones',
-      component: () => import('../views/ZonesView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/zones/edit/:id?',
-      name: 'zone-editor',
-      component: () => import('../views/ZoneEditorView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/missions',
-      name: 'missions',
-      component: () => import('../views/MissionsView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/missions/create',
-      name: 'mission-editor',
-      component: () => import('../views/MissionEditorView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/control',
-      name: 'control',
-      component: () => import('../views/ControlView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/monitoring',
-      name: 'monitoring',
-      component: () => import('../views/MonitoringView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/schedule',
-      name: 'schedule',
-      component: () => import('../views/ScheduleView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/settings',
-      name: 'settings',
-      component: () => import('../views/SettingsView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/parameters',
-      name: 'parameters',
-      component: () => import('../views/ParametersView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/logs',
-      name: 'logs',
-      component: () => import('../views/LogsView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/battery',
-      name: 'battery',
-      component: () => import('../views/BatteryView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/weather',
-      name: 'weather',
-      component: () => import('../views/WeatherView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/calibration',
-      name: 'calibration',
-      component: () => import('../views/CalibrationView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
-    },
-    {
-      path: '/rtcm',
-      name: 'rtcm',
-      component: () => import('../views/RTCMView.vue'),
-      meta: { requiresConnection: true, requiresAuth: true },
+      children: [
+        {
+          path: '',
+          name: 'dashboard',
+          component: () => import('../views/DashboardView.vue'),
+        },
+        {
+          path: 'attachments',
+          name: 'attachments',
+          component: () => import('../views/AttachmentsView.vue'),
+        },
+        {
+          path: 'zones',
+          name: 'zones',
+          component: () => import('../views/ZonesView.vue'),
+        },
+        {
+          path: 'zones/edit/:id?',
+          name: 'zone-editor',
+          component: () => import('../views/ZoneEditorView.vue'),
+        },
+        {
+          path: 'missions',
+          name: 'missions',
+          component: () => import('../views/MissionsView.vue'),
+        },
+        {
+          path: 'missions/create',
+          name: 'mission-editor',
+          component: () => import('../views/MissionEditorView.vue'),
+        },
+        {
+          path: 'control',
+          name: 'control',
+          component: () => import('../views/ControlView.vue'),
+        },
+        {
+          path: 'monitoring',
+          name: 'monitoring',
+          component: () => import('../views/MonitoringView.vue'),
+        },
+        {
+          path: 'schedule',
+          name: 'schedule',
+          component: () => import('../views/ScheduleView.vue'),
+        },
+        {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('../views/SettingsView.vue'),
+        },
+        {
+          path: 'parameters',
+          name: 'parameters',
+          component: () => import('../views/ParametersView.vue'),
+        },
+        {
+          path: 'logs',
+          name: 'logs',
+          component: () => import('../views/LogsView.vue'),
+        },
+        {
+          path: 'battery',
+          name: 'battery',
+          component: () => import('../views/BatteryView.vue'),
+        },
+        {
+          path: 'weather',
+          name: 'weather',
+          component: () => import('../views/WeatherView.vue'),
+        },
+        {
+          path: 'calibration',
+          name: 'calibration',
+          component: () => import('../views/CalibrationView.vue'),
+        },
+        {
+          path: 'rtcm',
+          name: 'rtcm',
+          component: () => import('../views/RTCMView.vue'),
+        },
+      ],
     },
   ],
 })

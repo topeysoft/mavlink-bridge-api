@@ -1,17 +1,27 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useThemeStore } from '@/stores/theme'
 import { useFeaturesStore } from '@/stores/features'
+import { useAuthStore } from '@/stores/auth'
+import { useConnectionStore } from '@/stores/connection'
 import { useSidebar } from '@/composables/useSidebar'
+import { useDialog } from '@/composables/useDialog'
 import type { ViewName } from '@/types'
 import type { FeatureFlags } from '@/stores/features'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const route = useRoute()
 const themeStore = useThemeStore()
 const featuresStore = useFeaturesStore()
+const authStore = useAuthStore()
+const connectionStore = useConnectionStore()
 const { collapsed, mobileOpen, isMobile, toggleSidebar, closeMobileSidebar } = useSidebar()
+const { confirm } = useDialog()
+const toast = inject<any>('toast')
 
 interface NavItem {
   name: ViewName
@@ -41,27 +51,26 @@ const icons: Record<string, string> = {
   settings: '<path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>'
 }
 
-// Consumer-friendly labels for navigation items
+// Consumer-friendly labels for navigation items (now using i18n)
 interface NavItemConfig extends NavItem {
-  consumerLabel?: string
   consumerHidden?: boolean // Hide from consumer sidebar (accessible via settings)
 }
 
 const allNavItems: NavItemConfig[] = [
-  { name: 'dashboard', label: 'Dashboard', consumerLabel: 'Home', icon: 'dashboard' },
-  { name: 'attachments', label: 'Attachments', icon: 'extension' },
-  { name: 'zones', label: 'Coverage Zones', consumerLabel: 'My Areas', icon: 'place' },
-  { name: 'missions', label: 'Missions', consumerLabel: 'My Jobs', icon: 'assignment', requiresFeature: 'missionTemplates' },
-  { name: 'control', label: 'Machine Control', icon: 'control', requiresFeature: 'vehicleControl' },
-  { name: 'monitoring', label: 'Live Monitoring', icon: 'monitor', requiresFeature: 'systemMonitoring' },
-  { name: 'schedule', label: 'Schedule & Calendar', consumerLabel: 'Schedule', icon: 'calendar_month', requiresFeature: 'missionScheduling' },
-  { name: 'logs', label: 'Activity Logs', icon: 'description', requiresFeature: 'activityLogs' },
-  { name: 'calibration', label: 'Calibration', consumerLabel: 'Setup', icon: 'calibration', consumerHidden: true },
-  { name: 'rtcm', label: 'RTK Positioning', consumerLabel: 'GPS Boost', icon: 'rtcm', requiresFeature: 'rtcmClient', consumerHidden: true },
-  { name: 'parameters', label: 'Parameters', icon: 'tune', requiresFeature: 'parameterConfiguration' },
-  { name: 'battery', label: 'Battery', icon: 'battery', requiresFeature: 'batteryManagement' },
-  { name: 'weather', label: 'Weather', icon: 'cloud', requiresFeature: 'weatherIntegration' },
-  { name: 'settings', label: 'Settings', icon: 'settings' }
+  { name: 'dashboard', label: 'nav.dashboard', icon: 'dashboard' },
+  { name: 'attachments', label: 'nav.attachments', icon: 'extension' },
+  { name: 'zones', label: 'nav.zones', icon: 'place' },
+  { name: 'missions', label: 'nav.missions', icon: 'assignment', requiresFeature: 'missionTemplates' },
+  { name: 'control', label: 'nav.control', icon: 'control', requiresFeature: 'vehicleControl' },
+  { name: 'monitoring', label: 'nav.monitoring', icon: 'monitor', requiresFeature: 'systemMonitoring' },
+  { name: 'schedule', label: 'nav.schedule', icon: 'calendar_month', requiresFeature: 'missionScheduling' },
+  { name: 'logs', label: 'nav.logs', icon: 'description', requiresFeature: 'activityLogs' },
+  { name: 'calibration', label: 'nav.calibration', icon: 'calibration', consumerHidden: true },
+  { name: 'rtcm', label: 'nav.rtcm', icon: 'rtcm', requiresFeature: 'rtcmClient', consumerHidden: true },
+  { name: 'parameters', label: 'nav.parameters', icon: 'tune', requiresFeature: 'parameterConfiguration' },
+  { name: 'battery', label: 'nav.battery', icon: 'battery', requiresFeature: 'batteryManagement' },
+  { name: 'weather', label: 'nav.weather', icon: 'cloud', requiresFeature: 'weatherIntegration' },
+  { name: 'settings', label: 'nav.settings', icon: 'settings' }
 ]
 
 const navItems = computed(() => {
@@ -75,8 +84,8 @@ const navItems = computed(() => {
     return featuresStore.isFeatureEnabled(item.requiresFeature)
   }).map(item => ({
     ...item,
-    // Use consumer-friendly label in consumer mode if available
-    label: isConsumerMode && item.consumerLabel ? item.consumerLabel : item.label
+    // Translate label using i18n (automatically switches based on mode)
+    label: t(item.label)
   }))
 })
 
@@ -88,6 +97,71 @@ function navigateTo(name: string) {
   router.push({ name })
   // Close mobile drawer after navigation
   closeMobileSidebar()
+}
+
+// Get username for display
+const displayName = computed(() => {
+  if (authStore.currentUser?.username) {
+    return authStore.currentUser.username
+  }
+  return 'User'
+})
+
+// Logout handler
+async function handleLogout() {
+  const confirmed = await confirm(
+    'You will be logged out and redirected to the login page.',
+    'Logout?',
+    {
+      confirmText: 'Logout',
+      cancelText: 'Cancel',
+      variant: 'warning',
+      icon: '👋'
+    }
+  )
+
+  if (confirmed) {
+    try {
+      // Get authClient from existing connection
+      const authClient = (connectionStore.client as any)?.authClient
+
+      if (authClient) {
+        // Proper logout through auth store
+        authStore.logout(authClient)
+      } else {
+        console.warn('No authClient available, clearing local state only')
+        // Note: This shouldn't happen in normal flow, but handle it gracefully
+        // We still need to clear the state even if we can't notify the backend
+        authStore.isAuthenticated = false
+        authStore.accessToken = null
+        authStore.expiresAt = null
+        authStore.role = null
+        authStore.permissions = []
+        authStore.currentUser = null
+        authStore.sessionTimeoutWarning = false
+        authStore.loginError = null
+      }
+
+      // Show success notification
+      toast?.value?.addToast({
+        message: 'Logged out successfully',
+        type: 'success',
+        duration: 3000,
+        dismissible: true
+      })
+
+      // Redirect to login
+      await router.push({ name: 'login' })
+    } catch (error) {
+      console.error('Logout error:', error)
+      toast?.value?.addToast({
+        message: 'Error during logout',
+        type: 'error',
+        duration: 5000,
+        dismissible: true
+      })
+    }
+  }
 }
 </script>
 
@@ -142,7 +216,17 @@ function navigateTo(name: string) {
     </ul>
 
     <div class="sidebar-footer">
-      <button class="theme-toggle" @click="themeStore.toggleTheme" :aria-label="`Switch to ${themeStore.theme === 'light' ? 'dark' : 'light'} mode`">
+      <!-- User Info -->
+      <div class="user-info" v-if="!collapsed">
+        <svg class="user-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <span class="user-name">{{ displayName }}</span>
+      </div>
+
+      <!-- Theme Toggle -->
+      <button class="footer-btn theme-toggle" @click="themeStore.toggleTheme" :aria-label="`Switch to ${themeStore.theme === 'light' ? 'dark' : 'light'} mode`">
         <svg v-if="themeStore.theme === 'light'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
         </svg>
@@ -158,6 +242,16 @@ function navigateTo(name: string) {
           <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
         </svg>
         <span class="nav-text">{{ themeStore.theme === 'light' ? 'Dark' : 'Light' }} Mode</span>
+      </button>
+
+      <!-- Logout Button -->
+      <button class="footer-btn logout-btn" @click="handleLogout" aria-label="Logout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        <span class="nav-text">Logout</span>
       </button>
     </div>
   </nav>
@@ -292,9 +386,37 @@ function navigateTo(name: string) {
 .sidebar-footer {
   padding: var(--spacing-md);
   border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
 }
 
-.theme-toggle {
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.user-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--primary-green);
+  flex-shrink: 0;
+}
+
+.user-name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.footer-btn {
   width: 100%;
   display: flex;
   align-items: center;
@@ -308,15 +430,20 @@ function navigateTo(name: string) {
   transition: all 0.2s;
 }
 
-.theme-toggle svg {
+.footer-btn svg {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
 }
 
-.theme-toggle:hover {
+.footer-btn:hover {
   background: var(--bg-secondary);
   color: var(--text-primary);
+}
+
+.logout-btn:hover {
+  background: var(--status-danger);
+  color: white;
 }
 
 // Mobile overlay

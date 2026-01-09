@@ -12,6 +12,7 @@ import UserModeSelector from '@/components/settings/UserModeSelector.vue'
 import AdvancedFeaturesSettings from '@/components/settings/AdvancedFeaturesSettings.vue'
 import ConsumerSettings from '@/components/settings/ConsumerSettings.vue'
 import SecuritySettings from '@/components/settings/SecuritySettings.vue'
+import SetupQuickAccessCards from '@/components/settings/SetupQuickAccessCards.vue'
 import { useFeaturesStore } from '@/stores/features'
 
 const featuresStore = useFeaturesStore()
@@ -38,6 +39,11 @@ const breadcrumbItems = [
       <!-- Security Settings (Password & PIN) -->
       <section class="settings-section">
         <SecuritySettings />
+      </section>
+
+      <!-- Technical Setup Section -->
+      <section class="settings-section">
+        <SetupQuickAccessCards />
       </section>
 
       <!-- Simplified Consumer Settings -->

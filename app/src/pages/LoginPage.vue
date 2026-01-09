@@ -1,13 +1,13 @@
 <template>
-  <StandaloneLayout title="YardRover">
+  <StandaloneLayout :title="t('brand.name')">
     <div class="login-container">
       <div class="login-card">
         <div class="login-header">
           <div class="logo">
             <div class="logo-icon">🚜</div>
-            <h1>YardRover</h1>
+            <h1>{{ t('brand.name') }}</h1>
           </div>
-          <p class="subtitle">Autonomous Yard Utility Machine</p>
+          <p class="subtitle">{{ t('brand.tagline') }}</p>
         </div>
 
         <div class="login-form">
@@ -26,12 +26,9 @@
 
           <!-- Login Form -->
           <div v-else>
-            <h2>Sign In</h2>
-            <p class="form-description" v-if="isConsumerMode">
-              {{ hasPinEnabled ? 'Enter your PIN to continue' : 'Enter your username and password' }}
-            </p>
-            <p class="form-description" v-else>
-              Sign in to access your YardRover device
+            <h2>{{ t('auth.login.title') }}</h2>
+            <p class="form-description">
+              {{ t('auth.login.subtitle') }}
             </p>
 
             <!-- Login Method Tabs (Power User & Developer modes) -->
@@ -63,25 +60,18 @@
               </button>
             </div>
 
-            <!-- PIN Login (Consumer Mode with PIN, or selected in other modes) -->
-            <form v-if="(isConsumerMode && hasPinEnabled) || loginMethod === 'pin'" @submit.prevent="handlePinLogin">
-              <div class="form-group">
-                <label for="pin">PIN</label>
-                <input
-                  id="pin"
+            <!-- PIN Login (when PIN method selected) -->
+            <div v-if="loginMethod === 'pin'" class="pin-login-section">
+              <div class="form-group-pin">
+                <label class="pin-label">Enter your 6-digit PIN</label>
+                <PinInput
                   v-model="pin"
-                  type="password"
-                  inputmode="numeric"
-                  pattern="[0-9]*"
-                  placeholder="Enter 4-6 digit PIN"
+                  :length="6"
                   :disabled="isLoggingIn"
-                  maxlength="6"
-                  required
-                  autocomplete="off"
+                  :auto-submit="true"
+                  :error="!!loginError"
+                  @complete="handlePinLogin"
                 />
-                <small class="form-hint">
-                  Enter your 4-6 digit PIN
-                </small>
               </div>
 
               <div v-if="loginError" class="error-message">
@@ -89,23 +79,23 @@
                 {{ loginError }}
               </div>
 
-              <div class="form-actions">
-                <button
-                  type="submit"
-                  class="btn-primary"
-                  :disabled="isLoggingIn || !pin.trim() || pin.length < 4"
-                >
-                  <span v-if="!isLoggingIn">Sign In</span>
-                  <span v-else class="loading">
-                    <span class="spinner"></span>
-                    Signing in...
-                  </span>
-                </button>
+              <div v-if="isLoggingIn" class="loading-indicator">
+                <span class="spinner"></span>
+                <span>Signing in...</span>
               </div>
-            </form>
 
-            <!-- Username/Password Login (Consumer without PIN, or selected in other modes) -->
-            <form v-else-if="loginMethod === 'password' || (isConsumerMode && !hasPinEnabled)" @submit.prevent="handlePasswordLogin">
+              <!-- Switch to password option for consumer mode -->
+              <div v-if="isConsumerMode" class="login-footer" style="border-top: none; padding-top: 0;">
+                <p class="help-text" style="text-align: center;">
+                  <button type="button" class="text-link" @click="loginMethod = 'password'">
+                    Use password instead
+                  </button>
+                </p>
+              </div>
+            </div>
+
+            <!-- Username/Password Login (when password method selected) -->
+            <form v-if="loginMethod === 'password'" @submit.prevent="handlePasswordLogin">
               <div class="form-group">
                 <label for="username">Username</label>
                 <input
@@ -167,10 +157,19 @@
                   </span>
                 </button>
               </div>
+
+              <!-- Switch back to PIN option for consumer mode -->
+              <div v-if="isConsumerMode" class="login-footer" style="border-top: none; padding-top: 0;">
+                <p class="help-text" style="text-align: center;">
+                  <button type="button" class="text-link" @click="loginMethod = 'pin'">
+                    Use PIN instead
+                  </button>
+                </p>
+              </div>
             </form>
 
             <!-- API Key Login (Developer mode only) -->
-            <form v-else-if="loginMethod === 'apikey'" @submit.prevent="handleApiKeyLogin">
+            <form v-if="loginMethod === 'apikey'" @submit.prevent="handleApiKeyLogin">
               <div class="form-group">
                 <label for="apiKey">API Key</label>
                 <div class="input-with-toggle">
@@ -250,18 +249,26 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useConnectionStore } from '../stores/connection'
 import { useFeaturesStore } from '../stores/features'
 import StandaloneLayout from '@/layouts/StandaloneLayout.vue'
+import PinInput from '@/components/common/PinInput.vue'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const authStore = useAuthStore()
 const connectionStore = useConnectionStore()
 const featuresStore = useFeaturesStore()
 
-// State
-const loginMethod = ref<'password' | 'pin' | 'apikey'>('password')
+// Computed
+const isConsumerMode = computed(() => featuresStore.userMode === 'consumer')
+const isDeveloperMode = computed(() => featuresStore.userMode === 'developer')
+
+// State - default to PIN in consumer mode, password otherwise
+const loginMethod = ref<'password' | 'pin' | 'apikey'>(isConsumerMode.value ? 'pin' : 'password')
 const username = ref('')
 const password = ref('')
 const pin = ref('')
@@ -271,11 +278,6 @@ const loginError = ref<string | null>(null)
 const needsSetup = ref(false)
 const showPassword = ref(false)
 const showApiKey = ref(false)
-const hasPinEnabled = ref(false) // TODO: Check if current user has PIN enabled
-
-// Computed
-const isConsumerMode = computed(() => featuresStore.userMode === 'consumer')
-const isDeveloperMode = computed(() => featuresStore.userMode === 'developer')
 
 // Actions
 async function handlePasswordLogin() {
@@ -303,8 +305,8 @@ async function handlePasswordLogin() {
     // Sync auth state from client
     authStore.initializeFromClient(authClient)
 
-    // Redirect to dashboard on success
-    router.push('/')
+    // Redirect to dashboard on success (use replace to avoid back button issues)
+    router.replace('/')
   } catch (error: any) {
     console.error('Login failed:', error)
     handleLoginError(error)
@@ -338,8 +340,8 @@ async function handlePinLogin() {
     // Sync auth state from client
     authStore.initializeFromClient(authClient)
 
-    // Redirect to dashboard on success
-    router.push('/')
+    // Redirect to dashboard on success (use replace to avoid back button issues)
+    router.replace('/')
   } catch (error: any) {
     console.error('PIN login failed:', error)
 
@@ -376,8 +378,8 @@ async function handleApiKeyLogin() {
     // Attempt login with API key
     await authStore.login(authClient, apiKey.value)
 
-    // Redirect to dashboard on success
-    router.push('/')
+    // Redirect to dashboard on success (use replace to avoid back button issues)
+    router.replace('/')
   } catch (error: any) {
     console.error('API key login failed:', error)
 
@@ -596,6 +598,46 @@ function goToSetup() {
   }
 }
 
+.pin-login-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-group-pin {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+
+  .pin-label {
+    font-weight: 600;
+    color: $dark;
+    font-size: 1rem;
+    text-align: center;
+  }
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  color: $primary;
+  font-size: 0.95rem;
+  font-weight: 500;
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba($primary, 0.3);
+    border-top-color: $primary;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+}
+
 .form-group {
   margin-bottom: 1.5rem;
 
@@ -781,6 +823,26 @@ function goToSetup() {
     strong {
       color: $dark;
       font-weight: 600;
+    }
+  }
+
+  .text-link {
+    background: none;
+    border: none;
+    color: $primary;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    font-size: inherit;
+    text-decoration: underline;
+    transition: all 0.2s;
+
+    &:hover {
+      color: color.adjust($primary, $lightness: -10%);
+    }
+
+    &:active {
+      transform: translateY(1px);
     }
   }
 }

@@ -3,6 +3,9 @@ import { computed } from 'vue'
 import { useFeaturesStore } from '@/stores/features'
 import { useDialog } from '@/composables/useDialog'
 import Card from '@/components/common/Card.vue'
+import ToggleSwitch from '@/components/common/ToggleSwitch.vue'
+import InfoBanner from '@/components/common/InfoBanner.vue'
+import SettingsSection from '@/components/settings/SettingsSection.vue'
 import Button from '@/components/common/Button.vue'
 
 const featuresStore = useFeaturesStore()
@@ -194,44 +197,39 @@ async function handleImportConfig() {
 </script>
 
 <template>
-  <Card>
-    <template #header>
-      <div class="section-header">
-        <div>
-          <div class="card-title">Advanced Features</div>
-          <div class="card-subtitle">
-            {{ isCustomMode ? 'Custom configuration' : 'Using preset for ' + featuresStore.userMode }}
-          </div>
-        </div>
-        <div class="header-actions">
-          <Button variant="outline" size="sm" @click="handleImportConfig">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-            Import
-          </Button>
-          <Button variant="outline" size="sm" @click="handleExportConfig">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            Export
-          </Button>
-          <Button v-if="isCustomMode" variant="outline" size="sm" @click="handleResetToPreset">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-              <path d="M21 3v5h-5"></path>
-              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-              <path d="M3 21v-5h5"></path>
-            </svg>
-            Reset
-          </Button>
-        </div>
-      </div>
+  <SettingsSection
+    title="Advanced Features"
+    :description="isCustomMode ? 'Custom configuration' : 'Using preset for ' + featuresStore.userMode"
+  >
+    <template #actions>
+      <Button variant="outline" size="sm" @click="handleImportConfig">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        Import
+      </Button>
+      <Button variant="outline" size="sm" @click="handleExportConfig">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Export
+      </Button>
+      <Button v-if="isCustomMode" variant="outline" size="sm" @click="handleResetToPreset">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+          <path d="M21 3v5h-5"></path>
+          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+          <path d="M3 21v-5h5"></path>
+        </svg>
+        Reset
+      </Button>
     </template>
+
+  <Card :no-padding="true">
 
     <div class="features-container">
       <div v-for="group in featureGroups" :key="group.title" class="feature-group">
@@ -242,65 +240,25 @@ async function handleImportConfig() {
               <div class="feature-label">{{ feature.label }}</div>
               <div class="feature-description">{{ feature.description }}</div>
             </div>
-            <label class="toggle-switch">
-              <input
-                type="checkbox"
-                :checked="featuresStore.isFeatureEnabled(feature.key)"
-                @change="handleToggle(feature.key)"
-              />
-              <span class="toggle-slider"></span>
-            </label>
+            <ToggleSwitch
+              :model-value="featuresStore.isFeatureEnabled(feature.key)"
+              @update:model-value="handleToggle(feature.key)"
+            />
           </div>
         </div>
       </div>
     </div>
 
-    <div class="features-info">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="12" y1="16" x2="12" y2="12"></line>
-        <line x1="12" y1="8" x2="12.01" y2="8"></line>
-      </svg>
+    <InfoBanner variant="info">
       <p>
         Enabling custom features will override the preset for your user mode. Changes are saved automatically.
       </p>
-    </div>
+    </InfoBanner>
   </Card>
+  </SettingsSection>
 </template>
 
 <style scoped lang="scss">
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  width: 100%;
-  padding: var(--spacing-lg);
-  gap: var(--spacing-md);
-}
-
-.card-title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-xs);
-}
-
-.card-subtitle {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
-.header-actions {
-  display: flex;
-  gap: var(--spacing-sm);
-  flex-wrap: wrap;
-
-  svg {
-    width: 14px;
-    height: 14px;
-  }
-}
-
 .features-container {
   padding: var(--spacing-lg);
   display: flex;
@@ -362,91 +320,4 @@ async function handleImportConfig() {
   line-height: 1.4;
 }
 
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-  flex-shrink: 0;
-  cursor: pointer;
-
-  input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-
-    &:checked + .toggle-slider {
-      background: var(--primary-green);
-
-      &::before {
-        transform: translateX(20px);
-      }
-    }
-
-    &:focus-visible + .toggle-slider {
-      box-shadow: 0 0 0 3px rgba(44, 95, 45, 0.2);
-    }
-  }
-}
-
-.toggle-slider {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--border-color);
-  border-radius: var(--radius-full);
-  transition: all 0.2s;
-
-  &::before {
-    content: '';
-    position: absolute;
-    height: 18px;
-    width: 18px;
-    left: 3px;
-    bottom: 3px;
-    background: white;
-    border-radius: 50%;
-    transition: transform 0.2s;
-  }
-}
-
-.features-info {
-  display: flex;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: rgba(59, 130, 246, 0.05);
-  border-top: 1px solid var(--border-color);
-  color: var(--text-secondary);
-
-  svg {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    color: #3b82f6;
-    margin-top: 2px;
-  }
-
-  p {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    line-height: 1.6;
-  }
-}
-
-@media (max-width: 768px) {
-  .section-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .header-actions {
-    width: 100%;
-
-    button {
-      flex: 1;
-    }
-  }
-}
 </style>

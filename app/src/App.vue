@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { ref, provide, onMounted, computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
-import Sidebar from './components/common/Sidebar.vue'
-import Header from './components/common/Header.vue'
 import KeyboardShortcutsModal from './components/common/KeyboardShortcutsModal.vue'
 import ToastContainer from './components/common/ToastContainer.vue'
 import ErrorBoundary from './components/common/ErrorBoundary.vue'
@@ -17,7 +15,6 @@ import { useConnectionStore } from './stores/connection'
 import { useConnectionOrchestrator } from './stores/connectionOrchestrator'
 import { useAuthStore } from './stores/auth'
 import { useOnboardingStore } from './stores/onboarding'
-import { useSidebar } from './composables/useSidebar'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 import type { ConfirmOptions, AlertOptions } from './composables/useDialog'
 
@@ -29,29 +26,6 @@ const connectionStore = useConnectionStore()
 const orchestrator = useConnectionOrchestrator()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
-const { mainContentMargin, mainContentWidth } = useSidebar()
-
-// Determine if we should show the full app (sidebar + header + routes)
-// or just standalone views (connection/setup/login)
-const showFullApp = computed(() => {
-  // Don't show full app if disconnected
-  if (!connectionStore.isConnected) {
-    return false
-  }
-
-  // Don't show full app if in setup mode (first-time setup)
-  if (authStore.needsSetup) {
-    return false
-  }
-
-  // Don't show full app if not authenticated
-  if (!authStore.isAuthenticated) {
-    return false
-  }
-
-  // Show full app if connected, setup is complete, and authenticated
-  return true
-})
 
 // Keyboard shortcuts
 const showShortcuts = ref(false)
@@ -206,29 +180,14 @@ const handleEmergencyStop = async () => {
     <!-- Offline Detection Banner -->
     <OfflineBanner />
 
-    <!-- Full App Layout (only when connected, setup complete, and authenticated) -->
-    <template v-if="showFullApp">
-      <Sidebar />
-      <main class="main-content" :style="{ marginLeft: mainContentMargin, width: mainContentWidth }">
-        <Header />
-        <div class="view-container">
-          <ErrorBoundary>
-            <RouterView v-slot="{ Component, route }">
-              <Transition name="page">
-                <component :is="Component" :key="route.path" />
-              </Transition>
-            </RouterView>
-          </ErrorBoundary>
-        </div>
-      </main>
-    </template>
-
-    <!-- Standalone Views (connection, setup, login) -->
-    <div v-else class="standalone-container">
-      <ErrorBoundary>
-        <RouterView />
-      </ErrorBoundary>
-    </div>
+    <!-- Router Views (AppLayout handles sidebar/header for authenticated routes) -->
+    <ErrorBoundary>
+      <RouterView v-slot="{ Component, route }">
+        <Transition name="page">
+          <component :is="Component" :key="route.path" />
+        </Transition>
+      </RouterView>
+    </ErrorBoundary>
 
     <!-- Keyboard Shortcuts Modal -->
     <KeyboardShortcutsModal

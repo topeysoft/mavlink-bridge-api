@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useCalibrationStore } from '@/stores/calibration'
 import { useRTCMStore } from '@/stores/rtcm'
 import Card from '@/components/common/Card.vue'
+import SettingsSection from '@/components/settings/SettingsSection.vue'
 import ConsumerCalibrationStep from '@/components/consumer/ConsumerCalibrationStep.vue'
 import ConsumerGPSBoostStep from '@/components/consumer/ConsumerGPSBoostStep.vue'
 import Modal from '@/components/common/Modal.vue'
@@ -108,12 +109,10 @@ function handleGPSBoostComplete() {
 </script>
 
 <template>
-  <div class="setup-quick-access">
-    <h3 class="section-title">Technical Setup</h3>
-    <p class="section-description">
-      Configure your YardRover's sensors and GPS for optimal performance
-    </p>
-
+  <SettingsSection
+    title="Technical Setup"
+    description="Configure your YardRover's sensors and GPS for optimal performance"
+  >
     <div class="cards-grid">
       <!-- Setup Check Card -->
       <Card class="setup-card">
@@ -227,29 +226,10 @@ function handleGPSBoostComplete() {
         @skip="handleGPSBoostComplete"
       />
     </Modal>
-  </div>
+  </SettingsSection>
 </template>
 
 <style scoped lang="scss">
-.setup-quick-access {
-  padding: var(--spacing-xl);
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.section-title {
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-sm);
-}
-
-.section-description {
-  font-size: var(--font-size-base);
-  color: var(--text-secondary);
-  margin-bottom: var(--spacing-xl);
-}
-
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));

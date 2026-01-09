@@ -26,7 +26,7 @@ tls:
   port: 443
 security:
   enabled: true
-  setup_completed: false
+  setup_completed: true
   require_auth_during_setup: false
   jwt_algorithm: HS256
   access_token_expire_minutes: 43200
