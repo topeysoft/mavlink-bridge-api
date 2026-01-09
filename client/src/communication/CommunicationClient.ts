@@ -87,16 +87,30 @@ export class CommunicationClient {
 
     // MAVLink events
     this.wsClient.on(EventType.MAVLINK_MESSAGE, (payload: any) => {
+      // Support both snake_case (Python backend) and camelCase field names
+      const messageId = payload.message_id ?? payload.messageId;
+      const messageName = payload.message_name ?? payload.messageName; // Backend provides human-readable name
+      const systemId = payload.system_id ?? payload.systemId;
+      const componentId = payload.component_id ?? payload.componentId;
+
+      // Support both object payload (decoded) and base64 string payload (raw)
+      // Backend can send either:
+      // - payload.payload (object with decoded fields)
+      // - payload.data (base64 encoded string)
+      const messagePayload = payload.payload ?? payload.data;
+
       const message: MAVLinkMessage = {
-        messageId: payload.messageId as number,
-        systemId: payload.systemId as number,
-        componentId: payload.componentId as number,
+        messageId: messageId as number,
+        ...(messageName && { messageName: messageName as string }),
+        systemId: systemId as number,
+        componentId: componentId as number,
         sequence: 0, // This would need to be added to the payload
-        length: payload.length as number,
-        payload: payload.data as string,
+        length: payload.length ?? 0,
+        payload: messagePayload,
         timestamp: Date.now(),
         valid: true
       };
+
       this.triggerCallbacks('mavlinkMessage', message);
     });
 

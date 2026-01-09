@@ -12,7 +12,11 @@ const router = useRouter()
 const connectionStore = useConnectionStore()
 
 // Computed
-const deviceUrl = computed(() => `http://${props.device.ip}`)
+const deviceUrl = computed(() => {
+  const port = props.device.port
+  // Only include port in URL if it's not the default HTTP port (80)
+  return port === 80 ? `http://${props.device.ip}` : `http://${props.device.ip}:${port}`
+})
 const isConnecting = computed(() => connectionStore.isConnecting)
 const isCurrentDevice = computed(() => connectionStore.currentDeviceUrl === deviceUrl.value)
 

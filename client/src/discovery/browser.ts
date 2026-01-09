@@ -20,14 +20,18 @@ import {
 
 const DEFAULT_OPTIONS: Required<DiscoveryOptions> = {
   subnets: [],
-  ports: [80, 8080],
+  ports: [80, 8080, 8000, 3000, 3030, 5000],
   timeout: 5000,
   concurrent: 20,
   knownHostnames: [
+    'localhost',
+    '127.0.0.1',
     'mavlinkbridge.local',
     'esp32-mavlinkbridge.local',
     'yardrover.local',
-    'yardrover-esp32.local'
+    'yardrover-esp32.local',
+    'yardrover-pi.local',
+    'yardrover-dev.local'
   ],
   apModeIPs: ['192.168.4.1']
 };
@@ -153,6 +157,10 @@ async function testSingleHost (
       return null;
     }
 
+    // Extract port from URL
+    const urlObj = new URL(url);
+    const port = parseInt(urlObj.port || '80', 10);
+
     // Extract IP from health data, but prioritize the host we actually connected to
     // This handles cases where the device is in AP mode and wifi.ip is not set or is 0.0.0.0
     let deviceIP = host;
@@ -164,31 +172,40 @@ async function testSingleHost (
       deviceIP = healthData.network.wifi.ip;
     }
 
+    // Handle Python backend (snake_case) vs ESP32 (camelCase) field names
+    const macAddress = healthData.network.macAddress || (healthData.network as any).mac_address;
+    const apMacAddress = healthData.network.apMacAddress || (healthData.network as any).ap_mac_address;
+    const ipAddress = (healthData.network as any).ipAddress || (healthData.network as any).ip_address || deviceIP;
+    const wifiStatus = healthData.network?.wifi?.status || ((healthData.network as any)?.connected ? 'connected' : 'disconnected');
+
     return {
-      id: healthData.network.macAddress,
+      id: macAddress,
       name: healthData.device.name,
       hostname: healthData.device.hostname,
-      ip: deviceIP,
+      ip: ipAddress,
+      port: port,
       status: healthData.status,
-      isProvisioned: healthData.network.wifi.status === 'connected',
+      isProvisioned: wifiStatus === 'connected' || (healthData.network as any)?.connected === true,
       capabilities: {
-        chipModel: healthData.device.chipModel,
-        chipRevision: healthData.device.chipRevision,
-        flashSize: healthData.device.flashSize,
-        sdkVersion: healthData.device.sdkVersion,
-        coreCount: healthData.device.coreCount
+        chipModel: healthData.device.chipModel || (healthData.device as any).chip_model || 'Unknown',
+        chipRevision: healthData.device.chipRevision || (healthData.device as any).chip_revision || 0,
+        flashSize: healthData.device.flashSize || (healthData.device as any).flash_size || 0,
+        sdkVersion: healthData.device.sdkVersion || (healthData.device as any).sdk_version || 'Unknown',
+        coreCount: healthData.device.coreCount || (healthData.device as any).core_count || 1
       },
       network: {
-        macAddress: healthData.network.macAddress,
-        apMacAddress: healthData.network.apMacAddress,
+        macAddress: macAddress,
+        apMacAddress: apMacAddress || '',
         wifi: {
-          status: healthData.network.wifi.status,
-          ...(healthData.network.wifi.ssid && { ssid: healthData.network.wifi.ssid }),
-          ...(healthData.network.wifi.rssi !== undefined && { rssi: healthData.network.wifi.rssi })
+          status: wifiStatus,
+          ...(healthData.network.wifi?.ssid && { ssid: healthData.network.wifi.ssid }),
+          ...(healthData.network.wifi?.rssi !== undefined && { rssi: healthData.network.wifi.rssi }),
+          ...((healthData.network as any).ssid && { ssid: (healthData.network as any).ssid }),
+          ...((healthData.network as any).rssi !== undefined && { rssi: (healthData.network as any).rssi })
         },
         ap: {
-          enabled: healthData.network.ap.enabled,
-          ...(healthData.network.ap.clients !== undefined && { clients: healthData.network.ap.clients })
+          enabled: healthData.network.ap?.enabled ?? false,
+          ...(healthData.network.ap?.clients !== undefined && { clients: healthData.network.ap.clients })
         }
       },
       lastSeen: Date.now()
@@ -202,7 +219,7 @@ async function testSingleHost (
 /**
  * Check if health response indicates a MAVLink Bridge device
  */
-function isMAVLinkBridgeDevice (health: HealthResponse): boolean {
+function isMAVLinkBridgeDevice (health: HealthResponse | any): boolean {
   // Check device name patterns
   const deviceName = health.device?.name?.toLowerCase() || '';
   const hostname = health.device?.hostname?.toLowerCase() || '';
@@ -214,12 +231,18 @@ function isMAVLinkBridgeDevice (health: HealthResponse): boolean {
     'esp32-mavlinkbridge'
   ];
 
-  return mavlinkPatterns.some(pattern =>
+  const matchesPattern = mavlinkPatterns.some(pattern =>
     deviceName.includes(pattern) || hostname.includes(pattern)
-  ) &&
-    // Ensure we have required device info
-    !!health.device?.chipModel &&
-    !!health.network?.macAddress;
+  );
+
+  // Check for ESP32 device (has network.macAddress)
+  const isESP32Device = !!health.device?.chipModel && !!health.network?.macAddress;
+
+  // Check for Python backend (has network.mac_address or network.macAddress)
+  const isPythonBackend = !!health.device?.hostname &&
+    (!!health.network?.mac_address || !!health.network?.macAddress);
+
+  return matchesPattern && (isESP32Device || isPythonBackend);
 }
 
 /**

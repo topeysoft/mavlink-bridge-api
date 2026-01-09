@@ -148,3 +148,53 @@ export function deduplicateDevices<T extends { id: string; lastSeen: number }>(d
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+/**
+ * Parse ports from environment variable or comma-separated string
+ * @example
+ * parsePortsFromEnv('3000,3030,8000') // [3000, 3030, 8000]
+ * parsePortsFromEnv('8080') // [8080]
+ */
+export function parsePortsFromEnv(portsString?: string): number[] | undefined {
+  if (!portsString) return undefined;
+
+  const ports = portsString
+    .split(',')
+    .map(p => parseInt(p.trim(), 10))
+    .filter(p => !isNaN(p) && p > 0 && p <= 65535);
+
+  return ports.length > 0 ? ports : undefined;
+}
+
+/**
+ * Get discovery options from environment variables (Node.js only)
+ * Supports:
+ * - YARDROVER_DISCOVERY_PORTS: Comma-separated list of ports (e.g., "3000,3030,8000")
+ * - YARDROVER_DISCOVERY_TIMEOUT: Timeout in milliseconds
+ * - YARDROVER_DISCOVERY_CONCURRENT: Max concurrent requests
+ */
+export function getDiscoveryOptionsFromEnv(): {
+  ports?: number[];
+  timeout?: number;
+  concurrent?: number;
+} {
+  const options: any = {};
+
+  // Try to access process.env (Node.js only)
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      const ports = parsePortsFromEnv(process.env.YARDROVER_DISCOVERY_PORTS);
+      if (ports) options.ports = ports;
+
+      const timeout = parseInt(process.env.YARDROVER_DISCOVERY_TIMEOUT || '', 10);
+      if (!isNaN(timeout) && timeout > 0) options.timeout = timeout;
+
+      const concurrent = parseInt(process.env.YARDROVER_DISCOVERY_CONCURRENT || '', 10);
+      if (!isNaN(concurrent) && concurrent > 0) options.concurrent = concurrent;
+    }
+  } catch (error) {
+    // Running in browser environment
+  }
+
+  return options;
+}

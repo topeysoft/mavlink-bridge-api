@@ -14,17 +14,22 @@ export class WebSocketConsole {
       eventType: '',
     };
     this.eventCounts = new Map();
+    this.subscriptions = new Map(); // Track which events are subscribed
+    this.eventHandlers = new Map(); // Store event handlers for cleanup
     this.startTime = Date.now();
     this.maxEvents = 1000;
+    this.currentClient = null;
   }
 
   /**
    * Initialize WebSocket console
    */
   init() {
+    this.loadSubscriptionPreferences();
     this.setupEventListeners();
     this.startEventRateCalculation();
     this.populateEventTypeFilter();
+    this.renderSubscriptionList();
   }
 
   /**
@@ -63,78 +68,291 @@ export class WebSocketConsole {
         this.renderEvents();
       });
 
+    // Subscription buttons
+    document.getElementById('subscribeAllBtn').addEventListener('click', () => {
+      this.subscribeAll();
+    });
+
+    document.getElementById('unsubscribeAllBtn').addEventListener('click', () => {
+      this.unsubscribeAll();
+    });
+
     // Listen for device connection
     this.deviceConnection.onConnect((client) => {
+      this.currentClient = client;
       this.subscribeToEvents(client);
     });
 
     this.deviceConnection.onDisconnect(() => {
+      this.currentClient = null;
       this.clearEvents();
     });
   }
 
   /**
-   * Subscribe to all WebSocket events
+   * Get list of all available event types
+   */
+  getAvailableEventTypes() {
+    return [
+      'status',
+      'config.changed',
+      'error',
+      'log',
+      'rtcm.data',
+      'rtcm.data.received',
+      'rtcm.state.change',
+      'wifi.connecting',
+      'wifi.connected',
+      'wifi.disconnected',
+      'wifi.signal.update',
+      'wifi.ap.mode.started',
+      'wifi.ap.mode.stopped',
+      'wifi.scan.completed',
+      'usb.connected',
+      'usb.disconnected',
+      'uart.connected',
+      'uart.disconnected',
+      'interface.switched',
+      'mavlink.message',
+      'communication.stats',
+      'health.update',
+      'memory.event',
+      'task.event',
+      'mission.current',
+      'mission.item.reached',
+      'mission.ack',
+      'mission.count',
+      'mission.progress',
+      'task.created',
+      'task.updated',
+      'task.deleted',
+      'task.execution.started',
+      'task.execution.progress',
+      'task.execution.paused',
+      'task.execution.resumed',
+      'task.execution.completed',
+      'task.execution.failed',
+      'task.execution.cancelled',
+      'zone.created',
+      'zone.updated',
+      'zone.deleted',
+      'mission.created',
+      'mission.updated',
+      'mission.deleted',
+    ];
+  }
+
+  /**
+   * Subscribe to WebSocket events based on subscription preferences
    */
   subscribeToEvents(client) {
-    if (!client || !client.wsClient) {
+    if (!client || !client.ws) {
       console.error('No WebSocket client available');
       return;
     }
 
-    const wsClient = client.wsClient;
+    const wsClient = client.ws;
 
-    // List of all event types from EventTypes.ts
-    const eventTypes = [
-      'status',
-      'config_changed',
-      'error',
-      'log',
-      'rtcm_data',
-      'rtcm_data_received',
-      'rtcm_state_change',
-      'wifi_connecting',
-      'wifi_connected',
-      'wifi_disconnected',
-      'wifi_signal_update',
-      'wifi_ap_mode_started',
-      'wifi_ap_mode_stopped',
-      'wifi_scan_completed',
-      'usb_connected',
-      'usb_disconnected',
-      'uart_connected',
-      'uart_disconnected',
-      'interface_switched',
-      'mavlink_message',
-      'communication_stats',
-      'health_update',
-      'memory_event',
-      'task_event',
-      'mission_current',
-      'mission_item_reached',
-      'mission_ack',
-      'mission_count',
-      'mission_progress',
-      'task_created',
-      'task_updated',
-      'task_deleted',
-      'task_execution_started',
-      'task_execution_progress',
-      'task_execution_paused',
-      'task_execution_resumed',
-      'task_execution_completed',
-      'task_execution_failed',
-      'task_execution_cancelled',
-    ];
-
-    // Subscribe to all events
-    eventTypes.forEach((eventType) => {
-      wsClient.on(eventType, (payload) => {
-        this.handleEvent(eventType, payload);
-      });
+    // Subscribe only to selected events
+    this.getAvailableEventTypes().forEach((eventType) => {
+      if (this.subscriptions.get(eventType)) {
+        this.subscribeToEvent(eventType, wsClient);
+      }
     });
 
-    console.log('Subscribed to all WebSocket events');
+    const subscribedCount = Array.from(this.subscriptions.values()).filter(Boolean).length;
+    console.log(`Subscribed to ${subscribedCount} WebSocket events`);
+  }
+
+  /**
+   * Subscribe to a single event type
+   */
+  subscribeToEvent(eventType, wsClient = null) {
+    const client = wsClient || this.currentClient?.ws;
+    if (!client) return;
+
+    // Remove existing handler if any
+    this.unsubscribeFromEvent(eventType, client);
+
+    // Create new handler
+    const handler = (payload) => {
+      this.handleEvent(eventType, payload);
+    };
+
+    // Store handler for cleanup
+    this.eventHandlers.set(eventType, handler);
+
+    // Subscribe to event
+    client.on(eventType, handler);
+  }
+
+  /**
+   * Unsubscribe from a single event type
+   */
+  unsubscribeFromEvent(eventType, wsClient = null) {
+    const client = wsClient || this.currentClient?.ws;
+    if (!client) return;
+
+    const handler = this.eventHandlers.get(eventType);
+    if (handler) {
+      client.off(eventType, handler);
+      this.eventHandlers.delete(eventType);
+    }
+  }
+
+  /**
+   * Subscribe to all available events
+   */
+  subscribeAll() {
+    this.getAvailableEventTypes().forEach((eventType) => {
+      this.subscriptions.set(eventType, true);
+      if (this.currentClient?.ws) {
+        this.subscribeToEvent(eventType);
+      }
+    });
+
+    this.saveSubscriptionPreferences();
+    this.renderSubscriptionList();
+    this.updateSubscriptionCount();
+  }
+
+  /**
+   * Unsubscribe from all events
+   */
+  unsubscribeAll() {
+    this.getAvailableEventTypes().forEach((eventType) => {
+      this.subscriptions.set(eventType, false);
+      if (this.currentClient?.ws) {
+        this.unsubscribeFromEvent(eventType);
+      }
+    });
+
+    this.saveSubscriptionPreferences();
+    this.renderSubscriptionList();
+    this.updateSubscriptionCount();
+  }
+
+  /**
+   * Toggle subscription for a specific event type
+   */
+  toggleSubscription(eventType) {
+    const isSubscribed = this.subscriptions.get(eventType) || false;
+    this.subscriptions.set(eventType, !isSubscribed);
+
+    if (this.currentClient?.ws) {
+      if (!isSubscribed) {
+        this.subscribeToEvent(eventType);
+      } else {
+        this.unsubscribeFromEvent(eventType);
+      }
+    }
+
+    this.saveSubscriptionPreferences();
+    this.renderSubscriptionList();
+    this.updateSubscriptionCount();
+  }
+
+  /**
+   * Load subscription preferences from localStorage
+   */
+  loadSubscriptionPreferences() {
+    const saved = localStorage.getItem('ws-subscriptions');
+    if (saved) {
+      try {
+        const prefs = JSON.parse(saved);
+        Object.entries(prefs).forEach(([eventType, isSubscribed]) => {
+          this.subscriptions.set(eventType, isSubscribed);
+        });
+      } catch (error) {
+        console.error('Failed to load subscription preferences:', error);
+      }
+    }
+
+    // Default: subscribe to common events if no preferences saved
+    if (this.subscriptions.size === 0) {
+      const defaultSubscriptions = [
+        'status',
+        'error',
+        'health.update',
+        'wifi.connected',
+        'wifi.disconnected',
+        'mavlink.message',
+      ];
+
+      defaultSubscriptions.forEach(eventType => {
+        this.subscriptions.set(eventType, true);
+      });
+
+      this.getAvailableEventTypes().forEach(eventType => {
+        if (!this.subscriptions.has(eventType)) {
+          this.subscriptions.set(eventType, false);
+        }
+      });
+    }
+  }
+
+  /**
+   * Save subscription preferences to localStorage
+   */
+  saveSubscriptionPreferences() {
+    const prefs = {};
+    this.subscriptions.forEach((isSubscribed, eventType) => {
+      prefs[eventType] = isSubscribed;
+    });
+    localStorage.setItem('ws-subscriptions', JSON.stringify(prefs));
+  }
+
+  /**
+   * Render subscription list UI
+   */
+  renderSubscriptionList() {
+    const container = document.getElementById('subscriptionList');
+    container.innerHTML = '';
+
+    const eventTypes = this.getAvailableEventTypes();
+    const sortedEventTypes = eventTypes.sort();
+
+    sortedEventTypes.forEach(eventType => {
+      const isSubscribed = this.subscriptions.get(eventType) || false;
+
+      const item = document.createElement('label');
+      item.className = 'subscription-item';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = isSubscribed;
+      checkbox.addEventListener('change', () => {
+        this.toggleSubscription(eventType);
+      });
+
+      const label = document.createElement('span');
+      label.textContent = eventType;
+      label.className = 'subscription-label';
+
+      const count = this.eventCounts.get(eventType) || 0;
+      const badge = document.createElement('span');
+      badge.className = 'subscription-badge';
+      badge.textContent = count;
+      badge.id = `badge-${eventType}`;
+
+      item.appendChild(checkbox);
+      item.appendChild(label);
+      item.appendChild(badge);
+      container.appendChild(item);
+    });
+
+    this.updateSubscriptionCount();
+  }
+
+  /**
+   * Update subscription count display
+   */
+  updateSubscriptionCount() {
+    const subscribedCount = Array.from(this.subscriptions.values()).filter(Boolean).length;
+    const countElement = document.getElementById('subscriptionCount');
+    if (countElement) {
+      countElement.textContent = subscribedCount;
+    }
   }
 
   /**
@@ -161,6 +379,12 @@ export class WebSocketConsole {
     const count = this.eventCounts.get(eventType) || 0;
     this.eventCounts.set(eventType, count + 1);
 
+    // Update badge for this event type
+    const badge = document.getElementById(`badge-${eventType}`);
+    if (badge) {
+      badge.textContent = count + 1;
+    }
+
     // Update UI
     this.updateStats();
     this.renderNewEvent(event);
@@ -177,28 +401,28 @@ export class WebSocketConsole {
   populateEventTypeFilter() {
     const eventTypes = [
       'status',
-      'config_changed',
+      'config.changed',
       'error',
       'log',
-      'rtcm_data',
-      'rtcm_state_change',
-      'wifi_connected',
-      'wifi_disconnected',
-      'wifi_signal_update',
-      'wifi_scan_completed',
-      'interface_switched',
-      'mavlink_message',
-      'communication_stats',
-      'health_update',
-      'memory_event',
-      'task_event',
-      'mission_current',
-      'mission_item_reached',
-      'task_created',
-      'task_updated',
-      'task_execution_started',
-      'task_execution_progress',
-      'task_execution_completed',
+      'rtcm.data',
+      'rtcm.state.change',
+      'wifi.connected',
+      'wifi.disconnected',
+      'wifi.signal.update',
+      'wifi.scan.completed',
+      'interface.switched',
+      'mavlink.message',
+      'communication.stats',
+      'health.update',
+      'memory.event',
+      'task.event',
+      'mission.current',
+      'mission.item.reached',
+      'task.created',
+      'task.updated',
+      'task.execution.started',
+      'task.execution.progress',
+      'task.execution.completed',
     ];
 
     const select = document.getElementById('eventTypeFilter');

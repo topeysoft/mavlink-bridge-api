@@ -119,6 +119,10 @@ export class MAVLinkBridgeClient {
   async connect (): Promise<void> {
     if (this.options.autoConnectWebSocket) {
       await this.wsClient.connect();
+
+      // Subscribe to MAVLink messages after WebSocket is connected
+      // The backend requires explicit subscription to receive messages
+      this.subscribeToMAVLinkMessages();
     }
 
     // Initialize resource managers
@@ -134,6 +138,34 @@ export class MAVLinkBridgeClient {
       this.zoneManager.sync().catch(console.error),
       this.missionManager.sync().catch(console.error)
     ]);
+  }
+
+  /**
+   * Subscribe to MAVLink messages and other critical topics
+   * Must be called after WebSocket connection is established
+   */
+  private subscribeToMAVLinkMessages(): void {
+    try {
+      // Send raw JSON to bypass the WebSocketMessage type mismatch
+      // Backend expects: { type: "subscribe", data: { topics: [...] } }
+      // Client interface expects: { type: EventType, payload: {...} }
+      const subscribeMessage = JSON.stringify({
+        type: 'subscribe',
+        data: {
+          topics: ['mavlink.message', 'health.update', 'wifi.*']
+        }
+      });
+
+      // Send raw string directly
+      if (this.wsClient.isConnected() && (this.wsClient as any).ws) {
+        (this.wsClient as any).ws.send(subscribeMessage);
+        // Subscribed to WebSocket topics (silent)
+      } else {
+        console.warn('[MAVLinkBridgeClient] WebSocket not connected, cannot subscribe');
+      }
+    } catch (error) {
+      console.error('[MAVLinkBridgeClient] Failed to subscribe to topics:', error);
+    }
   }
 
   /**
@@ -295,6 +327,14 @@ export class MAVLinkBridgeClient {
   }
 
   /**
+   * Get WebSocket client for direct event subscription
+   * Use this for subscribing to events not covered by the convenience methods
+   */
+  get ws (): WebSocketClient {
+    return this.wsClient;
+  }
+
+  /**
    * Connect to a WiFi network
    */
   async connectToWiFi (credentials: WiFiCredentials): Promise<void> {
@@ -448,57 +488,65 @@ export class MAVLinkBridgeClient {
   /**
    * Listen for status updates
    */
-  onStatus (handler: (payload: StatusPayload) => void): void {
+  onStatus (handler: (payload: StatusPayload) => void): () => void {
     this.wsClient.on(EventType.STATUS, handler as any);
+    return () => this.wsClient.off(EventType.STATUS, handler as any);
   }
 
   /**
    * Listen for configuration changes
    */
-  onConfigChanged (handler: (payload: ConfigChangedPayload) => void): void {
+  onConfigChanged (handler: (payload: ConfigChangedPayload) => void): () => void {
     this.wsClient.on(EventType.CONFIG_CHANGED, handler as any);
+    return () => this.wsClient.off(EventType.CONFIG_CHANGED, handler as any);
   }
 
   /**
    * Listen for RTCM data
    */
-  onRTCMData (handler: (payload: RTCMDataPayload) => void): void {
+  onRTCMData (handler: (payload: RTCMDataPayload) => void): () => void {
     this.wsClient.on(EventType.RTCM_DATA, handler as any);
+    return () => this.wsClient.off(EventType.RTCM_DATA, handler as any);
   }
 
   /**
    * Listen for errors
    */
-  onError (handler: (payload: ErrorPayload) => void): void {
+  onError (handler: (payload: ErrorPayload) => void): () => void {
     this.wsClient.on(EventType.ERROR, handler as any);
+    return () => this.wsClient.off(EventType.ERROR, handler as any);
   }
 
   /**
    * Listen for log messages
    */
-  onLog (handler: (payload: LogPayload) => void): void {
+  onLog (handler: (payload: LogPayload) => void): () => void {
     this.wsClient.on(EventType.LOG, handler as any);
+    return () => this.wsClient.off(EventType.LOG, handler as any);
   }
 
   /**
    * Listen for WiFi connection events
    */
-  onWiFiConnected (handler: (payload: WiFiConnectedPayload) => void): void {
+  onWiFiConnected (handler: (payload: WiFiConnectedPayload) => void): () => void {
     this.wsClient.on(EventType.WIFI_CONNECTED, handler as any);
+    return () => this.wsClient.off(EventType.WIFI_CONNECTED, handler as any);
   }
 
   /**
    * Listen for WiFi disconnection events
    */
-  onWiFiDisconnected (handler: (payload: WiFiDisconnectedPayload) => void): void {
+  onWiFiDisconnected (handler: (payload: WiFiDisconnectedPayload) => void): () => void {
     this.wsClient.on(EventType.WIFI_DISCONNECTED, handler as any);
+    return () => this.wsClient.off(EventType.WIFI_DISCONNECTED, handler as any);
   }
 
   /**
    * Listen for WiFi signal updates
    */
-  onWiFiSignalUpdate (handler: (payload: WiFiSignalUpdatePayload) => void): void {
+  onWiFiSignalUpdate (handler: (payload: WiFiSignalUpdatePayload) => void): () => void {
     this.wsClient.on(EventType.WIFI_SIGNAL_UPDATE, handler as any);
+    return () => this.wsClient.off(EventType.WIFI_SIGNAL_UPDATE, handler as any);
   }
 
   /**

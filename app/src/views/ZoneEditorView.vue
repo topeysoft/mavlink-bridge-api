@@ -12,6 +12,8 @@ import { formatArea, formatPerimeter } from '@/utils/geoCalculations'
 import { getCurrentPosition } from '@/utils/geocoding'
 import Breadcrumb from '@/components/common/Breadcrumb.vue'
 import ValidatedInput from '@/components/common/ValidatedInput.vue'
+import MapLayerControl from '@/components/zones/MapLayerControl.vue'
+import type { MapLayerType } from '@/composables/useLeafletMap'
 
 const router = useRouter()
 const route = useRoute()
@@ -54,7 +56,7 @@ const isFormValid = computed(() => {
 })
 
 // Map and drawing
-const { map, initializeMap, updateTheme, invalidateSize } = useLeafletMap(
+const { map, initializeMap, updateTheme, invalidateSize, setLayerType, currentLayerType } = useLeafletMap(
   'zoneEditorMap',
   {
     center: [40.7128, -74.006],
@@ -123,12 +125,21 @@ const initializeEditor = async () => {
       zoneDescription.value = existingZone.description || ''
       zoneColor.value = existingZone.color || '#2C5F2D'
 
-      // Load geometry
-      if ((existingZone as any).geometry) {
+      // Convert coordinates to GeoJSON for map display
+      if (existingZone.coordinates && existingZone.coordinates.length > 0) {
         await nextTick()
         setTimeout(() => {
-          loadGeoJSON((existingZone as any).geometry)
-          const bounds = getBoundsFromGeoJSON((existingZone as any).geometry)
+          // Convert coordinate array to GeoJSON Polygon
+          const geojson = {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'Polygon',
+              coordinates: [existingZone.coordinates.map(coord => [coord[0], coord[1]])]
+            }
+          }
+          loadGeoJSON(geojson)
+          const bounds = getBoundsFromGeoJSON(geojson)
           if (bounds && map.value) {
             map.value.fitBounds(bounds, { padding: [50, 50] })
           }
@@ -147,17 +158,19 @@ watch(() => themeStore.theme, (newTheme) => {
 })
 
 // Handlers
+const handleLayerChange = (layerType: MapLayerType) => {
+  setLayerType(layerType)
+}
+
 const handleZoomToZone = (index: number) => {
   zoomToZone(index)
 }
 
 const handleClearAll = async () => {
-  const confirmed = await dialog.confirm({
-    title: 'Clear All Zones',
-    message: 'Clear all drawn zones?',
-    confirmText: 'Clear All',
-    cancelText: 'Cancel'
-  })
+  const confirmed = await dialog.confirm(
+    'Clear all drawn zones?',
+    'Clear All Zones'
+  )
 
   if (confirmed) {
     clearAll()
@@ -166,12 +179,10 @@ const handleClearAll = async () => {
 
 const handleCancel = async () => {
   if (hasChanges.value) {
-    const confirmed = await dialog.confirm({
-      title: 'Discard Changes',
-      message: 'Discard changes to coverage area?',
-      confirmText: 'Discard',
-      cancelText: 'Keep Editing'
-    })
+    const confirmed = await dialog.confirm(
+      'Discard changes to coverage area?',
+      'Discard Changes'
+    )
 
     if (confirmed) {
       router.push('/zones')
@@ -187,15 +198,36 @@ const handleSave = async () => {
     return
   }
 
-  const geometry = exportGeoJSON()
+  const geojson = exportGeoJSON() as any
+
+  // Extract coordinates from GeoJSON
+  // GeoJSON format: { type: 'FeatureCollection', features: [ { geometry: { coordinates: [...] } } ] }
+  let coordinates: Array<[number, number]> = []
+
+  if (geojson?.features && Array.isArray(geojson.features) && geojson.features.length > 0) {
+    const firstFeature = geojson.features[0]
+    const geom = firstFeature.geometry
+
+    // Handle different geometry types
+    if (geom.type === 'Polygon' && Array.isArray(geom.coordinates[0])) {
+      // Polygon: coordinates[0] is the outer ring
+      coordinates = geom.coordinates[0].map((coord: number[]) => [coord[0], coord[1]])
+    } else if (geom.type === 'LineString' && Array.isArray(geom.coordinates)) {
+      coordinates = geom.coordinates.map((coord: number[]) => [coord[0], coord[1]])
+    } else if (geom.type === 'Point' && Array.isArray(geom.coordinates)) {
+      coordinates = [[geom.coordinates[0], geom.coordinates[1]]]
+    }
+  }
+
+  // Convert acres to square meters (1 acre = 4046.86 m²)
+  const areaInSquareMeters = totalArea.value * 4046.86
 
   const zoneData = {
     name: zoneName.value.trim(),
-    type: zoneType.value,
+    type: zoneType.value as 'mowing' | 'exclusion' | 'charging',
     description: zoneDescription.value.trim(),
-    geometry,
-    area: totalArea.value,
-    perimeter: totalPerimeter.value,
+    coordinates,
+    area: areaInSquareMeters,
     color: zoneColor.value
   }
 
@@ -207,7 +239,7 @@ const handleSave = async () => {
       const newZone = {
         ...zoneData,
         id: `zone_${Date.now()}`,
-        createdAt: new Date().toISOString(),
+        created: new Date().toISOString(),
         lastModified: new Date().toISOString()
       }
       await zonesStore.addZone(newZone as any)
@@ -257,6 +289,14 @@ onMounted(() => {
         <!-- Map -->
         <div class="map-section">
           <div id="zoneEditorMap" class="editor-map"></div>
+
+          <!-- Layer Control Overlay -->
+          <div class="map-controls">
+            <MapLayerControl
+              :current-layer="currentLayerType"
+              @change="handleLayerChange"
+            />
+          </div>
         </div>
 
         <!-- Sidebar -->
@@ -282,11 +322,8 @@ onMounted(() => {
               <label for="zoneType">Zone Type</label>
               <select id="zoneType" v-model="zoneType" class="form-input">
                 <option value="mowing">Mowing</option>
-                <option value="patrol">Patrol</option>
                 <option value="exclusion">Exclusion</option>
-                <option value="parking">Parking</option>
-                <option value="garden">Garden</option>
-                <option value="custom">Custom</option>
+                <option value="charging">Charging</option>
               </select>
             </div>
 
@@ -436,6 +473,15 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   background: var(--bg-secondary);
+}
+
+.map-controls {
+  position: absolute;
+  top: var(--spacing-md);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  pointer-events: auto;
 }
 
 .sidebar-section {

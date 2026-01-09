@@ -54,6 +54,11 @@ export class WebSocketClient {
 
       // Set a connection timeout to prevent indefinite hanging
       const connectionTimeout = setTimeout(() => {
+        console.warn('[WebSocket] Connection timeout check', {
+          url: this.url,
+          readyState: this.ws?.readyState,
+          isConnecting: this.ws?.readyState === WS.CONNECTING
+        });
         if (this.ws && this.ws.readyState === WS.CONNECTING) {
           // Browser WebSocket doesn't have terminate(), use close() instead
           if (typeof (this.ws as any).terminate === 'function') {
@@ -63,7 +68,7 @@ export class WebSocketClient {
           }
           reject(new Error('WebSocket connection timeout'));
         }
-      }, 10000); // 10 second timeout
+      }, 30000); // 30 second timeout (increased from 10s)
 
       try {
         this.ws = new WS(this.url) as WebSocket;
@@ -169,7 +174,7 @@ export class WebSocketClient {
    * Add an event handler for a specific event type
    */
   on<T extends EventType>(
-    event: T, 
+    event: T,
     handler: EventHandler<T extends keyof EventHandlers ? EventHandlers[T] extends EventHandler<infer P> ? P : unknown : unknown>
   ): void {
     const handlers = this.eventHandlers.get(event);
@@ -222,9 +227,13 @@ export class WebSocketClient {
 
       const handlers = this.eventHandlers.get(message.type);
       if (handlers) {
+        // Backend sends 'data', client expects 'payload'
+        // Use whichever is present
+        const payload = (message as any).payload || (message as any).data;
+
         handlers.forEach(handler => {
           try {
-            handler(message.payload);
+            handler(payload);
           } catch (error) {
             console.error(`Error in event handler for ${message.type}:`, error);
           }
@@ -237,6 +246,7 @@ export class WebSocketClient {
 
   /**
    * Validate incoming message structure
+   * Accepts both 'payload' (client format) and 'data' (backend format)
    */
   private isValidMessage(message: unknown): message is WebSocketMessage {
     if (typeof message !== 'object' || message === null) {
@@ -244,12 +254,16 @@ export class WebSocketClient {
     }
 
     const msg = message as Record<string, unknown>;
-    
+
+    // Backend sends 'data', client expects 'payload'
+    // Accept both for compatibility
+    const hasPayload = typeof msg.payload === 'object' && msg.payload !== null;
+    const hasData = typeof msg.data === 'object' && msg.data !== null;
+
     return (
       typeof msg.type === 'string' &&
       Object.values(EventType).includes(msg.type as EventType) &&
-      typeof msg.payload === 'object' &&
-      msg.payload !== null
+      (hasPayload || hasData)
     );
   }
 
@@ -295,7 +309,7 @@ export class WebSocketClient {
     setTimeout(async () => {
       try {
         await this.connect();
-        console.log('WebSocket reconnected successfully');
+        // Reconnected successfully (silent)
       } catch (error) {
         console.error(`Reconnection attempt ${this.reconnectAttempts} failed:`, error);
         this.attemptReconnect();

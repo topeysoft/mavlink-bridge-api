@@ -6,16 +6,48 @@ import { ref, onUnmounted, type Ref } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
+export type MapLayerType = 'streets' | 'satellite' | 'terrain' | 'dark'
+
 export interface MapOptions {
   center?: [number, number]
   zoom?: number
   theme?: 'light' | 'dark'
+  layerType?: MapLayerType
+}
+
+// Map layer definitions
+const LAYER_CONFIGS: Record<MapLayerType, { url: string; attribution: string; maxZoom: number; maxNativeZoom?: number }> = {
+  streets: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 22,
+    maxNativeZoom: 19
+  },
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>',
+    maxZoom: 22,
+    maxNativeZoom: 19
+  },
+  terrain: {
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://opentopomap.org">OpenTopoMap</a> contributors',
+    maxZoom: 20,
+    maxNativeZoom: 17
+  },
+  dark: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 22,
+    maxNativeZoom: 19
+  }
 }
 
 export function useLeafletMap(containerId: string, options: MapOptions = {}) {
   const map: Ref<L.Map | null> = ref(null)
   const isInitialized = ref(false)
   const isLoading = ref(false)
+  const currentLayerType = ref<MapLayerType>(options.layerType || 'streets')
 
   const defaultCenter: [number, number] = options.center || [40.7128, -74.006]
   const defaultZoom = options.zoom || 15
@@ -40,14 +72,17 @@ export function useLeafletMap(containerId: string, options: MapOptions = {}) {
         attributionControl: true
       }).setView(initialCenter, defaultZoom)
 
-      // Add tile layer based on theme
-      const tileLayer = options.theme === 'dark'
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+      // Determine initial layer type based on theme if not explicitly set
+      if (!options.layerType) {
+        currentLayerType.value = options.theme === 'dark' ? 'dark' : 'streets'
+      }
 
-      L.tileLayer(tileLayer, {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 19
+      // Add tile layer
+      const layerConfig = LAYER_CONFIGS[currentLayerType.value]
+      L.tileLayer(layerConfig.url, {
+        attribution: layerConfig.attribution,
+        maxZoom: layerConfig.maxZoom,
+        maxNativeZoom: layerConfig.maxNativeZoom
       }).addTo(map.value)
 
       isInitialized.value = true
@@ -59,9 +94,17 @@ export function useLeafletMap(containerId: string, options: MapOptions = {}) {
   }
 
   /**
-   * Update map theme
+   * Update map theme (legacy support - maps to layer types)
    */
   const updateTheme = (theme: 'light' | 'dark') => {
+    const layerType = theme === 'dark' ? 'dark' : 'streets'
+    setLayerType(layerType)
+  }
+
+  /**
+   * Set map layer type
+   */
+  const setLayerType = (layerType: MapLayerType) => {
     if (!map.value) return
 
     // Remove existing tile layers
@@ -71,14 +114,15 @@ export function useLeafletMap(containerId: string, options: MapOptions = {}) {
       }
     })
 
-    // Add new tile layer with theme
-    const tileLayer = theme === 'dark'
-      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+    // Update current layer type
+    currentLayerType.value = layerType
 
-    L.tileLayer(tileLayer, {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19
+    // Add new tile layer
+    const layerConfig = LAYER_CONFIGS[layerType]
+    L.tileLayer(layerConfig.url, {
+      attribution: layerConfig.attribution,
+      maxZoom: layerConfig.maxZoom,
+      maxNativeZoom: layerConfig.maxNativeZoom
     }).addTo(map.value)
   }
 
@@ -160,8 +204,10 @@ export function useLeafletMap(containerId: string, options: MapOptions = {}) {
     map,
     isInitialized,
     isLoading,
+    currentLayerType,
     initializeMap,
     updateTheme,
+    setLayerType,
     setView,
     fitBounds,
     invalidateSize,

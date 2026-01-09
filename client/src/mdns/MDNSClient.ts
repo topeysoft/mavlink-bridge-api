@@ -4,6 +4,7 @@ import {
   MDNSDiscoveryRequest,
   MDNSDiscoveryResponse,
   MDNSConfig,
+  MDNSService,
   RTCMServerInfo
 } from './MDNSTypes';
 
@@ -55,6 +56,25 @@ export class MDNSClient {
         requiresAuth: txtRecords.requiresAuth === 'true',
         lastSeen: service.lastSeen
       };
+    });
+  }
+
+  /**
+   * Discover HTTP API services on the network
+   * This discovers YardRover backends and similar HTTP services
+   */
+  async discoverHTTPServices(): Promise<MDNSService[]> {
+    const response = await this.discover('_http._tcp');
+
+    if (!response.success || !response.services) {
+      return [];
+    }
+
+    // Filter for YardRover services (optional - could return all HTTP services)
+    return response.services.filter(service => {
+      const txtRecords = this.parseTxtRecords(service.txtRecords || '');
+      // Only include services that advertise as YardRover or have the device tag
+      return txtRecords.device === 'yardrover' || service.name.toLowerCase().includes('yardrover');
     });
   }
 

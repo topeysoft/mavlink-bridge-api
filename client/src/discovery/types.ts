@@ -7,6 +7,8 @@ export interface MAVLinkBridgeDevice {
   hostname: string;
   /** Device IP address */
   ip: string;
+  /** HTTP port the device is accessible on */
+  port: number;
   /** Device health status */
   status: 'healthy' | 'degraded';
   /** Whether device has been provisioned */

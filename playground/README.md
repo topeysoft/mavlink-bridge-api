@@ -22,15 +22,25 @@ An interactive web-based API testing and documentation tool for the MAVLinkBridg
 
 2. **Start the playground server:**
    ```bash
-   npm run playground:serve
+   npm start
+   ```
+
+   **Using a custom port:**
+   ```bash
+   PORT=3030 npm start
    ```
 
 3. **Open in browser:**
    ```
-   http://localhost:8080
+   http://localhost:3030
    ```
 
-4. **Connect to your device:**
+4. **Configure API port (if needed):**
+   - The API port defaults to 80 in the UI
+   - If your playground server runs on a different port, update the "API Port" field
+   - The port setting is saved in localStorage and used for mDNS discovery requests
+
+5. **Connect to your device:**
    - Click "Discover Devices" to auto-detect, or
    - Enter device URL manually (e.g., `http://192.168.4.1`)
 

@@ -38,7 +38,9 @@ async function connectToDevice(device: MAVLinkBridgeDevice) {
   selectedDevice.value = device
   currentStep.value = 'connecting'
 
-  const deviceUrl = `http://${device.ip}`
+  // Include port in URL (unless it's the default HTTP port 80)
+  const port = device.port
+  const deviceUrl = port === 80 ? `http://${device.ip}` : `http://${device.ip}:${port}`
   const success = await connectionStore.connect(deviceUrl, device.name)
 
   if (success) {

@@ -1,0 +1,262 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yardrover"
+version = "2.0.0"
+description = "YardRover autonomous utility machine backend - Python implementation for Raspberry Pi"
+authors = [
+    {name = "YardRover Team"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+keywords = ["yardrover", "mavlink", "autonomous", "robotics", "raspberry-pi"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Topic :: Home Automation",
+    "Topic :: Scientific/Engineering :: Interface Engine/Protocol Translator",
+]
+
+dependencies = [
+    # Web Framework
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "websockets>=12.0",
+
+    # Data Validation & Settings
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+
+    # MAVLink
+    "pymavlink>=2.4.41",
+
+    # Serial Communication
+    "pyserial>=3.5",
+    "pyserial-asyncio>=0.6",
+
+    # Network & mDNS
+    "zeroconf>=0.131.0",
+    "httpx>=0.26.0",
+
+    # Async File I/O
+    "aiofiles>=23.2.1",
+
+    # Configuration
+    "pyyaml>=6.0.1",
+    "jsonpatch>=1.32",
+
+    # System Monitoring
+    "psutil>=5.9.8",
+
+    # Logging
+    "structlog>=24.1.0",
+
+    # Utilities
+    "python-dateutil>=2.8.2",
+
+    # Security & Authentication
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "bcrypt==4.0.1",  # Exact version for passlib 1.7.4 compatibility
+    "python-multipart>=0.0.6",
+    "slowapi>=0.1.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Type Checking
+    "pyright>=1.1.350",
+    "mypy>=1.8.0",
+
+    # Testing
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+
+    # Code Quality
+    "ruff>=0.1.14",
+    "black>=24.1.0",
+    "isort>=5.13.0",
+
+    # Development Tools
+    "ipython>=8.20.0",
+    "ipdb>=0.13.13",
+]
+
+production = [
+    # Production WSGI server
+    "gunicorn>=21.2.0",
+]
+
+[project.scripts]
+yardrover = "yardrover.main:run"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/yardrover"
+Documentation = "https://github.com/yourusername/yardrover/wiki"
+Repository = "https://github.com/yourusername/yardrover"
+Issues = "https://github.com/yourusername/yardrover/issues"
+
+# Setuptools configuration
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+# Pyright configuration (strict type checking)
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
+include = ["src"]
+exclude = [
+    "**/__pycache__",
+    "**/node_modules",
+    ".venv",
+    "build",
+    "dist",
+]
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportPrivateUsage = "warning"
+reportConstantRedefinition = "error"
+reportIncompatibleMethodOverride = "error"
+
+# Ruff configuration (linting & formatting)
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "ANN",  # flake8-annotations
+    "ASYNC",# flake8-async
+    "S",    # flake8-bandit (security)
+    "DTZ",  # flake8-datetimez
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "E501",     # line too long (handled by formatter)
+    "ANN101",   # missing type annotation for self
+    "ANN102",   # missing type annotation for cls
+    "S101",     # use of assert (OK in tests)
+    "ANN401",   # any type allowed when necessary
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",     # assert allowed in tests
+    "ANN",      # type annotations not required in tests
+    "D",        # docstrings not required in tests
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["yardrover"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+# Black configuration (code formatting)
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+# Pytest configuration
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=yardrover",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "performance: Performance tests",
+    "slow: Slow running tests",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = false
+disallow_subclassing_any = false
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+check_untyped_defs = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pymavlink.*",
+    "serial_asyncio.*",
+    "zeroconf.*",
+]
+ignore_missing_imports = true

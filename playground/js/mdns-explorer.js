@@ -20,11 +20,18 @@ class MDNSExplorer {
     this.autoRefreshBtn = document.getElementById('autoRefreshBtn');
     this.clearBtn = document.getElementById('clearBtn');
     this.filterInput = document.getElementById('filterInput');
+    this.apiPortInput = document.getElementById('apiPortMdns');
     this.servicesContainer = document.getElementById('servicesContainer');
     this.totalServicesEl = document.getElementById('totalServices');
     this.httpServicesEl = document.getElementById('httpServices');
     this.yardRoverDevicesEl = document.getElementById('yardRoverDevices');
     this.lastScanEl = document.getElementById('lastScan');
+
+    // Load saved API port
+    const savedPort = localStorage.getItem('apiPort');
+    if (savedPort && this.apiPortInput) {
+      this.apiPortInput.value = savedPort;
+    }
   }
 
   attachEventListeners() {
@@ -36,6 +43,20 @@ class MDNSExplorer {
     this.filterInput.addEventListener('input', (e) =>
       this.filterServices(e.target.value),
     );
+
+    // Handle API port changes
+    if (this.apiPortInput) {
+      this.apiPortInput.addEventListener('change', (e) => {
+        const port = parseInt(e.target.value);
+        if (port >= 1 && port <= 65535) {
+          localStorage.setItem('apiPort', port.toString());
+          this.showToast(`API port set to ${port}`, 'success');
+        } else {
+          this.showToast('Port must be between 1 and 65535', 'error');
+          e.target.value = localStorage.getItem('apiPort') || '80';
+        }
+      });
+    }
   }
 
   async scanNetwork() {
@@ -49,7 +70,10 @@ class MDNSExplorer {
     this.showLoading();
 
     try {
-      const response = await fetch('/api/mdns/scan');
+      // Get API port from localStorage or use default
+      const apiPort = localStorage.getItem('apiPort') || '80';
+      const apiUrl = `http://localhost:${apiPort}/api/mdns/scan`;
+      const response = await fetch(apiUrl);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

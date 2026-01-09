@@ -31,22 +31,42 @@ let messageCounter = 0
 // Setup MAVLink message subscription
 onMounted(() => {
   if (!connectionStore.isConnected) {
-    console.warn('MAVLinkStream: Not connected to device')
+    console.warn('[MAVLinkStream] Not connected to device')
     return
   }
 
   const client = connectionStore.getClient()
 
   unsubscribe = client.communication.onMAVLinkMessage((message) => {
-    // Decode the message
-    const decoded = decoder.decode(
-      message.messageId,
-      message.systemId,
-      message.componentId,
-      message.payload
-    )
 
-    const messageName = decoded?.messageName || getMessageName(message.messageId)
+    // Check if payload is already decoded (object) or needs decoding (base64 string)
+    let decoded
+    let messageName
+
+    // Priority 1: Use message name from backend (pymavlink knows all message types)
+    // Priority 2: Use decoder result
+    // Priority 3: Fallback to ID-based lookup
+    messageName = message.messageName || getMessageName(message.messageId)
+
+    if (typeof message.payload === 'object' && message.payload !== null) {
+      // Backend has already decoded the message - use it directly
+      decoded = {
+        messageName,
+        data: message.payload
+      }
+    } else {
+      // Payload is base64 - decode it
+      decoded = decoder.decode(
+        message.messageId,
+        message.systemId,
+        message.componentId,
+        message.payload
+      )
+      // Use decoder's message name if available, otherwise keep our messageName
+      if (decoded?.messageName) {
+        messageName = decoded.messageName
+      }
+    }
 
     // Apply filter
     if (messageFilter.value.size > 0 && !messageFilter.value.has(messageName)) {

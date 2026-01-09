@@ -88,7 +88,6 @@ export const useConnectionStore = defineStore('connection', () => {
       const { discoverMAVLinkBridgeDevices } = await import('@mavlinkbridge/api-client')
       const result = await discoverMAVLinkBridgeDevices({ timeout })
       discoveredDevices.value = result.devices
-      console.log('Discovered devices:', result.devices)
       return result.devices
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown discovery error'
@@ -123,13 +122,36 @@ export const useConnectionStore = defineStore('connection', () => {
       // Initialize client and establish connections
       await newClient.connect()
 
-      // Get device configuration to verify connection
-      const config = await newClient.getConfiguration()
+      // Try to get device configuration, but fall back to health endpoint if auth required
+      let finalDeviceName = deviceName || 'YardRover Device'
+      try {
+        const config = await newClient.getConfiguration()
+        finalDeviceName = deviceName || config.device.name || 'YardRover Device'
+      } catch (configError: any) {
+        // If config endpoint requires auth (401) or is forbidden (403), use health endpoint instead
+        const isAuthError = configError?.status === 401 ||
+                           configError?.status === 403 ||
+                           configError?.message?.includes('401') ||
+                           configError?.message?.includes('Unauthorized')
+
+        if (isAuthError) {
+          // Config endpoint requires auth, fallback to health endpoint
+          try {
+            const health = await newClient.health.getHealth()
+            finalDeviceName = deviceName || health.device.name || 'YardRover Device'
+          } catch (healthError) {
+            // Use provided deviceName or default
+          }
+        } else {
+          // Re-throw non-auth errors
+          throw configError
+        }
+      }
 
       client.value = newClient
       isConnected.value = true
       currentDeviceUrl.value = deviceUrl
-      currentDeviceName.value = deviceName || config.device.name || 'YardRover Device'
+      currentDeviceName.value = finalDeviceName
       lastConnectionTime.value = new Date().toISOString()
 
       // Subscribe to all telemetry data
@@ -151,7 +173,6 @@ export const useConnectionStore = defineStore('connection', () => {
         lastConnected: lastConnectionTime.value
       })
 
-      console.log('Connected to device:', currentDeviceName.value)
       return true
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown connection error'
@@ -178,7 +199,6 @@ export const useConnectionStore = defineStore('connection', () => {
 
     try {
       await client.value.disconnect()
-      console.log('Disconnected from device')
     } catch (error) {
       console.error('Error during disconnect:', error)
     } finally {
@@ -272,27 +292,16 @@ export const useConnectionStore = defineStore('connection', () => {
 
     // Check if we have a persisted connection
     if (!currentDeviceUrl.value) {
-      console.log('No persisted connection found')
       return false
     }
 
     // Don't auto-reconnect if already connected
     if (isConnected.value) {
-      console.log('Already connected')
       return true
     }
 
-    console.log('Attempting auto-reconnect to:', currentDeviceUrl.value)
-
     try {
       const success = await connect(currentDeviceUrl.value, currentDeviceName.value || undefined)
-
-      if (success) {
-        console.log('Auto-reconnect successful')
-      } else {
-        console.log('Auto-reconnect failed')
-      }
-
       return success
     } catch (error) {
       console.error('Auto-reconnect error:', error)
@@ -335,27 +344,36 @@ export const useConnectionStore = defineStore('connection', () => {
 
     // Subscribe to MAVLink messages and decode them
     clientInstance.communication.onMAVLinkMessage((message) => {
-      // Decode the message using MAVLinkDecoder
+      // Check if payload is already decoded (object) or needs decoding (base64 string)
       let decoded
-      try {
-        decoded = mavlinkDecoder.decode(
-          message.messageId,
-          message.systemId,
-          message.componentId,
-          message.payload
-        )
-      } catch (error) {
-        // Only warn about critical messages that failed to decode
-        if (criticalMessages.has(message.messageId)) {
-          console.warn(`Failed to decode critical MAVLink message ${message.messageId}:`, error)
+      if (typeof message.payload === 'object' && message.payload !== null) {
+        // Backend has already decoded the message - use it directly
+        decoded = {
+          messageId: message.messageId,
+          data: message.payload
         }
-        // Skip this message
-        return
-      }
+      } else {
+        // Payload is base64 - decode it
+        try {
+          decoded = mavlinkDecoder.decode(
+            message.messageId,
+            message.systemId,
+            message.componentId,
+            message.payload
+          )
+        } catch (error) {
+          // Only warn about critical messages that failed to decode
+          if (criticalMessages.has(message.messageId)) {
+            console.warn(`Failed to decode critical MAVLink message ${message.messageId}:`, error)
+          }
+          // Skip this message
+          return
+        }
 
-      if (!decoded) {
-        // Message type not supported by decoder, skip silently
-        return
+        if (!decoded) {
+          // Message type not supported by decoder, skip silently
+          return
+        }
       }
 
       // Route decoded messages to appropriate stores
@@ -520,7 +538,6 @@ export const useConnectionStore = defineStore('connection', () => {
                 paramMsg.paramType === 1 ? 'int' : 'float',
                 Date.now()
               )
-              console.log(`📦 Received parameter: ${paramMsg.paramId} = ${paramMsg.paramValue} (${paramMsg.paramIndex + 1}/${paramMsg.paramCount})`)
             }
           }
           break

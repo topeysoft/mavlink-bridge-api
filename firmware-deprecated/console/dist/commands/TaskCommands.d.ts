@@ -1,0 +1,43 @@
+import { ConsoleContext } from '../types/index.js';
+import { ClientManager } from '../utils/ClientManager.js';
+import { UIHelpers } from '../core/UIHelpers.js';
+export declare class TaskCommands {
+    private context;
+    private clientManager;
+    private uiHelpers;
+    constructor(context: ConsoleContext, clientManager: ClientManager, uiHelpers: UIHelpers);
+    listTasks(): Promise<void>;
+    createTask(): Promise<void>;
+    executeTask(): Promise<void>;
+    showTaskStatus(): Promise<void>;
+    manageTemplates(): Promise<void>;
+    viewHistory(): Promise<void>;
+    private getTaskTypeIcon;
+    private getTaskStatusIcon;
+    private getTaskPriorityIcon;
+    private viewTaskDetails;
+    private selectAndExecuteTask;
+    private filterAndListTasks;
+    private createMowingTask;
+    private createSurveyTask;
+    private createWaypointTask;
+    private createPerimeterTask;
+    private createReturnToHomeTask;
+    private monitorTaskProgress;
+    private createProgressBar;
+    private pauseActiveTask;
+    private resumePausedTask;
+    private cancelActiveTask;
+    private createTaskFromTemplate;
+    private viewTemplateDetails;
+    private exportTemplates;
+    private exportTaskHistory;
+    private showTaskStatistics;
+    private calculateTaskDuration;
+    private calculateTaskDurationMs;
+    private estimateTaskDuration;
+    private calculateTotalDistanceMeters;
+    private calculateTotalDistance;
+    private calculateDistance;
+}
+//# sourceMappingURL=TaskCommands.d.ts.map

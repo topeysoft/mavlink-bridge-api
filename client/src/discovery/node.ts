@@ -15,7 +15,8 @@ import {
   withTimeout,
   limitConcurrency,
   deduplicateDevices,
-  isValidIP
+  isValidIP,
+  getDiscoveryOptionsFromEnv
 } from './utils';
 
 // Node.js imports (conditional for browser compatibility)
@@ -35,14 +36,18 @@ try {
 
 const DEFAULT_OPTIONS: Required<DiscoveryOptions> = {
   subnets: [],
-  ports: [80, 8080],
+  ports: [80, 8080, 8000, 3000, 3030, 5000],
   timeout: 5000,
   concurrent: 20,
   knownHostnames: [
+    'localhost',
+    '127.0.0.1',
     'mavlinkbridge.local',
     'esp32-mavlinkbridge.local',
     'yardrover.local',
-    'yardrover-esp32.local'
+    'yardrover-esp32.local',
+    'yardrover-pi.local',
+    'yardrover-dev.local'
   ],
   apModeIPs: ['192.168.4.1']
 };
@@ -50,12 +55,20 @@ const DEFAULT_OPTIONS: Required<DiscoveryOptions> = {
 /**
  * Discover MAVLink Bridge devices on the network
  * Node.js version with enhanced capabilities
+ *
+ * Environment variables:
+ * - YARDROVER_DISCOVERY_PORTS: Comma-separated ports (e.g., "3000,3030,8000")
+ * - YARDROVER_DISCOVERY_TIMEOUT: Timeout in milliseconds
+ * - YARDROVER_DISCOVERY_CONCURRENT: Max concurrent requests
  */
 export async function discoverMAVLinkBridgeDevices (
   options: DiscoveryOptions = {}
 ): Promise<DiscoveryResult> {
   const startTime = Date.now();
-  const config = { ...DEFAULT_OPTIONS, ...options };
+
+  // Merge environment variables, defaults, and user options (user options take precedence)
+  const envOptions = getDiscoveryOptionsFromEnv();
+  const config = { ...DEFAULT_OPTIONS, ...envOptions, ...options };
 
   // Auto-detect local network interfaces if no subnets specified
   if (config.subnets.length === 0 && os) {
@@ -224,6 +237,10 @@ async function testSingleHost (
       return null;
     }
 
+    // Extract port from URL
+    const urlObj = new URL(url);
+    const port = parseInt(urlObj.port || '80', 10);
+
     // Extract IP from health data, but prioritize the host we actually connected to
     // This handles cases where the device is in AP mode and wifi.ip is not set or is 0.0.0.0
     let deviceIP = host;
@@ -235,31 +252,42 @@ async function testSingleHost (
       deviceIP = healthData.network.wifi.ip;
     }
 
+    // Handle Python backend (snake_case) vs ESP32 (camelCase) field names
+    const network = healthData.network as any;
+    const device = healthData.device as any;
+    const macAddress = network.macAddress || network.mac_address;
+    const apMacAddress = network.apMacAddress || network.ap_mac_address;
+    const ipAddress = network.ipAddress || network.ip_address || deviceIP;
+    const wifiStatus = network?.wifi?.status || (network?.connected ? 'connected' : 'disconnected');
+
     return {
-      id: healthData.network.macAddress,
+      id: macAddress,
       name: healthData.device.name,
       hostname: healthData.device.hostname,
-      ip: deviceIP,
+      ip: ipAddress,
+      port: port,
       status: healthData.status,
-      isProvisioned: healthData.network.wifi.status === 'connected',
+      isProvisioned: wifiStatus === 'connected' || network?.connected === true,
       capabilities: {
-        chipModel: healthData.device.chipModel,
-        chipRevision: healthData.device.chipRevision,
-        flashSize: healthData.device.flashSize,
-        sdkVersion: healthData.device.sdkVersion,
-        coreCount: healthData.device.coreCount
+        chipModel: device.chipModel || device.chip_model || 'Unknown',
+        chipRevision: device.chipRevision || device.chip_revision || 0,
+        flashSize: device.flashSize || device.flash_size || 0,
+        sdkVersion: device.sdkVersion || device.sdk_version || 'Unknown',
+        coreCount: device.coreCount || device.core_count || 1
       },
       network: {
-        macAddress: healthData.network.macAddress,
-        apMacAddress: healthData.network.apMacAddress,
+        macAddress: macAddress,
+        apMacAddress: apMacAddress || '',
         wifi: {
-          status: healthData.network.wifi.status,
-          ...(healthData.network.wifi.ssid && { ssid: healthData.network.wifi.ssid }),
-          ...(healthData.network.wifi.rssi !== undefined && { rssi: healthData.network.wifi.rssi })
+          status: wifiStatus,
+          ...(network.wifi?.ssid && { ssid: network.wifi.ssid }),
+          ...(network.wifi?.rssi !== undefined && { rssi: network.wifi.rssi }),
+          ...(network.ssid && { ssid: network.ssid }),
+          ...(network.rssi !== undefined && { rssi: network.rssi })
         },
         ap: {
-          enabled: healthData.network.ap.enabled,
-          ...(healthData.network.ap.clients !== undefined && { clients: healthData.network.ap.clients })
+          enabled: network.ap?.enabled ?? false,
+          ...(network.ap?.clients !== undefined && { clients: network.ap.clients })
         }
       },
       lastSeen: Date.now()
@@ -348,7 +376,7 @@ async function makeHttpRequest (url: string, timeout: number): Promise<HealthRes
 /**
  * Check if health response indicates a MAVLink Bridge device
  */
-function isMAVLinkBridgeDevice (health: HealthResponse): boolean {
+function isMAVLinkBridgeDevice (health: HealthResponse | any): boolean {
   // Check device name patterns
   const deviceName = health.device?.name?.toLowerCase() || '';
   const hostname = health.device?.hostname?.toLowerCase() || '';
@@ -360,12 +388,18 @@ function isMAVLinkBridgeDevice (health: HealthResponse): boolean {
     'esp32-mavlinkbridge'
   ];
 
-  return mavlinkPatterns.some(pattern =>
+  const matchesPattern = mavlinkPatterns.some(pattern =>
     deviceName.includes(pattern) || hostname.includes(pattern)
-  ) &&
-    // Ensure we have required device info
-    !!health.device?.chipModel &&
-    !!health.network?.macAddress;
+  );
+
+  // Check for ESP32 device (has network.macAddress)
+  const isESP32Device = !!health.device?.chipModel && !!health.network?.macAddress;
+
+  // Check for Python backend (has network.mac_address or network.macAddress)
+  const isPythonBackend = !!health.device?.hostname &&
+    (!!health.network?.mac_address || !!health.network?.macAddress);
+
+  return matchesPattern && (isESP32Device || isPythonBackend);
 }
 
 /**

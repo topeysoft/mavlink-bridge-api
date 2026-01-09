@@ -29,6 +29,9 @@ class PlaygroundApp {
     // Load configuration first
     await this.config.load();
 
+    // Setup API port handling
+    this.setupApiPort();
+
     // Initialize modules with configuration
     this.deviceConnection = new DeviceConnection(this.config);
     this.apiExplorer = new ApiExplorer(this.deviceConnection, this.config);
@@ -51,6 +54,36 @@ class PlaygroundApp {
     this.showView('apiExplorer');
 
     console.log('✅ Playground initialized');
+  }
+
+  /**
+   * Setup API port handling
+   */
+  setupApiPort() {
+    const apiPortInput = document.getElementById('apiPort');
+    if (!apiPortInput) return;
+
+    // Load saved port or use default
+    const savedPort = localStorage.getItem('apiPort');
+    if (savedPort) {
+      apiPortInput.value = savedPort;
+    } else {
+      // Set default port to 80
+      apiPortInput.value = '80';
+      localStorage.setItem('apiPort', '80');
+    }
+
+    // Save port on change
+    apiPortInput.addEventListener('change', (e) => {
+      const port = parseInt(e.target.value);
+      if (port >= 1 && port <= 65535) {
+        localStorage.setItem('apiPort', port.toString());
+        console.log(`✅ API port set to ${port}`);
+      } else {
+        alert('Port must be between 1 and 65535');
+        e.target.value = localStorage.getItem('apiPort') || '80';
+      }
+    });
   }
 
   /**

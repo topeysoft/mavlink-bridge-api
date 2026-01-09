@@ -79,7 +79,6 @@ const showOnboarding = ref(false)
 onMounted(async () => {
   // Attempt to auto-reconnect to last connected device
   if (connectionStore.hasPersistedConnection()) {
-    console.log('Found persisted connection, attempting auto-reconnect...')
     const reconnected = await connectionStore.autoReconnect()
 
     if (reconnected) {

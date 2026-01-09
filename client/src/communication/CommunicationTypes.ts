@@ -111,11 +111,12 @@ export interface MAVLinkFilter {
  */
 export interface MAVLinkMessage {
   messageId: number;
+  messageName?: string; // Optional message name from backend (e.g., "HEARTBEAT", "EKF_STATUS_REPORT")
   systemId: number;
   componentId: number;
   sequence: number;
   length: number;
-  payload: string; // Base64 encoded
+  payload: any; // Decoded MAVLink message payload (object) or base64 string
   timestamp: number;
   valid: boolean;
 }

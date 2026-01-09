@@ -1,0 +1,23 @@
+device:
+  name: YardRover Dev
+  hostname: yardrover-dev
+network:
+  wifi:
+    auto_connect: true
+  ap:
+    enabled: true
+    ssid: YardRover-Setup
+    password: yardrover123
+  mdns:
+    enabled: true
+serial:
+  port: /dev/cu.usbmodem101
+  baudrate: 115200
+  timeout: 1.0
+storage:
+  base_path: /Volumes/dev/yardrover-api-python/dev-storage
+  resources_path: /Volumes/dev/yardrover-api-python/dev-storage/resources
+rtcm:
+  enabled: false
+  source:
+    port: 2101
