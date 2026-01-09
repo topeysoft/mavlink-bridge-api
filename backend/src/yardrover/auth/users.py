@@ -1,8 +1,10 @@
 """User management with password and PIN authentication."""
 
+import json
 import secrets
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import structlog
@@ -75,12 +77,93 @@ def verify_pin(plaintext_pin: str, hashed_pin: str) -> bool:
 
 
 class UserManager:
-    """Manager for user accounts stored in memory or persistent storage."""
+    """Manager for user accounts with persistent JSON storage."""
 
-    def __init__(self) -> None:
-        """Initialize user manager."""
+    def __init__(self, storage_path: Optional[Path] = None) -> None:
+        """Initialize user manager.
+
+        Args:
+            storage_path: Path to storage directory (defaults to ./storage)
+        """
         self._users: dict[str, User] = {}
         self._username_index: dict[str, str] = {}  # username -> user_id
+
+        # Set up storage
+        self._storage_path = storage_path or Path("storage")
+        self._storage_path.mkdir(parents=True, exist_ok=True)
+        self._users_file = self._storage_path / "users.json"
+
+        # Load existing users
+        self._load_from_disk()
+
+    def _load_from_disk(self) -> None:
+        """Load users from JSON file."""
+        if not self._users_file.exists():
+            logger.info("users_file_not_found", path=str(self._users_file), action="creating_new")
+            return
+
+        try:
+            with open(self._users_file, "r") as f:
+                data = json.load(f)
+
+            for user_data in data.get("users", []):
+                # Reconstruct User object
+                user = User(
+                    user_id=user_data["user_id"],
+                    username=user_data["username"],
+                    role=Role(user_data["role"]),
+                    hashed_password=user_data["hashed_password"],
+                    hashed_pin=user_data.get("hashed_pin"),
+                    display_name=user_data.get("display_name", user_data["username"]),
+                    enabled=user_data.get("enabled", True),
+                    created_at=datetime.fromisoformat(user_data["created_at"]),
+                    last_login_at=(
+                        datetime.fromisoformat(user_data["last_login_at"])
+                        if user_data.get("last_login_at")
+                        else None
+                    ),
+                )
+
+                self._users[user.user_id] = user
+                self._username_index[user.username.lower()] = user.user_id
+
+            logger.info("users_loaded_from_disk", count=len(self._users), path=str(self._users_file))
+
+        except Exception as e:
+            logger.error("users_load_failed", path=str(self._users_file), error=str(e))
+
+    def _save_to_disk(self) -> None:
+        """Save users to JSON file."""
+        try:
+            data = {
+                "users": [
+                    {
+                        "user_id": user.user_id,
+                        "username": user.username,
+                        "role": user.role.value,
+                        "hashed_password": user.hashed_password,
+                        "hashed_pin": user.hashed_pin,
+                        "display_name": user.display_name,
+                        "enabled": user.enabled,
+                        "created_at": user.created_at.isoformat(),
+                        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+                    }
+                    for user in self._users.values()
+                ]
+            }
+
+            # Write atomically using temporary file
+            temp_file = self._users_file.with_suffix(".tmp")
+            with open(temp_file, "w") as f:
+                json.dump(data, f, indent=2)
+
+            # Atomic replace
+            temp_file.replace(self._users_file)
+
+            logger.debug("users_saved_to_disk", count=len(self._users), path=str(self._users_file))
+
+        except Exception as e:
+            logger.error("users_save_failed", path=str(self._users_file), error=str(e))
 
     def create_user(
         self,
@@ -137,6 +220,9 @@ class UserManager:
         self._users[user_id] = user
         self._username_index[username.lower()] = user_id
 
+        # Persist to disk
+        self._save_to_disk()
+
         logger.info(
             "user_created",
             user_id=user_id,
@@ -175,6 +261,7 @@ class UserManager:
 
         # Update last login timestamp
         user.last_login_at = datetime.utcnow()
+        self._save_to_disk()  # Persist login timestamp
         logger.info("user_login_success", user_id=user.user_id, username=user.username)
         return user
 
@@ -204,6 +291,7 @@ class UserManager:
             if verify_pin(pin, user.hashed_pin):
                 # Update last login timestamp
                 user.last_login_at = datetime.utcnow()
+                self._save_to_disk()  # Persist login timestamp
                 logger.info("user_pin_login_success", user_id=user.user_id, username=user.username)
                 return user
 
@@ -271,6 +359,7 @@ class UserManager:
 
         # Hash and update password
         user.hashed_password = hash_password(new_password)
+        self._save_to_disk()
         logger.info("password_changed", user_id=user_id, username=user.username)
         return True
 
@@ -302,6 +391,7 @@ class UserManager:
 
         # Hash and update PIN
         user.hashed_pin = hash_pin(pin)
+        self._save_to_disk()
         logger.info("pin_set", user_id=user_id, username=user.username)
         return True
 
@@ -327,6 +417,7 @@ class UserManager:
 
         # Remove PIN
         user.hashed_pin = None
+        self._save_to_disk()
         logger.info("pin_removed", user_id=user_id, username=user.username)
         return True
 
@@ -344,6 +435,7 @@ class UserManager:
             return False
 
         user.enabled = False
+        self._save_to_disk()
         logger.info("user_disabled", user_id=user_id, username=user.username)
         return True
 
@@ -361,6 +453,7 @@ class UserManager:
             return False
 
         user.enabled = True
+        self._save_to_disk()
         logger.info("user_enabled", user_id=user_id, username=user.username)
         return True
 
@@ -382,6 +475,7 @@ class UserManager:
 
         # Remove from users dict
         self._users.pop(user_id)
+        self._save_to_disk()
         logger.info("user_deleted", user_id=user_id, username=user.username)
         return True
 
@@ -401,6 +495,7 @@ class UserManager:
 
         old_role = user.role
         user.role = role
+        self._save_to_disk()
         logger.info(
             "user_role_updated",
             user_id=user_id,
@@ -415,13 +510,27 @@ class UserManager:
 _user_manager: Optional[UserManager] = None
 
 
-def get_user_manager() -> UserManager:
+def get_user_manager(storage_path: Optional[Path] = None) -> UserManager:
     """Get global user manager instance.
+
+    Args:
+        storage_path: Optional storage path (uses config on first call)
 
     Returns:
         UserManager instance
     """
     global _user_manager
     if _user_manager is None:
-        _user_manager = UserManager()
+        # Get storage path from config if not provided
+        if storage_path is None:
+            try:
+                from yardrover.core.config import get_config_manager
+                config_manager = get_config_manager()
+                storage_path = config_manager.config.storage.base_path
+            except Exception:
+                # Fall back to default if config not available
+                storage_path = Path("storage")
+                logger.warning("config_not_available_using_default_storage", path=str(storage_path))
+
+        _user_manager = UserManager(storage_path)
     return _user_manager

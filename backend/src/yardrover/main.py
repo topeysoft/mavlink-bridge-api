@@ -19,6 +19,7 @@ from yardrover.api import auth, config, health, mavlink, mdns, missions, periphe
 # Import auth components
 from yardrover.auth import Role, get_api_key_manager
 from yardrover.auth.jwt_handler import initialize_jwt_handler
+from yardrover.auth.refresh_tokens import initialize_refresh_token_store
 
 # Import core components
 from yardrover.core.config import ConfigManager, get_config_manager
@@ -125,6 +126,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 algorithm=config_manager.config.security.jwt_algorithm,
                 access_token_expire_minutes=config_manager.config.security.access_token_expire_minutes,
             )
+
+            # Initialize refresh token store
+            initialize_refresh_token_store()
+            logger.info("refresh_token_store_initialized")
 
             # Check if setup is needed
             api_key_manager = get_api_key_manager()

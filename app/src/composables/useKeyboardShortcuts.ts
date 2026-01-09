@@ -105,19 +105,19 @@ export function useKeyboardShortcuts() {
 
     // Number keys 1-6 for navigation
     const routes = [
-      { key: '1', path: '/dashboard', description: 'Go to Dashboard' },
-      { key: '2', path: '/attachments', description: 'Go to Attachments' },
-      { key: '3', path: '/zones', description: 'Go to Zones' },
-      { key: '4', path: '/missions', description: 'Go to Missions' },
-      { key: '5', path: '/monitoring', description: 'Go to Monitoring' },
-      { key: '6', path: '/schedule', description: 'Go to Schedule' }
+      { key: '1', name: 'dashboard', description: 'Go to Dashboard' },
+      { key: '2', name: 'attachments', description: 'Go to Attachments' },
+      { key: '3', name: 'zones', description: 'Go to Zones' },
+      { key: '4', name: 'missions', description: 'Go to Missions' },
+      { key: '5', name: 'monitoring', description: 'Go to Monitoring' },
+      { key: '6', name: 'schedule', description: 'Go to Schedule' }
     ]
 
     routes.forEach(route => {
       registerShortcut({
         key: route.key,
         description: route.description,
-        action: () => router.push(route.path)
+        action: () => router.push({ name: route.name })
       })
     })
   }

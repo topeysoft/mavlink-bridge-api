@@ -72,11 +72,51 @@ export interface PinLoginRequest {
 }
 
 /**
- * Login response with JWT token
+ * Login response with JWT tokens
  */
 export interface LoginResponse {
   /**
-   * JWT access token
+   * JWT access token (short-lived, 15 minutes)
+   */
+  access_token: string;
+
+  /**
+   * JWT refresh token (long-lived, 7 days)
+   */
+  refresh_token: string;
+
+  /**
+   * Token type (always "bearer")
+   */
+  token_type: string;
+
+  /**
+   * Access token expiration time in seconds
+   */
+  expires_in: number;
+
+  /**
+   * User's role
+   */
+  role: Role;
+}
+
+/**
+ * Refresh token request
+ */
+export interface RefreshTokenRequest {
+  /**
+   * Refresh token to exchange for new access token
+   */
+  refresh_token: string;
+}
+
+/**
+ * Refresh token response
+ */
+export interface RefreshTokenResponse {
+  /**
+   * New JWT access token
    */
   access_token: string;
 
@@ -86,14 +126,19 @@ export interface LoginResponse {
   token_type: string;
 
   /**
-   * Token expiration time in seconds
+   * Access token expiration time in seconds
    */
   expires_in: number;
+}
 
+/**
+ * Logout request
+ */
+export interface LogoutRequest {
   /**
-   * User's role
+   * Refresh token to revoke
    */
-  role: Role;
+  refresh_token: string;
 }
 
 /**
@@ -411,14 +456,24 @@ export interface AuthState {
   authenticated: boolean;
 
   /**
-   * JWT access token
+   * JWT access token (short-lived)
    */
   accessToken: string | null;
 
   /**
-   * Token expiration time (Unix epoch)
+   * JWT refresh token (long-lived)
+   */
+  refreshToken: string | null;
+
+  /**
+   * Access token expiration time (Unix epoch)
    */
   expiresAt: number | null;
+
+  /**
+   * Refresh token expiration time (Unix epoch)
+   */
+  refreshExpiresAt: number | null;
 
   /**
    * User role

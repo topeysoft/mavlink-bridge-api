@@ -17,7 +17,8 @@ from .dependencies import (
     require_operator,
     require_viewer,
 )
-from .jwt_handler import JWTHandler, create_access_token, verify_token
+from .jwt_handler import JWTHandler, create_access_token, get_jwt_handler, verify_token
+from .refresh_tokens import RefreshTokenStore, get_refresh_token_store, initialize_refresh_token_store
 from .models import (
     APIKey,
     APIKeyCreateRequest,
@@ -26,8 +27,11 @@ from .models import (
     ChangePasswordRequest,
     LoginRequest,
     LoginResponse,
+    LogoutRequest,
     Permission,
     PinLoginRequest,
+    RefreshTokenRequest,
+    RefreshTokenResponse,
     Role,
     SecurityContext,
     SetPinRequest,
@@ -55,7 +59,12 @@ __all__ = [
     # JWT
     "JWTHandler",
     "create_access_token",
+    "get_jwt_handler",
     "verify_token",
+    # Refresh Tokens
+    "RefreshTokenStore",
+    "get_refresh_token_store",
+    "initialize_refresh_token_store",
     # Models
     "APIKey",
     "APIKeyCreateRequest",
@@ -63,6 +72,9 @@ __all__ = [
     "APIKeyListItem",
     "LoginRequest",
     "LoginResponse",
+    "LogoutRequest",
+    "RefreshTokenRequest",
+    "RefreshTokenResponse",
     "Role",
     "Permission",
     "SecurityContext",

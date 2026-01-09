@@ -38,7 +38,7 @@ function saveSetting(settingName: string, value: any) {
   // In real app, this would persist to backend/store
   success('Settings saved')
 }
-
+</script>
 
 <template>
   <SettingsSection

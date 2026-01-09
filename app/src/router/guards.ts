@@ -7,6 +7,7 @@ import { useAuthStore } from '../stores/auth'
 import { useConnectionStore } from '../stores/connection'
 import { useConnectionOrchestrator } from '../stores/connectionOrchestrator'
 import { useOnboardingStore } from '../stores/onboarding'
+import { useAppStore } from '../stores/app'
 
 /**
  * Check if route requires authentication
@@ -30,10 +31,20 @@ export async function authGuard(
   const connectionStore = useConnectionStore()
   const orchestrator = useConnectionOrchestrator()
   const onboardingStore = useOnboardingStore()
+  const appStore = useAppStore()
 
   // Public routes that don't need auth (but might need connection for login/setup)
   const publicRoutes = ['login', 'setup', 'connect', 'onboarding']
   const isPublicRoute = publicRoutes.includes(to.name as string)
+
+  // CRITICAL: Wait for app initialization to complete before allowing navigation to protected routes
+  // This prevents the dashboard from rendering before authentication is checked
+  if (appStore.isInitializing && !isPublicRoute) {
+    // Block navigation to protected routes during initialization
+    // App.vue will redirect to the appropriate page once initialization completes
+    next(false)
+    return
+  }
 
   // FIRST PRIORITY: Check if user needs onboarding (first-time setup)
   // If onboarding is not complete and trying to access protected route, redirect to onboarding
@@ -43,17 +54,9 @@ export async function authGuard(
   }
 
   // Check connection status
-  // If not connected and trying to access a protected route, try smart connection first
+  // If not connected and trying to access a protected route, redirect to connection page
   if (!connectionStore.isConnected && !isPublicRoute) {
-    // For first navigation (app load), this will be handled by App.vue
-    // For subsequent navigations, redirect to appropriate connection page
-    if (from.name === undefined) {
-      // First navigation - let App.vue handle it
-      next()
-      return
-    }
-
-    // Not first navigation - redirect based on onboarding status
+    // Redirect based on onboarding status
     if (!onboardingStore.isOnboardingComplete) {
       next({ name: 'onboarding', query: { redirect: to.fullPath } })
     } else {
@@ -189,13 +192,13 @@ export async function setupGuard(
 }
 
 /**
- * Login guard - redirects to dashboard if already authenticated
+ * Login guard - redirects to dashboard if already authenticated, or setup if needed
  */
-export function loginGuard(
+export async function loginGuard(
   to: RouteLocationNormalized,
   from: RouteLocationNormalized,
   next: NavigationGuardNext
-): void {
+): Promise<void> {
   const authStore = useAuthStore()
   const connectionStore = useConnectionStore()
 
@@ -213,6 +216,26 @@ export function loginGuard(
   // Check if we have a connection
   if (!connectionStore.client) {
     next({ name: 'connect' })
+    return
+  }
+
+  // Check if setup is needed before allowing login
+  if (authStore.setupStatus === null) {
+    try {
+      const authClient = (connectionStore.client as any).authClient
+      if (authClient) {
+        await authStore.checkSetupStatus(authClient)
+      }
+    } catch (error) {
+      console.error('Failed to check setup status:', error)
+      next()
+      return
+    }
+  }
+
+  // Redirect to setup if needed
+  if (authStore.needsSetup) {
+    next({ name: 'setup' })
     return
   }
 

@@ -15,6 +15,7 @@ import { useConnectionStore } from './stores/connection'
 import { useConnectionOrchestrator } from './stores/connectionOrchestrator'
 import { useAuthStore } from './stores/auth'
 import { useOnboardingStore } from './stores/onboarding'
+import { useAppStore } from './stores/app'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 import type { ConfirmOptions, AlertOptions } from './composables/useDialog'
 
@@ -26,6 +27,7 @@ const connectionStore = useConnectionStore()
 const orchestrator = useConnectionOrchestrator()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
+const appStore = useAppStore()
 
 // Keyboard shortcuts
 const showShortcuts = ref(false)
@@ -78,8 +80,6 @@ const handleAlertClose = () => {
   }
 }
 
-const isInitializing = ref(true)
-
 onMounted(async () => {
   // Smart connection on app load
   const result = await orchestrator.smartConnect({
@@ -104,10 +104,11 @@ onMounted(async () => {
       await router.push('/onboarding')
     } else if (!authStore.isAuthenticated) {
       // Connected but not authenticated - will be handled by router guards
+      await router.push('/login')
     } else {
       // Fully connected and authenticated - go to dashboard if on root
       if (route.path === '/' || route.path === '/connect') {
-        await router.push('/dashboard')
+        await router.push({ name: 'dashboard' })
       }
     }
   } else if (result.requiresUI) {
@@ -118,11 +119,12 @@ onMounted(async () => {
     if (!onboardingStore.isOnboardingComplete) {
       await router.push('/onboarding')
     } else {
-      // Will be redirected by router guards
+      await router.push('/connect')
     }
   }
 
-  isInitializing.value = false
+  // Mark initialization as complete
+  appStore.setInitializing(false)
 
   // Listen for battery notifications
   window.addEventListener('battery-notification', handleBatteryNotification as EventListener)
@@ -180,8 +182,14 @@ const handleEmergencyStop = async () => {
     <!-- Offline Detection Banner -->
     <OfflineBanner />
 
+    <!-- Loading state during initialization -->
+    <div v-if="appStore.isInitializing" class="app-loading">
+      <div class="loading-spinner"></div>
+      <p>Initializing...</p>
+    </div>
+
     <!-- Router Views (AppLayout handles sidebar/header for authenticated routes) -->
-    <ErrorBoundary>
+    <ErrorBoundary v-else>
       <RouterView v-slot="{ Component, route }">
         <Transition name="page">
           <component :is="Component" :key="route.path" />
@@ -403,5 +411,36 @@ textarea:focus-visible {
 .standalone-container {
   min-height: 100vh;
   width: 100vw;
+}
+
+// App loading state
+.app-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: var(--spacing-lg);
+  color: var(--text-secondary);
+
+  p {
+    font-size: var(--font-size-lg);
+    font-weight: 500;
+  }
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--bg-tertiary);
+  border-top-color: var(--primary-green);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

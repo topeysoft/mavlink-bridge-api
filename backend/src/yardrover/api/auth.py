@@ -12,7 +12,10 @@ from yardrover.auth import (
     ChangePasswordRequest,
     LoginRequest,
     LoginResponse,
+    LogoutRequest,
     PinLoginRequest,
+    RefreshTokenRequest,
+    RefreshTokenResponse,
     Role,
     SecurityContext,
     SetPinRequest,
@@ -21,6 +24,8 @@ from yardrover.auth import (
     UserLoginRequest,
     create_access_token,
     get_api_key_manager,
+    get_jwt_handler,
+    get_refresh_token_store,
     get_user_manager,
     require_admin,
     require_authenticated,
@@ -34,16 +39,16 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/login", response_model=LoginResponse)
 async def login(request: LoginRequest) -> LoginResponse:
-    """Login with API key and receive JWT token.
+    """Login with API key and receive JWT tokens.
 
-    This endpoint exchanges an API key for a JWT token that can be used
-    for subsequent requests. JWT tokens have a limited lifetime.
+    This endpoint exchanges an API key for access and refresh tokens.
+    Access tokens are short-lived (15 min), refresh tokens are long-lived (7 days).
 
     Args:
         request: Login request with API key
 
     Returns:
-        JWT access token and metadata
+        JWT access and refresh tokens with metadata
 
     Raises:
         HTTPException: If API key is invalid
@@ -60,13 +65,29 @@ async def login(request: LoginRequest) -> LoginResponse:
 
     # Get permissions for role
     permissions = get_role_permissions(api_key.role)
+    jwt_handler = get_jwt_handler()
+    refresh_store = get_refresh_token_store()
 
-    # Create JWT token with subject type
-    token = create_access_token(
-        subject=f"api_key:{api_key.key_id}",
+    subject = f"api_key:{api_key.key_id}"
+
+    # Create access token (short-lived)
+    access_token = jwt_handler.create_access_token(
+        subject=subject,
         role=api_key.role,
         permissions=[p.value for p in permissions],
     )
+
+    # Create refresh token (long-lived)
+    refresh_token, refresh_jti = jwt_handler.create_refresh_token(
+        subject=subject,
+        role=api_key.role,
+    )
+
+    # Store refresh token for tracking and revocation
+    from datetime import datetime, timedelta
+    issued_at = datetime.utcnow()
+    expires_at = issued_at + timedelta(days=jwt_handler.refresh_token_expire_days)
+    refresh_store.store_token(refresh_jti, subject, api_key.role, issued_at, expires_at)
 
     logger.info(
         "user_logged_in",
@@ -76,11 +97,12 @@ async def login(request: LoginRequest) -> LoginResponse:
         role=api_key.role.value,
     )
 
-    # Calculate expiration (30 days default)
-    expires_in = 60 * 60 * 24 * 30
+    # Access token expires in 15 minutes
+    expires_in = jwt_handler.access_token_expire_minutes * 60
 
     return LoginResponse(
-        access_token=token,
+        access_token=access_token,
+        refresh_token=refresh_token,
         token_type="bearer",
         expires_in=expires_in,
         role=api_key.role,
@@ -89,16 +111,16 @@ async def login(request: LoginRequest) -> LoginResponse:
 
 @router.post("/login/password", response_model=LoginResponse)
 async def login_with_password(request: UserLoginRequest) -> LoginResponse:
-    """Login with username and password and receive JWT token.
+    """Login with username and password and receive JWT tokens.
 
-    This endpoint exchanges username and password for a JWT token that can
-    be used for subsequent requests. JWT tokens have a limited lifetime.
+    This endpoint exchanges username and password for access and refresh tokens.
+    Access tokens are short-lived (15 min), refresh tokens are long-lived (7 days).
 
     Args:
         request: Login request with username and password
 
     Returns:
-        JWT access token and metadata
+        JWT access and refresh tokens with metadata
 
     Raises:
         HTTPException: If credentials are invalid
@@ -115,13 +137,29 @@ async def login_with_password(request: UserLoginRequest) -> LoginResponse:
 
     # Get permissions for role
     permissions = get_role_permissions(user.role)
+    jwt_handler = get_jwt_handler()
+    refresh_store = get_refresh_token_store()
 
-    # Create JWT token with subject type
-    token = create_access_token(
-        subject=f"user:{user.user_id}",
+    subject = f"user:{user.user_id}"
+
+    # Create access token (short-lived)
+    access_token = jwt_handler.create_access_token(
+        subject=subject,
         role=user.role,
         permissions=[p.value for p in permissions],
     )
+
+    # Create refresh token (long-lived)
+    refresh_token, refresh_jti = jwt_handler.create_refresh_token(
+        subject=subject,
+        role=user.role,
+    )
+
+    # Store refresh token for tracking and revocation
+    from datetime import datetime, timedelta
+    issued_at = datetime.utcnow()
+    expires_at = issued_at + timedelta(days=jwt_handler.refresh_token_expire_days)
+    refresh_store.store_token(refresh_jti, subject, user.role, issued_at, expires_at)
 
     logger.info(
         "user_logged_in",
@@ -131,11 +169,12 @@ async def login_with_password(request: UserLoginRequest) -> LoginResponse:
         role=user.role.value,
     )
 
-    # Calculate expiration (30 days default)
-    expires_in = 60 * 60 * 24 * 30
+    # Access token expires in 15 minutes
+    expires_in = jwt_handler.access_token_expire_minutes * 60
 
     return LoginResponse(
-        access_token=token,
+        access_token=access_token,
+        refresh_token=refresh_token,
         token_type="bearer",
         expires_in=expires_in,
         role=user.role,
@@ -144,16 +183,16 @@ async def login_with_password(request: UserLoginRequest) -> LoginResponse:
 
 @router.post("/login/pin", response_model=LoginResponse)
 async def login_with_pin(request: PinLoginRequest) -> LoginResponse:
-    """Login with PIN and receive JWT token.
+    """Login with PIN and receive JWT tokens.
 
-    This endpoint exchanges a PIN for a JWT token that can be used for
-    subsequent requests. JWT tokens have a limited lifetime.
+    This endpoint exchanges a PIN for access and refresh tokens.
+    Access tokens are short-lived (15 min), refresh tokens are long-lived (7 days).
 
     Args:
         request: Login request with PIN
 
     Returns:
-        JWT access token and metadata
+        JWT access and refresh tokens with metadata
 
     Raises:
         HTTPException: If PIN is invalid
@@ -170,13 +209,29 @@ async def login_with_pin(request: PinLoginRequest) -> LoginResponse:
 
     # Get permissions for role
     permissions = get_role_permissions(user.role)
+    jwt_handler = get_jwt_handler()
+    refresh_store = get_refresh_token_store()
 
-    # Create JWT token with subject type
-    token = create_access_token(
-        subject=f"user:{user.user_id}",
+    subject = f"user:{user.user_id}"
+
+    # Create access token (short-lived)
+    access_token = jwt_handler.create_access_token(
+        subject=subject,
         role=user.role,
         permissions=[p.value for p in permissions],
     )
+
+    # Create refresh token (long-lived)
+    refresh_token, refresh_jti = jwt_handler.create_refresh_token(
+        subject=subject,
+        role=user.role,
+    )
+
+    # Store refresh token for tracking and revocation
+    from datetime import datetime, timedelta
+    issued_at = datetime.utcnow()
+    expires_at = issued_at + timedelta(days=jwt_handler.refresh_token_expire_days)
+    refresh_store.store_token(refresh_jti, subject, user.role, issued_at, expires_at)
 
     logger.info(
         "user_logged_in",
@@ -187,15 +242,164 @@ async def login_with_pin(request: PinLoginRequest) -> LoginResponse:
         method="pin",
     )
 
-    # Calculate expiration (30 days default)
-    expires_in = 60 * 60 * 24 * 30
+    # Access token expires in 15 minutes
+    expires_in = jwt_handler.access_token_expire_minutes * 60
 
     return LoginResponse(
-        access_token=token,
+        access_token=access_token,
+        refresh_token=refresh_token,
         token_type="bearer",
         expires_in=expires_in,
         role=user.role,
     )
+
+
+@router.post("/refresh", response_model=RefreshTokenResponse)
+async def refresh_access_token(request: RefreshTokenRequest) -> RefreshTokenResponse:
+    """Refresh an access token using a refresh token.
+
+    This endpoint exchanges a valid refresh token for a new access token.
+    The refresh token remains valid and can be reused until it expires or is revoked.
+
+    Args:
+        request: Refresh token request
+
+    Returns:
+        New JWT access token
+
+    Raises:
+        HTTPException: If refresh token is invalid, expired, or revoked
+    """
+    jwt_handler = get_jwt_handler()
+    refresh_store = get_refresh_token_store()
+
+    # Verify refresh token
+    token_data = jwt_handler.verify_token(request.refresh_token, expected_type="refresh")
+
+    if token_data is None:
+        logger.warning("refresh_failed", reason="invalid_token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
+
+    # Check if refresh token is revoked
+    if not token_data.jti or not refresh_store.is_token_valid(token_data.jti):
+        logger.warning("refresh_failed", reason="token_revoked", jti=token_data.jti)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token has been revoked",
+        )
+
+    # Get permissions for role
+    permissions = get_role_permissions(token_data.role)
+
+    # Create new access token
+    access_token = jwt_handler.create_access_token(
+        subject=token_data.sub,
+        role=token_data.role,
+        permissions=[p.value for p in permissions],
+    )
+
+    logger.info(
+        "access_token_refreshed",
+        subject=token_data.sub,
+        role=token_data.role.value,
+    )
+
+    # Access token expires in 15 minutes
+    expires_in = jwt_handler.access_token_expire_minutes * 60
+
+    return RefreshTokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=expires_in,
+    )
+
+
+@router.post("/logout")
+async def logout(
+    request: LogoutRequest,
+    context: SecurityContext = Depends(require_authenticated),
+) -> dict:
+    """Logout and revoke refresh token.
+
+    This endpoint revokes the provided refresh token, preventing it from being
+    used to obtain new access tokens. The current access token remains valid
+    until it expires (15 minutes), but cannot be refreshed.
+
+    Args:
+        request: Logout request with refresh token
+        context: Security context (requires authentication)
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If refresh token is invalid
+    """
+    jwt_handler = get_jwt_handler()
+    refresh_store = get_refresh_token_store()
+
+    # Verify refresh token
+    token_data = jwt_handler.verify_token(request.refresh_token, expected_type="refresh")
+
+    if token_data is None or not token_data.jti:
+        logger.warning("logout_failed", reason="invalid_token")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid refresh token",
+        )
+
+    # Revoke the refresh token
+    revoked = refresh_store.revoke_token(token_data.jti)
+
+    if revoked:
+        logger.info(
+            "user_logged_out",
+            subject=context.subject_id,
+            subject_type=context.subject_type,
+        )
+        return {"message": "Logged out successfully"}
+    else:
+        # Token not found in store (already revoked or never existed)
+        logger.warning("logout_failed", reason="token_not_found", jti=token_data.jti)
+        return {"message": "Already logged out"}
+
+
+@router.post("/logout/all")
+async def logout_all(
+    context: SecurityContext = Depends(require_authenticated),
+) -> dict:
+    """Logout from all devices (revoke all refresh tokens for this user).
+
+    This endpoint revokes ALL refresh tokens for the authenticated user,
+    effectively logging them out from all devices and sessions.
+
+    Args:
+        context: Security context (requires authentication)
+
+    Returns:
+        Success message with count of revoked tokens
+    """
+    refresh_store = get_refresh_token_store()
+
+    # Construct subject from context
+    subject = f"{context.subject_type}:{context.subject_id}"
+
+    # Revoke all tokens for this subject
+    revoked_count = refresh_store.revoke_all_subject_tokens(subject)
+
+    logger.info(
+        "user_logged_out_all_devices",
+        subject=subject,
+        revoked_count=revoked_count,
+    )
+
+    return {
+        "message": f"Logged out from all devices",
+        "revoked_tokens": revoked_count,
+    }
 
 
 @router.post("/api-keys", response_model=APIKeyCreateResponse)

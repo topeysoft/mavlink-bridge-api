@@ -43,7 +43,7 @@ function handleConnected(device: { name: string | null; url: string | null }) {
   } else if (!onboardingStore.isOnboardingComplete) {
     router.push('/onboarding')
   } else {
-    router.push('/dashboard')
+    router.push({ name: 'dashboard' })
   }
 }
 
@@ -55,7 +55,7 @@ onMounted(() => {
     if (redirectPath) {
       router.push(redirectPath)
     } else {
-      router.push('/dashboard')
+      router.push({ name: 'dashboard' })
     }
   }
 })

@@ -126,32 +126,38 @@ async function handleLogout() {
       const authClient = (connectionStore.client as any)?.authClient
 
       if (authClient) {
-        // Proper logout through auth store
-        authStore.logout(authClient)
+        // Proper logout through auth store (async - revokes refresh token on server)
+        await authStore.logout(authClient)
       } else {
         console.warn('No authClient available, clearing local state only')
         // Note: This shouldn't happen in normal flow, but handle it gracefully
         // We still need to clear the state even if we can't notify the backend
         authStore.isAuthenticated = false
         authStore.accessToken = null
+        authStore.refreshToken = null
         authStore.expiresAt = null
+        authStore.refreshExpiresAt = null
         authStore.role = null
         authStore.permissions = []
         authStore.currentUser = null
         authStore.sessionTimeoutWarning = false
         authStore.loginError = null
+        authStore.setupStatus = null // Clear setup status
       }
 
-      // Show success notification
+      // Clear persisted connection to prevent auto-reconnect from restoring auth
+      localStorage.removeItem('yardrover_current_connection')
+
+      // Redirect to login (use replace to prevent back button issues)
+      await router.replace({ name: 'login' })
+
+      // Show success notification after redirect
       toast?.value?.addToast({
         message: 'Logged out successfully',
         type: 'success',
         duration: 3000,
         dismissible: true
       })
-
-      // Redirect to login
-      await router.push({ name: 'login' })
     } catch (error) {
       console.error('Logout error:', error)
       toast?.value?.addToast({

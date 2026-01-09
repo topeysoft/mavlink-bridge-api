@@ -75,7 +75,9 @@ export class MAVLinkBridgeClient {
     this.authClient = new AuthClient(deviceUrl, this.options.httpTimeout);
 
     // Set up token provider for automatic token injection
-    this.httpClient.setTokenProvider(() => this.authClient.getAuthToken());
+    // Note: Using sync version here for compatibility with TokenProvider type
+    // Actual token refresh happens automatically in AuthClient.getAuthToken()
+    this.httpClient.setTokenProvider(() => this.authClient.getAuthTokenSync());
 
     // Initialize WebSocket client
     const wsUrl = deviceUrl.replace(/^http/, 'ws') + '/ws';

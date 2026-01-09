@@ -131,6 +131,8 @@ class TokenData(BaseModel):
     permissions: list[Permission] = Field(default_factory=list)
     exp: Optional[datetime] = Field(default=None, description="Expiration time")
     iat: Optional[datetime] = Field(default=None, description="Issued at time")
+    jti: Optional[str] = Field(default=None, description="JWT ID (unique token identifier)")
+    token_type: Optional[str] = Field(default=None, description="Token type (access/refresh)")
 
 
 class SecurityContext(BaseModel):
@@ -203,12 +205,33 @@ class LoginRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    """Login response with JWT token."""
+    """Login response with JWT tokens."""
 
-    access_token: str = Field(..., description="JWT access token")
+    access_token: str = Field(..., description="JWT access token (short-lived)")
+    refresh_token: str = Field(..., description="JWT refresh token (long-lived)")
     token_type: str = Field(default="bearer", description="Token type")
-    expires_in: int = Field(..., description="Token expiration in seconds")
+    expires_in: int = Field(..., description="Access token expiration in seconds")
     role: Role = Field(..., description="User role")
+
+
+class RefreshTokenRequest(BaseModel):
+    """Request to refresh an access token."""
+
+    refresh_token: str = Field(..., description="Refresh token")
+
+
+class RefreshTokenResponse(BaseModel):
+    """Response with new access token."""
+
+    access_token: str = Field(..., description="New JWT access token")
+    token_type: str = Field(default="bearer", description="Token type")
+    expires_in: int = Field(..., description="Access token expiration in seconds")
+
+
+class LogoutRequest(BaseModel):
+    """Request to logout and revoke refresh token."""
+
+    refresh_token: str = Field(..., description="Refresh token to revoke")
 
 
 class APIKeyCreateRequest(BaseModel):

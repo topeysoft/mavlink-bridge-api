@@ -11,21 +11,8 @@
         </div>
 
         <div class="login-form">
-          <!-- Setup Required Notice -->
-          <div v-if="needsSetup" class="setup-notice">
-            <div class="notice-icon">🔧</div>
-            <h3>Setup Required</h3>
-            <p>
-              This device needs initial setup. You'll be redirected to the setup page
-              automatically, or click the button below.
-            </p>
-            <button class="btn-setup" @click="goToSetup">
-              Go to Setup
-            </button>
-          </div>
-
           <!-- Login Form -->
-          <div v-else>
+          <div>
             <h2>{{ t('auth.login.title') }}</h2>
             <p class="form-description">
               {{ t('auth.login.subtitle') }}
@@ -275,7 +262,6 @@ const pin = ref('')
 const apiKey = ref('')
 const isLoggingIn = ref(false)
 const loginError = ref<string | null>(null)
-const needsSetup = ref(false)
 const showPassword = ref(false)
 const showApiKey = ref(false)
 
@@ -409,36 +395,13 @@ function handleLoginError(error: any) {
   }
 }
 
-// Check if already authenticated or needs setup
-onMounted(async () => {
+// Check if already authenticated (setup check handled by router guard)
+onMounted(() => {
   if (authStore.isAuthenticated) {
     router.push('/')
     return
   }
-
-  // Check if device needs setup
-  if (connectionStore.client) {
-    try {
-      const authClient = (connectionStore.client as any).authClient
-      if (authClient) {
-        const setupStatus = await authClient.getSetupStatus()
-        if (setupStatus.in_setup_mode) {
-          needsSetup.value = true
-          // Auto redirect after 2 seconds
-          setTimeout(() => {
-            router.push({ name: 'setup' })
-          }, 2000)
-        }
-      }
-    } catch (error) {
-      console.error('Failed to check setup status:', error)
-    }
-  }
 })
-
-function goToSetup() {
-  router.push({ name: 'setup' })
-}
 </script>
 
 <style scoped lang="scss">
@@ -505,63 +468,6 @@ function goToSetup() {
     color: $grey-6;
     margin: 0 0 2rem;
     font-size: 0.95rem;
-  }
-}
-
-.setup-notice {
-  text-align: center;
-  padding: 1rem;
-
-  .notice-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  h3 {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: $dark;
-    margin: 0 0 1rem;
-  }
-
-  p {
-    color: $grey-6;
-    margin: 0 0 1.5rem;
-    font-size: 0.95rem;
-    line-height: 1.6;
-  }
-
-  .btn-setup {
-    width: 100%;
-    padding: 1rem;
-    background: $primary;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-
-    &:hover {
-      background: color.adjust($primary, $lightness: -10%);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba($primary, 0.3);
-    }
-
-    &:active {
-      transform: translateY(0);
-    }
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
   }
 }
 

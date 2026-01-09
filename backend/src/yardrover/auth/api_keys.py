@@ -1,8 +1,10 @@
 """API key management with bcrypt hashing."""
 
+import json
 import secrets
 import uuid
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
 import structlog
@@ -60,11 +62,95 @@ def verify_api_key(plaintext_key: str, hashed_key: str) -> bool:
 
 
 class APIKeyManager:
-    """Manager for API keys stored in memory or persistent storage."""
+    """Manager for API keys with persistent JSON storage."""
 
-    def __init__(self) -> None:
-        """Initialize API key manager."""
+    def __init__(self, storage_path: Optional[Path] = None) -> None:
+        """Initialize API key manager.
+
+        Args:
+            storage_path: Path to storage directory (defaults to ./storage)
+        """
         self._keys: dict[str, APIKey] = {}
+
+        # Set up storage
+        self._storage_path = storage_path or Path("storage")
+        self._storage_path.mkdir(parents=True, exist_ok=True)
+        self._keys_file = self._storage_path / "api_keys.json"
+
+        # Load existing keys
+        self._load_from_disk()
+
+    def _load_from_disk(self) -> None:
+        """Load API keys from JSON file."""
+        if not self._keys_file.exists():
+            logger.info("api_keys_file_not_found", path=str(self._keys_file), action="creating_new")
+            return
+
+        try:
+            with open(self._keys_file, "r") as f:
+                data = json.load(f)
+
+            for key_data in data.get("keys", []):
+                # Reconstruct APIKey object
+                api_key = APIKey(
+                    key_id=key_data["key_id"],
+                    name=key_data["name"],
+                    role=Role(key_data["role"]),
+                    hashed_key=key_data["hashed_key"],
+                    description=key_data.get("description"),
+                    enabled=key_data.get("enabled", True),
+                    created_at=datetime.fromisoformat(key_data["created_at"]),
+                    expires_at=(
+                        datetime.fromisoformat(key_data["expires_at"])
+                        if key_data.get("expires_at")
+                        else None
+                    ),
+                    last_used_at=(
+                        datetime.fromisoformat(key_data["last_used_at"])
+                        if key_data.get("last_used_at")
+                        else None
+                    ),
+                )
+
+                self._keys[api_key.key_id] = api_key
+
+            logger.info("api_keys_loaded_from_disk", count=len(self._keys), path=str(self._keys_file))
+
+        except Exception as e:
+            logger.error("api_keys_load_failed", path=str(self._keys_file), error=str(e))
+
+    def _save_to_disk(self) -> None:
+        """Save API keys to JSON file."""
+        try:
+            data = {
+                "keys": [
+                    {
+                        "key_id": key.key_id,
+                        "name": key.name,
+                        "role": key.role.value,
+                        "hashed_key": key.hashed_key,
+                        "description": key.description,
+                        "enabled": key.enabled,
+                        "created_at": key.created_at.isoformat(),
+                        "expires_at": key.expires_at.isoformat() if key.expires_at else None,
+                        "last_used_at": key.last_used_at.isoformat() if key.last_used_at else None,
+                    }
+                    for key in self._keys.values()
+                ]
+            }
+
+            # Write atomically using temporary file
+            temp_file = self._keys_file.with_suffix(".tmp")
+            with open(temp_file, "w") as f:
+                json.dump(data, f, indent=2)
+
+            # Atomic replace
+            temp_file.replace(self._keys_file)
+
+            logger.debug("api_keys_saved_to_disk", count=len(self._keys), path=str(self._keys_file))
+
+        except Exception as e:
+            logger.error("api_keys_save_failed", path=str(self._keys_file), error=str(e))
 
     def create_key(
         self,
@@ -107,6 +193,9 @@ class APIKeyManager:
         # Store in memory
         self._keys[key_id] = api_key
 
+        # Persist to disk
+        self._save_to_disk()
+
         logger.info(
             "api_key_created",
             key_id=key_id,
@@ -136,6 +225,7 @@ class APIKeyManager:
             if verify_api_key(plaintext_key, api_key.hashed_key):
                 # Update last used timestamp
                 api_key.last_used_at = datetime.utcnow()
+                self._save_to_disk()  # Persist usage timestamp
                 logger.info("api_key_verified", key_id=key_id, name=api_key.name)
                 return api_key
 
@@ -175,6 +265,7 @@ class APIKeyManager:
             return False
 
         api_key.enabled = False
+        self._save_to_disk()
         logger.info("api_key_revoked", key_id=key_id, name=api_key.name)
         return True
 
@@ -189,6 +280,7 @@ class APIKeyManager:
         """
         if key_id in self._keys:
             api_key = self._keys.pop(key_id)
+            self._save_to_disk()
             logger.info("api_key_deleted", key_id=key_id, name=api_key.name)
             return True
         return False
@@ -207,6 +299,7 @@ class APIKeyManager:
             return False
 
         api_key.enabled = True
+        self._save_to_disk()
         logger.info("api_key_enabled", key_id=key_id, name=api_key.name)
         return True
 
@@ -226,6 +319,7 @@ class APIKeyManager:
 
         old_role = api_key.role
         api_key.role = role
+        self._save_to_disk()
         logger.info(
             "api_key_role_updated",
             key_id=key_id,
@@ -251,6 +345,7 @@ class APIKeyManager:
             self._keys.pop(key_id)
 
         if expired:
+            self._save_to_disk()
             logger.info("expired_keys_cleaned_up", count=len(expired))
 
         return len(expired)
@@ -260,13 +355,27 @@ class APIKeyManager:
 _api_key_manager: Optional[APIKeyManager] = None
 
 
-def get_api_key_manager() -> APIKeyManager:
+def get_api_key_manager(storage_path: Optional[Path] = None) -> APIKeyManager:
     """Get global API key manager instance.
+
+    Args:
+        storage_path: Optional storage path (uses config on first call)
 
     Returns:
         APIKeyManager instance
     """
     global _api_key_manager
     if _api_key_manager is None:
-        _api_key_manager = APIKeyManager()
+        # Get storage path from config if not provided
+        if storage_path is None:
+            try:
+                from yardrover.core.config import get_config_manager
+                config_manager = get_config_manager()
+                storage_path = config_manager.config.storage.base_path
+            except Exception:
+                # Fall back to default if config not available
+                storage_path = Path("storage")
+                logger.warning("config_not_available_using_default_storage", path=str(storage_path))
+
+        _api_key_manager = APIKeyManager(storage_path)
     return _api_key_manager
