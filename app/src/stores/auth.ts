@@ -62,7 +62,7 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * Initialize auth from client
    */
-  function initializeFromClient(authClient: AuthClient) {
+  async function initializeFromClient(authClient: AuthClient) {
     const state = authClient.getAuthState()
     console.log('[Auth] initializeFromClient called:', {
       authenticated: state.authenticated,
@@ -80,6 +80,32 @@ export const useAuthStore = defineStore('auth', () => {
     permissions.value = state.permissions
 
     if (state.authenticated) {
+      // Fetch current user info to restore full auth state
+      try {
+        currentUser.value = await authClient.getCurrentUser()
+        permissions.value = currentUser.value.permissions
+        console.log('[Auth] Current user fetched during initialization:', currentUser.value.subject_name)
+      } catch (error) {
+        console.error('[Auth] Failed to fetch current user during initialization:', error)
+        // If user fetch fails (e.g., token expired), clear auth state
+        if (error && typeof error === 'object' && 'status' in error) {
+          const httpError = error as { status: number }
+          if (httpError.status === 401) {
+            console.log('[Auth] Token invalid/expired, clearing auth state')
+            isAuthenticated.value = false
+            accessToken.value = null
+            refreshToken.value = null
+            expiresAt.value = null
+            refreshExpiresAt.value = null
+            role.value = null
+            permissions.value = []
+            currentUser.value = null
+            authClient.logout()
+            return
+          }
+        }
+      }
+
       startSessionMonitoring()
       startAutoRefresh(authClient)
     }
@@ -287,8 +313,8 @@ export const useAuthStore = defineStore('auth', () => {
       return
     }
 
-    // Schedule refresh 2 minutes before access token expires
-    const refreshBeforeExpiry = 2 * 60 * 1000 // 2 minutes
+    // Schedule refresh 5 minutes before access token expires (better buffer)
+    const refreshBeforeExpiry = 5 * 60 * 1000 // 5 minutes
     const timeUntilExpiry = expiresAt.value - Date.now()
     const refreshDelay = timeUntilExpiry - refreshBeforeExpiry
 
@@ -298,18 +324,44 @@ export const useAuthStore = defineStore('auth', () => {
       `refreshDelay=${Math.round(refreshDelay / 1000)}s`
     )
 
-    // Only schedule if we have at least 1 minute until we need to refresh
-    // This prevents immediate refresh loops on page reload
-    const minDelay = 60 * 1000 // 1 minute
-    if (refreshDelay < minDelay) {
-      console.log(
-        `[Auth] Token expires too soon (delay would be ${Math.round(refreshDelay / 1000)}s), ` +
-        'skipping auto-refresh schedule. Will refresh on next API call.'
-      )
+    // If token expires very soon (< 1 minute), refresh immediately
+    if (timeUntilExpiry < 60 * 1000) {
+      console.log('[Auth] Token expires in < 1 minute, refreshing immediately...')
+      ;(async () => {
+        try {
+          await authClient.refreshAccessToken()
+
+          // Update state with new access token
+          const state = authClient.getAuthState()
+          accessToken.value = state.accessToken
+          expiresAt.value = state.expiresAt
+
+          console.log(
+            '[Auth] Access token refreshed immediately. ' +
+            `New expiry: ${state.expiresAt ? new Date(state.expiresAt).toISOString() : 'null'}`
+          )
+
+          // Schedule next refresh with new expiry
+          startAutoRefresh(authClient)
+        } catch (error) {
+          console.error('[Auth] Failed to refresh token immediately:', error)
+        }
+      })()
       return
     }
 
-    console.log(`[Auth] Scheduling token refresh in ${Math.round(refreshDelay / 1000)}s`)
+    // If delay is negative or very small, schedule for 30 seconds from now
+    // This handles cases where token is already past the refresh point
+    const actualDelay = Math.max(refreshDelay, 30 * 1000)
+
+    if (refreshDelay < 0) {
+      console.log(
+        `[Auth] Token already past refresh point (${Math.round(-refreshDelay / 1000)}s ago), ` +
+        'scheduling refresh in 30s'
+      )
+    } else {
+      console.log(`[Auth] Scheduling token refresh in ${Math.round(actualDelay / 1000)}s`)
+    }
 
     autoRefreshTimeout = window.setTimeout(async () => {
       try {
@@ -332,7 +384,7 @@ export const useAuthStore = defineStore('auth', () => {
         console.error('[Auth] Failed to auto-refresh token:', error)
         // If refresh fails, user will be logged out on next API call
       }
-    }, refreshDelay)
+    }, actualDelay)
   }
 
   /**
@@ -342,6 +394,37 @@ export const useAuthStore = defineStore('auth', () => {
     if (autoRefreshTimeout !== null) {
       clearTimeout(autoRefreshTimeout)
       autoRefreshTimeout = null
+    }
+  }
+
+  /**
+   * Manually refresh the access token
+   */
+  async function manualRefreshToken(authClient: AuthClient): Promise<void> {
+    if (!refreshToken.value) {
+      throw new Error('No refresh token available')
+    }
+
+    try {
+      console.log('[Auth] Manual token refresh requested')
+      await authClient.refreshAccessToken()
+
+      // Update state with new access token
+      const state = authClient.getAuthState()
+      accessToken.value = state.accessToken
+      expiresAt.value = state.expiresAt
+
+      console.log(
+        '[Auth] Manual refresh successful. ' +
+        `New expiry: ${state.expiresAt ? new Date(state.expiresAt).toISOString() : 'null'}`
+      )
+
+      // Clear any warning and restart auto-refresh cycle
+      sessionTimeoutWarning.value = false
+      startAutoRefresh(authClient)
+    } catch (error) {
+      console.error('[Auth] Manual token refresh failed:', error)
+      throw error
     }
   }
 
@@ -392,6 +475,7 @@ export const useAuthStore = defineStore('auth', () => {
     hasPermission,
     hasAnyPermission,
     hasAllPermissions,
+    manualRefreshToken,
     dismissSessionWarning,
     clearLoginError,
   }

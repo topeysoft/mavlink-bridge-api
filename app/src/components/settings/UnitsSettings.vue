@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useUnitsStore } from '@/stores/units'
 import Card from '@/components/common/Card.vue'
+import Collapsible from '@/components/common/Collapsible.vue'
 
 const unitsStore = useUnitsStore()
 
@@ -72,13 +73,12 @@ const handleSystemChange = (system: 'metric' | 'imperial') => {
         </button>
       </div>
 
-      <div class="conversion-preview">
-        <h4>Conversion Example</h4>
+      <Collapsible title="Conversion Examples" variant="default">
         <div class="preview-grid">
           <div class="preview-item">
             <span class="preview-label">Area</span>
-            <span class="preview-value">{{ unitsStore.formatArea(1.0) }}</span>
-            <span class="preview-original">= 1.0 acre</span>
+            <span class="preview-value">{{ unitsStore.formatArea(10000) }}</span>
+            <span class="preview-original">= 10,000 m²</span>
           </div>
           <div class="preview-item">
             <span class="preview-label">Distance</span>
@@ -96,7 +96,7 @@ const handleSystemChange = (system: 'metric' | 'imperial') => {
             <span class="preview-original">= 25°C</span>
           </div>
         </div>
-      </div>
+      </Collapsible>
     </div>
   </Card>
 </template>
@@ -208,19 +208,6 @@ const handleSystemChange = (system: 'metric' | 'imperial') => {
   font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-secondary);
-}
-
-.conversion-preview {
-  padding: var(--spacing-lg);
-  background: var(--bg-secondary);
-  border-radius: var(--border-radius-lg);
-
-  h4 {
-    margin: 0 0 var(--spacing-md) 0;
-    font-size: var(--font-size-base);
-    font-weight: 600;
-    color: var(--text-primary);
-  }
 }
 
 .preview-grid {

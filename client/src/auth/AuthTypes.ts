@@ -281,14 +281,19 @@ export interface APIKeyListItem {
  */
 export interface CurrentUser {
   /**
-   * API key ID
+   * Subject ID (user ID or API key ID)
    */
-  api_key_id: string;
+  subject_id: string;
 
   /**
-   * API key name
+   * Subject type ('user' or 'api_key')
    */
-  api_key_name: string;
+  subject_type: string;
+
+  /**
+   * Subject name (username or API key name)
+   */
+  subject_name: string;
 
   /**
    * User role
@@ -304,6 +309,16 @@ export interface CurrentUser {
    * Whether user is authenticated
    */
   authenticated: boolean;
+
+  /**
+   * API key ID (for backward compatibility)
+   */
+  api_key_id?: string;
+
+  /**
+   * API key name (for backward compatibility)
+   */
+  api_key_name?: string;
 }
 
 /**

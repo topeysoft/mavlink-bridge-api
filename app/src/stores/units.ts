@@ -28,16 +28,18 @@ export const useUnitsStore = defineStore('units', () => {
   }
 
   // Conversion utilities
-  function convertArea(acres: number): { value: number; unit: string } {
+  function convertArea(squareMeters: number): { value: number; unit: string } {
     if (system.value === 'metric') {
-      const hectares = acres * 0.404686
+      const hectares = squareMeters / 10000
       return { value: hectares, unit: 'ha' }
     }
+    // Convert to acres (1 acre = 4046.86 square meters)
+    const acres = squareMeters / 4046.86
     return { value: acres, unit: 'acres' }
   }
 
-  function formatArea(acres: number, decimals: number = 2): string {
-    const { value, unit } = convertArea(acres)
+  function formatArea(squareMeters: number, decimals: number = 2): string {
+    const { value, unit } = convertArea(squareMeters)
     return `${value.toFixed(decimals)} ${unit}`
   }
 
@@ -87,6 +89,19 @@ export const useUnitsStore = defineStore('units', () => {
     return `${value.toFixed(decimals)}${unit}`
   }
 
+  function convertPerimeter(meters: number): { value: number; unit: string } {
+    if (system.value === 'imperial') {
+      const feet = meters * 3.28084
+      return { value: feet, unit: 'ft' }
+    }
+    return { value: meters, unit: 'm' }
+  }
+
+  function formatPerimeter(meters: number, decimals: number = 0): string {
+    const { value, unit } = convertPerimeter(meters)
+    return `${value.toFixed(decimals)} ${unit}`
+  }
+
   return {
     // State
     system,
@@ -105,6 +120,8 @@ export const useUnitsStore = defineStore('units', () => {
     convertSpeed,
     formatSpeed,
     convertTemperature,
-    formatTemperature
+    formatTemperature,
+    convertPerimeter,
+    formatPerimeter
   }
 })

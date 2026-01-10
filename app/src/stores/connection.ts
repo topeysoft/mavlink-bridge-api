@@ -157,15 +157,21 @@ export const useConnectionStore = defineStore('connection', () => {
       currentDeviceName.value = finalDeviceName
       lastConnectionTime.value = new Date().toISOString()
 
-      // Initialize auth state from client (syncs localStorage token to auth store)
+      // Subscribe to all telemetry data
+      setupTelemetrySubscriptions(newClient)
+
+      // Initialize auth state from client (syncs localStorage token to auth store and fetches user)
+      // Do this AFTER connection is fully established
       const authStore = useAuthStore()
       const authClient = (newClient as any).authClient
       if (authClient) {
-        authStore.initializeFromClient(authClient)
+        try {
+          await authStore.initializeFromClient(authClient)
+        } catch (error) {
+          console.error('[Connection] Failed to initialize auth from client:', error)
+          // Don't fail the connection if auth initialization fails
+        }
       }
-
-      // Subscribe to all telemetry data
-      setupTelemetrySubscriptions(newClient)
 
       // Persist current connection to localStorage
       const connectionData: PersistedConnection = {

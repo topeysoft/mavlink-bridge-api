@@ -4,6 +4,11 @@
 export type TokenProvider = () => string | null;
 
 /**
+ * Callback for handling unauthorized (401) responses
+ */
+export type UnauthorizedCallback = () => Promise<boolean>;
+
+/**
  * Request options for HTTP methods
  */
 export interface RequestOptions {
@@ -32,6 +37,7 @@ export class HttpClient {
   private readonly timeout: number;
   private readonly activeRequests = new Set<AbortController>();
   private tokenProvider: TokenProvider | null = null;
+  private onUnauthorized: UnauthorizedCallback | null = null;
 
   constructor(baseUrl: string, timeout = 10000) {
     // Normalize base URL and ensure proper protocol
@@ -67,6 +73,21 @@ export class HttpClient {
    */
   clearTokenProvider(): void {
     this.tokenProvider = null;
+  }
+
+  /**
+   * Set callback for handling 401 unauthorized responses
+   * The callback should attempt to refresh the token and return true if successful
+   */
+  setUnauthorizedCallback(callback: UnauthorizedCallback): void {
+    this.onUnauthorized = callback;
+  }
+
+  /**
+   * Clear unauthorized callback
+   */
+  clearUnauthorizedCallback(): void {
+    this.onUnauthorized = null;
   }
 
   /**
@@ -150,9 +171,46 @@ export class HttpClient {
       const response = await fetch(url, config);
 
       if (!response.ok) {
+        // Handle 401 with refresh callback if available
+        if (response.status === 401 && this.onUnauthorized) {
+          const refreshed = await this.onUnauthorized();
+          if (refreshed) {
+            // Retry the request with the new token
+            const retryHeaders = { ...headers };
+            if (this.tokenProvider) {
+              const newToken = this.tokenProvider();
+              if (newToken) {
+                retryHeaders['Authorization'] = `Bearer ${newToken}`;
+              }
+            }
+
+            const retryConfig: RequestInit = {
+              method,
+              headers: retryHeaders,
+              signal: controller.signal,
+            };
+
+            if (data !== undefined && method !== 'GET') {
+              retryConfig.body = JSON.stringify(data);
+            }
+
+            const retryResponse = await fetch(url, retryConfig);
+
+            if (retryResponse.ok) {
+              const contentType = retryResponse.headers.get('content-type');
+              if (contentType?.includes('application/json')) {
+                return await retryResponse.json() as T;
+              }
+              return await retryResponse.text() as unknown as T;
+            }
+
+            // If retry also failed, fall through to normal error handling
+          }
+        }
+
         const errorText = await response.text();
         let errorMessage: string;
-        
+
         try {
           const errorData = JSON.parse(errorText);
           errorMessage = errorData.error || errorData.message || 'HTTP request failed';

@@ -39,9 +39,13 @@ export async function authGuard(
 
   // CRITICAL: Wait for app initialization to complete before allowing navigation to protected routes
   // This prevents the dashboard from rendering before authentication is checked
-  if (appStore.isInitializing && !isPublicRoute) {
-    // Block navigation to protected routes during initialization
+  // HOWEVER: Allow initial navigation to proceed so App.vue can mount and run initialization
+  // We detect initial navigation by checking if 'from.name' is undefined (no previous route)
+  const isInitialNavigation = from.name === undefined
+  if (appStore.isInitializing && !isPublicRoute && !isInitialNavigation) {
+    // Block navigation to protected routes during initialization (but not initial load)
     // App.vue will redirect to the appropriate page once initialization completes
+    console.log('[AuthGuard] Blocking navigation during initialization:', to.path)
     next(false)
     return
   }

@@ -288,8 +288,8 @@ async function handlePasswordLogin() {
     // Attempt login with password
     await authClient.loginWithPassword(username.value, password.value)
 
-    // Sync auth state from client
-    authStore.initializeFromClient(authClient)
+    // Sync auth state from client (also fetches current user)
+    await authStore.initializeFromClient(authClient)
 
     // Redirect to dashboard on success (use replace to avoid back button issues)
     router.replace('/')
@@ -323,8 +323,8 @@ async function handlePinLogin() {
     // Attempt login with PIN
     await authClient.loginWithPin(pin.value)
 
-    // Sync auth state from client
-    authStore.initializeFromClient(authClient)
+    // Sync auth state from client (also fetches current user)
+    await authStore.initializeFromClient(authClient)
 
     // Redirect to dashboard on success (use replace to avoid back button issues)
     router.replace('/')

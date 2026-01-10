@@ -8,6 +8,7 @@ import { useBatteryStore } from '@/stores/battery'
 import { useAuthStore } from '@/stores/auth'
 import { useSidebar } from '@/composables/useSidebar'
 import { useDialog } from '@/composables/useDialog'
+import { getIcon } from '@/utils/iconMap'
 import Modal from '@/components/common/Modal.vue'
 import Button from '@/components/common/Button.vue'
 
@@ -256,11 +257,7 @@ const modeLabel = computed(() => {
         @click="toggleSidebar"
         aria-label="Toggle navigation menu"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
+        <component :is="getIcon('menu')" :size="24" :stroke-width="2" />
       </button>
       <h1 class="page-title">{{ pageTitle }}</h1>
     </div>
@@ -273,10 +270,7 @@ const modeLabel = computed(() => {
         :class="{ warning: authStore.willExpireSoon }"
         :title="`Session expires in ${sessionTimeRemaining}`"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="{ color: sessionExpiryColor }">
-          <circle cx="12" cy="12" r="10"></circle>
-          <polyline points="12 6 12 12 16 14"></polyline>
-        </svg>
+        <component :is="getIcon('clock')" :size="18" :stroke-width="2" :color="sessionExpiryColor" />
         <span :style="{ color: sessionExpiryColor }">{{ sessionTimeRemaining }}</span>
       </div>
 
@@ -291,18 +285,28 @@ const modeLabel = computed(() => {
         @click="handleConnectionClick"
         :title="connectionTooltip"
       >
-        <svg v-if="connectionStatus.icon === 'connected'" viewBox="0 0 24 24" fill="currentColor" :style="{ color: connectionStatus.color }">
-          <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
-        </svg>
-        <svg v-else-if="connectionStatus.icon === 'connecting'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinner">
-          <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32">
-            <animate attributeName="stroke-dashoffset" values="32;0" dur="1s" repeatCount="indefinite"/>
-          </circle>
-        </svg>
-        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="{ color: connectionStatus.color }">
-          <line x1="1" y1="1" x2="23" y2="23"></line>
-          <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55m-7 8.45l3-3c-.59-.59-1.27-1.06-2-1.38M5 12.55a10.94 10.94 0 0 1 5.17-2.39m3.66 0a10.94 10.94 0 0 1 5.17 2.39M1.42 9a16 16 0 0 1 21.16 0"></path>
-        </svg>
+        <component
+          v-if="connectionStatus.icon === 'connected'"
+          :is="getIcon('wifi-connected')"
+          :size="20"
+          :stroke-width="2"
+          :color="connectionStatus.color"
+        />
+        <component
+          v-else-if="connectionStatus.icon === 'connecting'"
+          :is="getIcon('refresh')"
+          :size="20"
+          :stroke-width="2"
+          :color="connectionStatus.color"
+          class="spinner"
+        />
+        <component
+          v-else
+          :is="getIcon('wifi-off')"
+          :size="20"
+          :stroke-width="2"
+          :color="connectionStatus.color"
+        />
         <span class="connection-label" :style="{ color: connectionStatus.color }">{{ connectionStatus.label }}</span>
       </div>
 
@@ -323,24 +327,18 @@ const modeLabel = computed(() => {
         aria-label="Emergency stop"
         title="Emergency stop - Immediately halt all operations"
       >
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <circle cx="12" cy="12" r="10"></circle>
-          <rect x="9" y="9" width="6" height="6" fill="white"></rect>
-        </svg>
+        <component :is="getIcon('stop')" :size="20" :stroke-width="2" fill="currentColor" />
         <span>E-STOP</span>
       </button>
 
       <div
         class="battery-indicator"
         :class="`battery-${batteryLevel > 60 ? 'good' : batteryLevel > 30 ? 'warning' : 'critical'}`"
+        :style="{ borderColor: batteryColor }"
         title="Battery level with estimated runtime (click to view details)"
         @click="navigateToBattery"
       >
-        <svg viewBox="0 0 24 24" fill="none" :stroke="batteryColor" stroke-width="2">
-          <rect x="1" y="6" width="18" height="12" rx="2" ry="2"></rect>
-          <rect x="3" y="8" width="14" height="8" :fill="batteryColor" :opacity="batteryLevel / 100"></rect>
-          <line x1="23" y1="13" x2="23" y2="11"></line>
-        </svg>
+        <component :is="getIcon('battery')" :size="24" :stroke-width="2" :color="batteryColor" />
         <span class="battery-level" :style="{ color: batteryColor }">{{ batteryLevel }}%</span>
         <span class="battery-time">({{ batteryTime }})</span>
       </div>
@@ -443,6 +441,7 @@ const modeLabel = computed(() => {
   gap: var(--spacing-xs);
   padding: var(--spacing-sm) var(--spacing-md);
   background: var(--bg-secondary);
+  border: 2px solid;
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   transition: all 0.3s ease;

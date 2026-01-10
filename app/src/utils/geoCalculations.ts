@@ -6,32 +6,28 @@ import type { LatLngExpression } from 'leaflet'
 import L from 'leaflet'
 
 /**
- * Calculate the area of a polygon in acres
+ * Calculate the area of a polygon in square meters
  * @param latlngs - Array of lat/lng coordinates
- * @returns Area in acres
+ * @returns Area in square meters
  */
 export function calculatePolygonArea(latlngs: L.LatLng[]): number {
   // Calculate area in square meters using Leaflet's GeometryUtil
-  const areaInSquareMeters = L.GeometryUtil?.geodesicArea?.(latlngs) || 0
-
-  // Convert square meters to acres (1 acre = 4046.86 square meters)
-  return areaInSquareMeters * 0.000247105
+  return L.GeometryUtil?.geodesicArea?.(latlngs) || 0
 }
 
 /**
- * Calculate the area of a circle in acres
+ * Calculate the area of a circle in square meters
  * @param radius - Radius in meters
- * @returns Area in acres
+ * @returns Area in square meters
  */
 export function calculateCircleArea(radius: number): number {
-  const areaInSquareMeters = Math.PI * radius * radius
-  return areaInSquareMeters * 0.000247105
+  return Math.PI * radius * radius
 }
 
 /**
- * Calculate the perimeter of a polygon in feet
+ * Calculate the perimeter of a polygon in meters
  * @param latlngs - Array of lat/lng coordinates
- * @returns Perimeter in feet
+ * @returns Perimeter in meters
  */
 export function calculatePolygonPerimeter(latlngs: L.LatLng[]): number {
   let perimeterInMeters = 0
@@ -42,24 +38,22 @@ export function calculatePolygonPerimeter(latlngs: L.LatLng[]): number {
     perimeterInMeters += p1.distanceTo(p2)
   }
 
-  // Convert meters to feet (1 meter = 3.28084 feet)
-  return perimeterInMeters * 3.28084
+  return perimeterInMeters
 }
 
 /**
- * Calculate the circumference of a circle in feet
+ * Calculate the circumference of a circle in meters
  * @param radius - Radius in meters
- * @returns Circumference in feet
+ * @returns Circumference in meters
  */
 export function calculateCirclePerimeter(radius: number): number {
-  const circumferenceInMeters = 2 * Math.PI * radius
-  return circumferenceInMeters * 3.28084
+  return 2 * Math.PI * radius
 }
 
 /**
  * Calculate area for any Leaflet layer
  * @param layer - Leaflet layer (Polygon, Rectangle, Circle, etc.)
- * @returns Area in acres, or 0 for non-area layers
+ * @returns Area in square meters, or 0 for non-area layers
  */
 export function calculateLayerArea(layer: any): number {
   if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
@@ -74,7 +68,7 @@ export function calculateLayerArea(layer: any): number {
 /**
  * Calculate perimeter for any Leaflet layer
  * @param layer - Leaflet layer
- * @returns Perimeter in feet, or 0 for non-perimeter layers
+ * @returns Perimeter in meters, or 0 for non-perimeter layers
  */
 export function calculateLayerPerimeter(layer: any): number {
   if (layer instanceof L.Polygon || layer instanceof L.Rectangle || layer instanceof L.Polyline) {
@@ -84,26 +78,6 @@ export function calculateLayerPerimeter(layer: any): number {
     return calculateCirclePerimeter(layer.getRadius())
   }
   return 0
-}
-
-/**
- * Format area value for display
- * @param acres - Area in acres
- * @param decimals - Number of decimal places (default: 3)
- * @returns Formatted string with units
- */
-export function formatArea(acres: number, decimals: number = 3): string {
-  return `${acres.toFixed(decimals)} acres`
-}
-
-/**
- * Format perimeter value for display
- * @param feet - Perimeter in feet
- * @param decimals - Number of decimal places (default: 0)
- * @returns Formatted string with units
- */
-export function formatPerimeter(feet: number, decimals: number = 0): string {
-  return `${feet.toFixed(decimals)} ft`
 }
 
 /**

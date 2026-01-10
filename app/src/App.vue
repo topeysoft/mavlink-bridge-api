@@ -81,50 +81,64 @@ const handleAlertClose = () => {
 }
 
 onMounted(async () => {
-  // Smart connection on app load
-  const result = await orchestrator.smartConnect({
-    silent: true,
-    context: 'app-load',
-    onProgress: (state) => {
-      // Progress is shown via ConnectionStatusToast component
-      console.log('[App] Connection progress:', state)
-    }
-  })
-
-  if (result.success) {
-    // Successfully auto-connected
-    toastContainer.value?.addToast({
-      message: `Connected to ${result.device?.name}`,
-      type: 'success',
-      duration: 2000
+  console.log('[App] onMounted started, isInitializing:', appStore.isInitializing)
+  try {
+    // Smart connection on app load
+    console.log('[App] Starting smartConnect...')
+    const result = await orchestrator.smartConnect({
+      silent: true,
+      context: 'app-load',
+      onProgress: (state) => {
+        // Progress is shown via ConnectionStatusToast component
+        console.log('[App] Connection progress:', state)
+      }
     })
 
-    // Route based on onboarding state
-    if (!onboardingStore.isOnboardingComplete) {
-      await router.push('/onboarding')
-    } else if (!authStore.isAuthenticated) {
-      // Connected but not authenticated - will be handled by router guards
-      await router.push('/login')
-    } else {
-      // Fully connected and authenticated - go to dashboard if on root
-      if (route.path === '/' || route.path === '/connect') {
-        await router.push({ name: 'dashboard' })
+    if (result.success) {
+      // Successfully auto-connected
+      toastContainer.value?.addToast({
+        message: `Connected to ${result.device?.name}`,
+        type: 'success',
+        duration: 2000
+      })
+
+      // Route based on onboarding state
+      if (!onboardingStore.isOnboardingComplete) {
+        await router.push('/onboarding')
+      } else if (!authStore.isAuthenticated) {
+        // Connected but not authenticated - will be handled by router guards
+        await router.push('/login')
+      } else {
+        // Fully connected and authenticated - go to dashboard if on root
+        if (route.path === '/' || route.path === '/connect') {
+          await router.push({ name: 'dashboard' })
+        }
+      }
+    } else if (result.requiresUI) {
+      // Auto-connect failed - router guards will redirect to appropriate page
+      console.log('[App] Auto-connect failed:', result.reason)
+
+      // Determine where to route based on onboarding status
+      if (!onboardingStore.isOnboardingComplete) {
+        await router.push('/onboarding')
+      } else {
+        await router.push('/connect')
       }
     }
-  } else if (result.requiresUI) {
-    // Auto-connect failed - router guards will redirect to appropriate page
-    console.log('[App] Auto-connect failed:', result.reason)
-
-    // Determine where to route based on onboarding status
-    if (!onboardingStore.isOnboardingComplete) {
-      await router.push('/onboarding')
-    } else {
+  } catch (error) {
+    console.error('[App] Initialization error:', error)
+    // On error, try to route to connection page
+    try {
       await router.push('/connect')
+    } catch (routeError) {
+      console.error('[App] Route error:', routeError)
     }
+  } finally {
+    // ALWAYS mark initialization as complete, even on error
+    console.log('[App] Finally block - setting isInitializing to false')
+    appStore.setInitializing(false)
+    console.log('[App] isInitializing is now:', appStore.isInitializing)
   }
-
-  // Mark initialization as complete
-  appStore.setInitializing(false)
 
   // Listen for battery notifications
   window.addEventListener('battery-notification', handleBatteryNotification as EventListener)

@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useUnitsStore } from '@/stores/units'
+
+const unitsStore = useUnitsStore()
 
 interface Props {
   totalZones: number
@@ -11,7 +14,7 @@ const props = defineProps<Props>()
 
 const stats = computed(() => [
   { label: 'Total Zones', value: props.totalZones.toString(), icon: 'map' },
-  { label: 'Total Area', value: `${props.totalArea} acres`, icon: 'grid' },
+  { label: 'Total Area', value: unitsStore.formatArea(props.totalArea), icon: 'grid' },
   { label: 'Active Zones', value: props.activeZones.toString(), icon: 'check' }
 ])
 </script>

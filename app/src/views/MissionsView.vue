@@ -144,8 +144,7 @@ const handleUseTemplate = (templateId: number) => {
 }
 
 const handleEditMission = async (id: string) => {
-  console.log('Edit mission:', id)
-  // TODO: Navigate to mission editor with mission ID
+  router.push(`/missions/edit/${id}`)
 }
 
 const handleStartMission = async (id: string) => {
@@ -164,7 +163,7 @@ const handleCancelMission = async (id: string) => {
 }
 
 const handleDeleteMission = async (id: string) => {
-  const mission = missionsStore.getMissionById.value(id)
+  const mission = missionsStore.getMissionById(id)
   if (!mission) return
 
   const confirmed = await dialog.confirm(

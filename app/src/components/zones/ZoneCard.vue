@@ -2,6 +2,9 @@
 import Card from '@/components/common/Card.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import Button from '@/components/common/Button.vue'
+import { useUnitsStore } from '@/stores/units'
+
+const unitsStore = useUnitsStore()
 
 interface Zone {
   id: string
@@ -41,7 +44,7 @@ const emit = defineEmits<{
       <div class="zone-stats">
         <div class="stat">
           <span class="stat-label">Area</span>
-          <span class="stat-value">{{ zone.area }} acres</span>
+          <span class="stat-value">{{ unitsStore.formatArea(zone.area) }}</span>
         </div>
         <div class="stat">
           <span class="stat-label">Last Modified</span>

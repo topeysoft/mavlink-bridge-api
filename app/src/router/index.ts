@@ -68,7 +68,12 @@ const router = createRouter({
         },
         {
           path: 'missions/create',
-          name: 'mission-editor',
+          name: 'mission-create',
+          component: () => import('../views/MissionEditorView.vue'),
+        },
+        {
+          path: 'missions/edit/:id',
+          name: 'mission-edit',
           component: () => import('../views/MissionEditorView.vue'),
         },
         {

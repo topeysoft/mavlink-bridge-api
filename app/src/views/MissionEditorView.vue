@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useZonesStore } from '@/stores/zones'
 import { useMissionsStore } from '@/stores/missions'
 import { useFeaturesStore } from '@/stores/features'
@@ -10,18 +10,23 @@ import Breadcrumb from '@/components/common/Breadcrumb.vue'
 import type { Mission } from '@/types'
 
 const router = useRouter()
+const route = useRoute()
 const zonesStore = useZonesStore()
 const missionsStore = useMissionsStore()
 const featuresStore = useFeaturesStore()
 const { success, error, info } = useNotifications()
 const dialog = useDialog()
 
+// Get mission ID from route (if editing)
+const missionId = computed(() => route.params.id as string | undefined)
+const isEditMode = computed(() => !!missionId.value)
+
 // Breadcrumb items
-const breadcrumbItems = [
+const breadcrumbItems = computed(() => [
   { label: 'Dashboard', to: '/' },
   { label: 'Missions', to: '/missions' },
-  { label: 'Create Mission' }
-]
+  { label: isEditMode.value ? 'Edit Mission' : 'Create Mission' }
+])
 
 // Current step (1-3)
 const currentStep = ref(1)
@@ -168,6 +173,32 @@ const loadDraft = () => {
   }
 }
 
+const loadMissionForEditing = (mission: Mission) => {
+  missionName.value = mission.name
+  missionType.value = 'mowing' // Default to mowing since we don't store this separately yet
+  missionDescription.value = '' // Not stored in mission object
+
+  // Determine schedule type and values from mission
+  if (mission.type === 'once') {
+    scheduleType.value = 'later'
+    scheduleTime.value = new Date(mission.schedule.startTime).toISOString().slice(0, 16)
+  } else {
+    scheduleType.value = 'recurring'
+    if (mission.type === 'daily') {
+      recurringFrequency.value = 'daily'
+    } else if (mission.type === 'weekly') {
+      recurringFrequency.value = 'weekly'
+    } else if (mission.type === 'monthly') {
+      recurringFrequency.value = 'monthly'
+    }
+    const time = new Date(mission.schedule.startTime)
+    recurringTime.value = `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
+  }
+
+  selectedZones.value = [...mission.zoneIds]
+  priority.value = mission.priority
+}
+
 const createMission = async () => {
   if (!canProceedStep1.value || !canProceedStep2.value) {
     error('Please complete all required fields')
@@ -217,21 +248,29 @@ const createMission = async () => {
   }
 
   const missionData: Mission = {
-    id: crypto.randomUUID(),
+    id: isEditMode.value ? missionId.value! : crypto.randomUUID(),
     name: missionName.value,
     type: missionType_,
     zoneIds: [...selectedZones.value], // Clone the array
     schedule,
     priority: priority.value as 'low' | 'normal' | 'high' | 'critical',
     enabled: true,
-    created: new Date().toISOString(),
+    created: isEditMode.value
+      ? missionsStore.getMissionById(missionId.value!)?.created || new Date().toISOString()
+      : new Date().toISOString(),
     lastModified: new Date().toISOString()
   }
 
   try {
-    console.log('Creating mission with data:', JSON.stringify(missionData, null, 2))
-    await missionsStore.addMission(missionData)
-    success(`Mission "${missionData.name}" created successfully`)
+    if (isEditMode.value) {
+      console.log('Updating mission with data:', JSON.stringify(missionData, null, 2))
+      await missionsStore.updateMission(missionId.value!, missionData)
+      success(`Mission "${missionData.name}" updated successfully`)
+    } else {
+      console.log('Creating mission with data:', JSON.stringify(missionData, null, 2))
+      await missionsStore.addMission(missionData)
+      success(`Mission "${missionData.name}" created successfully`)
+    }
 
     // Clear draft
     localStorage.removeItem('mission_draft')
@@ -239,8 +278,8 @@ const createMission = async () => {
     // Navigate back to missions
     router.push('/missions')
   } catch (err) {
-    console.error('Mission creation error:', err)
-    error(`Failed to create mission: ${(err as Error).message}`)
+    console.error('Mission save error:', err)
+    error(`Failed to ${isEditMode.value ? 'update' : 'create'} mission: ${(err as Error).message}`)
   }
 }
 
@@ -261,7 +300,21 @@ const goToCreateZone = () => {
 // Auto-save draft every 30 seconds
 let autoSaveInterval: number | null = null
 onMounted(() => {
-  loadDraft()
+  // If editing, load the mission data
+  if (isEditMode.value && missionId.value) {
+    const mission = missionsStore.getMissionById(missionId.value)
+    if (mission) {
+      loadMissionForEditing(mission)
+    } else {
+      error('Mission not found')
+      router.push('/missions')
+      return
+    }
+  } else {
+    // Only load draft when creating new mission
+    loadDraft()
+  }
+
   autoSaveInterval = window.setInterval(saveDraft, 30000)
 })
 
@@ -288,17 +341,17 @@ watch(scheduleType, (newValue) => {
       <!-- Editor Header -->
       <div class="mission-editor-header">
         <div class="header-left">
-          <h1 class="editor-title">Create Mission</h1>
+          <h1 class="editor-title">{{ isEditMode ? 'Edit Mission' : 'Create Mission' }}</h1>
         </div>
         <div class="editor-actions">
-          <button class="btn btn-secondary" @click="saveDraft">Save Draft</button>
+          <button v-if="!isEditMode" class="btn btn-secondary" @click="saveDraft">Save Draft</button>
           <button class="btn btn-primary" @click="createMission">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
               <polyline points="17 21 17 13 7 13 7 21"></polyline>
               <polyline points="7 3 7 8 15 8"></polyline>
             </svg>
-            Create Mission
+            {{ isEditMode ? 'Update Mission' : 'Create Mission' }}
           </button>
         </div>
       </div>
@@ -588,7 +641,7 @@ watch(scheduleType, (newValue) => {
                 <circle cx="12" cy="12" r="10"></circle>
                 <polyline points="12 6 12 12 16 14"></polyline>
               </svg>
-              Create Mission
+              {{ isEditMode ? 'Update Mission' : 'Create Mission' }}
             </button>
           </div>
         </div>

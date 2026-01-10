@@ -50,6 +50,26 @@ export class AuthClient {
   constructor(baseUrl: string, timeout = 10000) {
     this.http = new HttpClient(baseUrl, timeout);
     this.loadTokenFromStorage();
+
+    // Set up automatic token injection
+    this.http.setTokenProvider(() => this.token);
+
+    // Set up automatic token refresh on 401 errors
+    this.http.setUnauthorizedCallback(async () => {
+      // Only attempt refresh if we have a valid refresh token
+      if (this.refreshToken && this.refreshExpiresAt && Date.now() < this.refreshExpiresAt) {
+        try {
+          console.log('[AuthClient] Received 401, attempting token refresh...');
+          await this.refreshAccessToken();
+          console.log('[AuthClient] Token refreshed successfully after 401');
+          return true; // Refresh successful, retry the request
+        } catch (error) {
+          console.error('[AuthClient] Failed to refresh token on 401:', error);
+          return false; // Refresh failed, don't retry
+        }
+      }
+      return false; // No valid refresh token, don't retry
+    });
   }
 
   /**

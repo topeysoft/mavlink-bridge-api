@@ -93,12 +93,12 @@
 
               <div class="stat-row">
                 <span class="stat-label">Total Area:</span>
-                <span class="stat-value">{{ formatArea(totalArea) }}</span>
+                <span class="stat-value">{{ unitsStore.formatArea(totalArea) }}</span>
               </div>
 
               <div class="stat-row">
                 <span class="stat-label">Perimeter:</span>
-                <span class="stat-value">{{ formatPerimeter(totalPerimeter) }}</span>
+                <span class="stat-value">{{ unitsStore.formatPerimeter(totalPerimeter) }}</span>
               </div>
 
               <div class="stat-row">
@@ -174,9 +174,9 @@
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useLeafletMap } from '@/composables/useLeafletMap'
 import { useZoneDrawing } from '@/composables/useZoneDrawing'
-import { formatArea, formatPerimeter } from '@/utils/geoCalculations'
 import { useThemeStore } from '@/stores/theme'
 import { useDialog } from '@/composables/useDialog'
+import { useUnitsStore } from '@/stores/units'
 
 interface Props {
   modelValue: boolean
@@ -198,6 +198,7 @@ const emit = defineEmits<{
 
 const themeStore = useThemeStore()
 const dialog = useDialog()
+const unitsStore = useUnitsStore()
 
 // Dialog state
 const isOpen = computed({

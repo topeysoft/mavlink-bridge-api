@@ -74,11 +74,11 @@
             <h3>Statistics</h3>
             <div class="stat-row">
               <span class="stat-label">Total Area:</span>
-              <span class="stat-value">{{ formatArea(totalArea) }}</span>
+              <span class="stat-value">{{ unitsStore.formatArea(totalArea) }}</span>
             </div>
             <div class="stat-row">
               <span class="stat-label">Perimeter:</span>
-              <span class="stat-value">{{ formatPerimeter(totalPerimeter) }}</span>
+              <span class="stat-value">{{ unitsStore.formatPerimeter(totalPerimeter) }}</span>
             </div>
             <div class="stat-row">
               <span class="stat-label">Zones:</span>
@@ -101,7 +101,7 @@
                 <div class="zone-info">
                   <div class="zone-title">Zone {{ zone.index }} ({{ zone.type }})</div>
                   <div class="zone-meta">
-                    {{ zone.area > 0 ? zone.area.toFixed(3) + ' acres' : 'Path/Marker' }}
+                    {{ zone.area > 0 ? unitsStore.formatArea(zone.area, 3) : 'Path/Marker' }}
                   </div>
                 </div>
                 <button
@@ -152,11 +152,11 @@ import ModalActions from '@/components/common/ModalActions.vue'
 import ValidatedInput from '@/components/common/ValidatedInput.vue'
 import { useLeafletMap } from '@/composables/useLeafletMap'
 import { useZoneDrawing } from '@/composables/useZoneDrawing'
-import { formatArea, formatPerimeter } from '@/utils/geoCalculations'
 import { useThemeStore } from '@/stores/theme'
 import { useLocationStore } from '@/stores/location'
 import { useDialog } from '@/composables/useDialog'
 import { getCurrentPosition } from '@/utils/geocoding'
+import { useUnitsStore } from '@/stores/units'
 
 interface Props {
   modelValue: boolean
@@ -179,6 +179,7 @@ const emit = defineEmits<{
 const themeStore = useThemeStore()
 const locationStore = useLocationStore()
 const dialog = useDialog()
+const unitsStore = useUnitsStore()
 
 // Dialog state
 const isOpen = computed({

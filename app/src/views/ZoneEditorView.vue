@@ -8,9 +8,9 @@ import { useNotifications } from '@/composables/useNotifications'
 import { useDialog } from '@/composables/useDialog'
 import { useLeafletMap } from '@/composables/useLeafletMap'
 import { useZoneDrawing } from '@/composables/useZoneDrawing'
-import { formatArea, formatPerimeter } from '@/utils/geoCalculations'
 import { getCurrentPosition } from '@/utils/geocoding'
 import Breadcrumb from '@/components/common/Breadcrumb.vue'
+import { useUnitsStore } from '@/stores/units'
 import ValidatedInput from '@/components/common/ValidatedInput.vue'
 import MapLayerControl from '@/components/zones/MapLayerControl.vue'
 import type { MapLayerType } from '@/composables/useLeafletMap'
@@ -22,6 +22,7 @@ const themeStore = useThemeStore()
 const locationStore = useLocationStore()
 const { success, error } = useNotifications()
 const dialog = useDialog()
+const unitsStore = useUnitsStore()
 
 // Get zone ID from route for editing
 const zoneId = computed(() => route.params.id as string | undefined)
@@ -355,11 +356,11 @@ onMounted(() => {
             <h3>Statistics</h3>
             <div class="stat-row">
               <span class="stat-label">Total Area:</span>
-              <span class="stat-value">{{ formatArea(totalArea) }}</span>
+              <span class="stat-value">{{ unitsStore.formatArea(totalArea) }}</span>
             </div>
             <div class="stat-row">
               <span class="stat-label">Perimeter:</span>
-              <span class="stat-value">{{ formatPerimeter(totalPerimeter) }}</span>
+              <span class="stat-value">{{ unitsStore.formatPerimeter(totalPerimeter) }}</span>
             </div>
             <div class="stat-row">
               <span class="stat-label">Zones:</span>

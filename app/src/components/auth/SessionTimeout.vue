@@ -9,13 +9,23 @@
           <strong>{{ formattedTimeRemaining }}</strong
           >.
         </p>
-        <p class="info-message">
-          You'll be automatically logged out when your session expires. Save any work and
-          log in again to continue.
+        <p v-if="hasRefreshToken" class="info-message">
+          Your session should refresh automatically, but you can also refresh it manually now.
+        </p>
+        <p v-else class="info-message error">
+          Your refresh token has expired. You'll need to log in again to continue.
         </p>
         <div class="dialog-actions">
-          <button class="btn-secondary" @click="dismiss">I Understand</button>
-          <button class="btn-primary" @click="goToLogin">Go to Login</button>
+          <button class="btn-secondary" @click="dismiss">Dismiss</button>
+          <button
+            v-if="hasRefreshToken"
+            class="btn-primary"
+            @click="refreshSession"
+            :disabled="isRefreshing"
+          >
+            {{ isRefreshing ? 'Refreshing...' : 'Refresh Now' }}
+          </button>
+          <button v-else class="btn-primary" @click="goToLogin">Go to Login</button>
         </div>
       </div>
     </div>
@@ -23,19 +33,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { useConnectionStore } from '../../stores/connection'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const connectionStore = useConnectionStore()
+const toast = inject<any>('toast')
 
 // State
 const timeRemaining = ref(0)
+const isRefreshing = ref(false)
 let updateInterval: number | null = null
 
 // Computed
 const showWarning = computed(() => authStore.sessionTimeoutWarning)
+
+const hasRefreshToken = computed(() => {
+  return authStore.refreshToken !== null &&
+         authStore.refreshExpiresAt !== null &&
+         Date.now() < authStore.refreshExpiresAt
+})
 
 const formattedTimeRemaining = computed(() => {
   const totalSeconds = Math.max(0, Math.floor(timeRemaining.value / 1000))
@@ -51,6 +71,42 @@ const formattedTimeRemaining = computed(() => {
 })
 
 // Actions
+async function refreshSession() {
+  const client = connectionStore.getClient()
+  if (!client) {
+    console.error('Client not available - cannot refresh session')
+    toast?.value?.addToast({
+      message: 'Cannot refresh session - not connected to device',
+      type: 'error',
+      duration: 5000,
+      dismissible: true
+    })
+    return
+  }
+
+  isRefreshing.value = true
+  try {
+    await authStore.manualRefreshToken(client.authClient)
+
+    toast?.value?.addToast({
+      message: 'Session refreshed successfully',
+      type: 'success',
+      duration: 3000,
+      dismissible: true
+    })
+  } catch (error) {
+    console.error('Failed to refresh session:', error)
+    toast?.value?.addToast({
+      message: 'Failed to refresh session. Please log in again.',
+      type: 'error',
+      duration: 5000,
+      dismissible: true
+    })
+  } finally {
+    isRefreshing.value = false
+  }
+}
+
 function dismiss() {
   authStore.dismissSessionWarning()
 }
@@ -151,6 +207,11 @@ onUnmounted(() => {
     color: var(--text-secondary);
     margin: 0 0 2rem;
     line-height: 1.6;
+
+    &.error {
+      color: var(--status-danger);
+      font-weight: 600;
+    }
   }
 
   .dialog-actions {
@@ -172,14 +233,19 @@ onUnmounted(() => {
         background: $primary;
         color: white;
 
-        &:hover {
+        &:hover:not(:disabled) {
           background: color.adjust($primary, $lightness: -10%);
           transform: translateY(-1px);
           box-shadow: 0 4px 12px rgba($primary, 0.3);
         }
 
-        &:active {
+        &:active:not(:disabled) {
           transform: translateY(0);
+        }
+
+        &:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
       }
 
