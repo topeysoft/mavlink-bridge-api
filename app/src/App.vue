@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, provide, onMounted, computed } from 'vue'
+import { ref, provide, onMounted, computed, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import KeyboardShortcutsModal from './components/common/KeyboardShortcutsModal.vue'
 import ToastContainer from './components/common/ToastContainer.vue'
@@ -7,7 +7,6 @@ import ErrorBoundary from './components/common/ErrorBoundary.vue'
 import OfflineBanner from './components/common/OfflineBanner.vue'
 import ConfirmDialog from './components/common/ConfirmDialog.vue'
 import AlertDialog from './components/common/AlertDialog.vue'
-import SessionTimeout from './components/auth/SessionTimeout.vue'
 import ConnectionStatusToast from './components/common/ConnectionStatusToast.vue'
 import { useThemeStore } from './stores/theme'
 import { useFeaturesStore } from './stores/features'
@@ -28,6 +27,23 @@ const orchestrator = useConnectionOrchestrator()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const appStore = useAppStore()
+
+// Watch for authentication changes and redirect to login if user becomes unauthenticated
+// This handles cases where token refresh fails and logout is called
+watch(() => authStore.isAuthenticated, (isAuthenticated, wasAuthenticated) => {
+  // Only act when auth state changes from true to false (logout occurred)
+  if (wasAuthenticated && !isAuthenticated) {
+    // Check if currently on a protected route
+    const publicRoutes = ['login', 'setup', 'connect', 'onboarding']
+    const isOnPublicRoute = publicRoutes.includes(route.name as string)
+
+    if (!isOnPublicRoute) {
+      // User was logged out while on a protected route - redirect to login
+      console.log('[App] User logged out, redirecting to login from:', route.path)
+      router.push({ name: 'login', query: { redirect: route.fullPath, reason: 'session_expired' } })
+    }
+  }
+})
 
 // Keyboard shortcuts
 const showShortcuts = ref(false)
@@ -222,9 +238,6 @@ const handleEmergencyStop = async () => {
 
     <!-- Connection Status Toast -->
     <ConnectionStatusToast />
-
-    <!-- Session Timeout Warning -->
-    <SessionTimeout />
 
     <!-- Dialogs -->
     <ConfirmDialog

@@ -35,6 +35,12 @@ const AUTH_REFRESH_EXPIRY_KEY = 'yardrover_refresh_expiry';
 const AUTH_ROLE_KEY = 'yardrover_auth_role';
 
 /**
+ * Callback for handling logout events
+ * @param reason - The reason for logout ('manual', 'token_refresh_failed', 'token_expired')
+ */
+export type LogoutCallback = (reason: 'manual' | 'token_refresh_failed' | 'token_expired') => void;
+
+/**
  * Auth client for managing authentication and API keys
  */
 export class AuthClient {
@@ -46,6 +52,7 @@ export class AuthClient {
   private role: Role | null = null;
   private isRefreshing: boolean = false; // Prevent concurrent refresh calls
   private refreshPromise: Promise<void> | null = null; // Promise for ongoing refresh
+  private onLogoutCallback: LogoutCallback | null = null; // Callback when logout occurs
 
   constructor(baseUrl: string, timeout = 10000) {
     this.http = new HttpClient(baseUrl, timeout);
@@ -56,6 +63,13 @@ export class AuthClient {
 
     // Set up automatic token refresh on 401 errors
     this.http.setUnauthorizedCallback(async () => {
+      // Don't attempt refresh if we're already in a refresh cycle
+      // This prevents infinite recursion when the refresh endpoint itself returns 401
+      if (this.isRefreshing) {
+        console.log('[AuthClient] Already refreshing, not attempting refresh again');
+        return false;
+      }
+
       // Only attempt refresh if we have a valid refresh token
       if (this.refreshToken && this.refreshExpiresAt && Date.now() < this.refreshExpiresAt) {
         try {
@@ -65,9 +79,14 @@ export class AuthClient {
           return true; // Refresh successful, retry the request
         } catch (error) {
           console.error('[AuthClient] Failed to refresh token on 401:', error);
+          // Clear auth state on refresh failure and notify callback with reason
+          this.clearLocalState('token_refresh_failed');
           return false; // Refresh failed, don't retry
         }
       }
+      // No valid refresh token, clear auth state and notify callback
+      console.log('[AuthClient] No valid refresh token available, clearing auth state');
+      this.clearLocalState('token_expired');
       return false; // No valid refresh token, don't retry
     });
   }
@@ -235,6 +254,20 @@ export class AuthClient {
   }
 
   /**
+   * Set callback to be called when logout occurs
+   */
+  setLogoutCallback(callback: LogoutCallback): void {
+    this.onLogoutCallback = callback;
+  }
+
+  /**
+   * Clear logout callback
+   */
+  clearLogoutCallback(): void {
+    this.onLogoutCallback = null;
+  }
+
+  /**
    * Login with API key
    */
   async login(apiKey: string): Promise<LoginResponse> {
@@ -352,6 +385,29 @@ export class AuthClient {
   }
 
   /**
+   * Clear local auth state and notify callback (used by unauthorized callback)
+   * Does NOT revoke tokens on server (they're already invalid)
+   */
+  private clearLocalState(reason: 'token_refresh_failed' | 'token_expired'): void {
+    console.log('[AuthClient] clearLocalState called, reason:', reason);
+
+    // Clear local state
+    this.token = null;
+    this.refreshToken = null;
+    this.expiresAt = null;
+    this.refreshExpiresAt = null;
+    this.role = null;
+    this.clearTokenFromStorage();
+    console.log('[AuthClient] Local state cleared');
+
+    // Notify callback if registered
+    if (this.onLogoutCallback) {
+      console.log('[AuthClient] Calling logout callback with reason:', reason);
+      this.onLogoutCallback(reason);
+    }
+  }
+
+  /**
    * Logout (revoke refresh token and clear local state)
    */
   async logout(): Promise<void> {
@@ -382,6 +438,12 @@ export class AuthClient {
     this.role = null;
     this.clearTokenFromStorage();
     console.log('[AuthClient] Local state cleared');
+
+    // Notify callback if registered (manual logout)
+    if (this.onLogoutCallback) {
+      console.log('[AuthClient] Calling logout callback with reason: manual');
+      this.onLogoutCallback('manual');
+    }
   }
 
   /**

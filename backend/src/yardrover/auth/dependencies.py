@@ -279,3 +279,77 @@ async def get_optional_api_key(
     except HTTPException:
         # Authentication failed or not provided, return None
         return None
+
+
+async def verify_websocket_token(token: str) -> SecurityContext:
+    """Verify JWT token for WebSocket authentication.
+
+    WebSocket connections cannot use standard FastAPI dependencies,
+    so this function provides token verification for WebSocket endpoints.
+
+    Args:
+        token: JWT token from query parameter
+
+    Returns:
+        SecurityContext for the authenticated connection
+
+    Raises:
+        HTTPException: If token is invalid or expired
+    """
+    try:
+        jwt_handler = get_jwt_handler()
+        token_data = jwt_handler.verify_token(token)
+
+        if token_data is None:
+            logger.warning("websocket_auth_failed", reason="invalid_token")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+            )
+
+        # Parse subject: format is "type:id" (e.g., "user:uuid" or "api_key:uuid")
+        subject_parts = token_data.sub.split(":", 1)
+        if len(subject_parts) == 2:
+            subject_type, subject_id = subject_parts
+        else:
+            # Backward compatibility: assume api_key if no prefix
+            subject_type = "api_key"
+            subject_id = token_data.sub
+
+        # Get subject name based on type
+        subject_name = f"JWT:{subject_id}"
+        if subject_type == "user":
+            user_manager = get_user_manager()
+            user = user_manager.get_user(subject_id)
+            if user:
+                subject_name = user.username
+        elif subject_type == "api_key":
+            api_key_manager = get_api_key_manager()
+            api_key = api_key_manager.get_key(subject_id)
+            if api_key:
+                subject_name = api_key.name
+
+        # Create security context from token
+        context = SecurityContext(
+            subject_id=subject_id,
+            subject_type=subject_type,
+            subject_name=subject_name,
+            role=token_data.role,
+            permissions=token_data.permissions,
+        )
+
+        logger.debug(
+            "websocket_auth_successful",
+            subject_type=subject_type,
+            subject_id=subject_id,
+            role=token_data.role.value,
+        )
+
+        return context
+
+    except RuntimeError as e:
+        logger.error("websocket_auth_error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service not available",
+        )

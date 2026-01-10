@@ -6,6 +6,7 @@ import FormSelect from '@/components/common/FormSelect.vue'
 
 const emit = defineEmits<{
   createZone: []
+  recordZone: []
   import: []
   export: []
   search: [query: string]
@@ -41,6 +42,13 @@ const handleFilterChange = () => {
           <line x1="5" y1="12" x2="19" y2="12"></line>
         </svg>
         Create Zone
+      </Button>
+      <Button variant="accent" @click="emit('recordZone')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+        📍 Record Zone
       </Button>
       <Button variant="outline" @click="emit('import')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

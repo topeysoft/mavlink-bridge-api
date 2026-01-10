@@ -57,8 +57,63 @@ export async function authGuard(
     return
   }
 
-  // Check connection status
-  // If not connected and trying to access a protected route, redirect to connection page
+  // IMPORTANT: Check auth BEFORE connection for protected routes
+  // This ensures that when a user loses auth (but is still connected),
+  // they get redirected to login, not to connect page
+
+  // For protected routes, check authentication first
+  if (!isPublicRoute) {
+    // Check if user is authenticated - if not, redirect to login (if connected) or connect (if not connected)
+    if (!authStore.isAuthenticated) {
+      // If connected, redirect to login or setup
+      if (connectionStore.isConnected) {
+        // Check if we need to do initial setup
+        if (authStore.setupStatus === null && connectionStore.client) {
+          try {
+            const authClient = (connectionStore.client as any).authClient
+            if (authClient) {
+              await authStore.checkSetupStatus(authClient)
+            }
+          } catch (error) {
+            console.error('[AuthGuard] Failed to check setup status:', error)
+          }
+        }
+
+        // Redirect to setup if needed, otherwise to login
+        if (authStore.needsSetup) {
+          next({ name: 'setup', query: { redirect: to.fullPath } })
+        } else {
+          next({ name: 'login', query: { redirect: to.fullPath } })
+        }
+        return
+      }
+
+      // Not connected - redirect based on onboarding status
+      if (!onboardingStore.isOnboardingComplete) {
+        next({ name: 'onboarding', query: { redirect: to.fullPath } })
+      } else {
+        next({ name: 'connect', query: { redirect: to.fullPath } })
+      }
+      return
+    }
+
+    // User is authenticated - check token expiry
+    if (authStore.timeUntilExpiry !== null && authStore.timeUntilExpiry <= 0) {
+      // Token expired, logout and redirect to login
+      const authClient = (connectionStore.client as any).authClient
+      if (authClient) {
+        await authStore.logout(authClient)
+      }
+      next({ name: 'login', query: { redirect: to.fullPath, expired: '1' } })
+      return
+    }
+
+    // All auth checks passed for protected route, allow navigation
+    next()
+    return
+  }
+
+  // For public routes, just check if we need connection (for login/setup pages)
   if (!connectionStore.isConnected && !isPublicRoute) {
     // Redirect based on onboarding status
     if (!onboardingStore.isOnboardingComplete) {
@@ -69,61 +124,7 @@ export async function authGuard(
     return
   }
 
-  // Always allow access to public routes (after connection check)
-  if (!requiresAuth(to)) {
-    next()
-    return
-  }
-
-  // From here on, we know we have a connection (for protected routes)
-  // Check if we have a client instance
-  if (!connectionStore.client) {
-    // This shouldn't happen if isConnected is true, but safety check
-    next({ name: 'connect', query: { redirect: to.fullPath } })
-    return
-  }
-
-  // Check if we need to do initial setup
-  if (authStore.setupStatus === null) {
-    try {
-      const authClient = (connectionStore.client as any).authClient
-      if (authClient) {
-        await authStore.checkSetupStatus(authClient)
-      }
-    } catch (error) {
-      console.error('Failed to check setup status:', error)
-    }
-  }
-
-  // Redirect to setup if needed
-  if (authStore.needsSetup) {
-    if (to.name !== 'setup') {
-      next({ name: 'setup' })
-    } else {
-      next()
-    }
-    return
-  }
-
-  // Check if user is authenticated
-  if (!authStore.isAuthenticated) {
-    // Not authenticated, redirect to login
-    next({ name: 'login', query: { redirect: to.fullPath } })
-    return
-  }
-
-  // Check if token is expired
-  if (authStore.timeUntilExpiry !== null && authStore.timeUntilExpiry <= 0) {
-    // Token expired, logout and redirect to login
-    const authClient = (connectionStore.client as any).authClient
-    if (authClient) {
-      authStore.logout(authClient)
-    }
-    next({ name: 'login', query: { redirect: to.fullPath, expired: '1' } })
-    return
-  }
-
-  // All checks passed, allow navigation
+  // Always allow access to public routes
   next()
 }
 
@@ -218,20 +219,27 @@ export async function loginGuard(
   }
 
   // Check if we have a connection
-  if (!connectionStore.client) {
+  if (!connectionStore.isConnected || !connectionStore.client) {
+    console.log('[LoginGuard] No connection, redirecting to connect. isConnected:', connectionStore.isConnected, 'hasClient:', !!connectionStore.client)
     next({ name: 'connect' })
     return
   }
 
   // Check if setup is needed before allowing login
+  // Always check setup status if it's null, but be resilient to failures
   if (authStore.setupStatus === null) {
     try {
       const authClient = (connectionStore.client as any).authClient
       if (authClient) {
+        console.log('[LoginGuard] Checking setup status...')
         await authStore.checkSetupStatus(authClient)
+        console.log('[LoginGuard] Setup status checked, needsSetup:', authStore.needsSetup)
       }
     } catch (error) {
-      console.error('Failed to check setup status:', error)
+      console.error('[LoginGuard] Failed to check setup status:', error)
+      // If setup status check fails, assume setup is complete and allow login
+      // This prevents getting stuck if there's a temporary error
+      console.log('[LoginGuard] Setup status check failed, allowing login anyway')
       next()
       return
     }
@@ -239,11 +247,13 @@ export async function loginGuard(
 
   // Redirect to setup if needed
   if (authStore.needsSetup) {
+    console.log('[LoginGuard] Setup needed, redirecting to setup')
     next({ name: 'setup' })
     return
   }
 
   // Not authenticated, allow access to login
+  console.log('[LoginGuard] All checks passed, allowing access to login')
   next()
 }
 

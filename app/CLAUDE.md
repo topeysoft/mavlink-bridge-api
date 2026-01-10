@@ -6,18 +6,21 @@
 - ✅ Native HTML (`<input>`, `<button>`, `<select>`, `<div>`)
 - ✅ Pure Vue 3 with Composition API (`<script setup lang="ts">`)
 - ✅ Custom SCSS styling
-- ✅ Emoji or SVG icons
+- ✅ Lucide Vue icons (via `iconMap.ts`)
+- ✅ Emoji icons (limited use, consumer mode only)
 
 **DO NOT USE:**
 - ❌ `q-btn`, `q-input`, `q-dialog`, `q-card`, `q-icon`, etc.
 - ❌ `useQuasar()` composable
 - ❌ Any imports from `'quasar'`
+- ❌ Material Icons or other icon fonts
+- ❌ Direct lucide-vue-next imports
 
 **For common patterns:**
 - **Buttons**: `<button class="btn btn-primary">` with custom CSS
 - **Inputs**: `<input>` with custom styling
 - **Dialogs**: `useDialog()` composable (see below)
-- **Icons**: Emoji (🔍, ⚙️, 📊) or inline SVG
+- **Icons**: Use centralized `getIcon()` from `@/utils/iconMap` (see Icon System below)
 - **Notifications**: `useNotifications()` for toasts
 - **Forms**: Native HTML with Vue bindings
 
@@ -153,6 +156,41 @@ $spacing-md: 1rem;
 $spacing-lg: 1.5rem;
 $spacing-xl: 2rem;
 ```
+
+## Icon System
+
+**ALWAYS use the centralized icon system** via `@/utils/iconMap`:
+
+```typescript
+import { getIcon } from '@/utils/iconMap'
+
+// In template
+<component :is="getIcon('dashboard')" :size="24" :stroke-width="2" />
+<component :is="getIcon('alert-circle')" :size="18" :stroke-width="2" :color="red" />
+```
+
+**Available Icon Categories:**
+- **Navigation**: `dashboard`, `peripherals`, `zones`, `missions`, `control`, `monitoring`, etc.
+- **Actions**: `edit`, `trash`, `save`, `download`, `upload`, `play`, `pause`, etc.
+- **Status**: `check-circle`, `x-circle`, `alert-triangle`, `alert-circle`, `info`, etc.
+- **Peripherals**: `peripheral-mower`, `peripheral-camera`, `peripheral-snow-blower`, etc.
+- **UI Elements**: `user`, `sun`, `moon`, `logout`, `menu`, `chevron-*`, etc.
+
+**Adding New Icons:**
+1. Import from `lucide-vue-next` in `iconMap.ts`
+2. Add to `IconName` type
+3. Add to `iconMap` object
+4. Use via `getIcon('icon-name')`
+
+**Icon Guidelines:**
+- ✅ Use `getIcon()` for all SVG icons
+- ✅ Specify size and stroke-width explicitly
+- ✅ Use emoji sparingly (consumer mode dialogs/alerts only)
+- ❌ Never import Lucide icons directly in components
+- ❌ Never use Material Icons or icon fonts
+- ❌ Never hardcode inline SVG (use iconMap instead)
+
+**See**: `src/utils/iconMap.ts` for complete icon list and `src/components/common/Sidebar.vue` for usage examples.
 
 ## Dialog System
 
@@ -341,13 +379,15 @@ client.on('telemetry', (data) => {
 4. **Composition API** - Use `<script setup>` for all components
 5. **Feature Flags** - Check before showing advanced features
 6. **Dialog System** - Use `useDialog()` instead of native dialogs
-7. **Emoji Icons** - Prefer emoji for simple icons (faster, no deps)
-8. **Accessibility** - Use semantic HTML and ARIA labels
-9. **Responsive** - Test on mobile viewports
-10. **Client Library** - Use for all device API calls
+7. **Icon System** - Use `getIcon()` from `@/utils/iconMap` for all SVG icons (no direct Lucide imports, no icon fonts)
+8. **Emoji Icons** - Use sparingly (consumer mode dialogs/alerts only)
+9. **Accessibility** - Use semantic HTML and ARIA labels
+10. **Responsive** - Test on mobile viewports
+11. **Client Library** - Use for all device API calls
 
 ## Key Files Reference
 
+- **Icon system**: `src/utils/iconMap.ts`
 - **Dialog system**: `src/composables/useDialog.ts`
 - **Feature flags**: `src/stores/features.ts`
 - **Auth store**: `src/stores/auth.ts`
@@ -358,6 +398,7 @@ client.on('telemetry', (data) => {
 
 ## Examples
 
+- **Icons**: See `src/components/common/Sidebar.vue` or `src/views/PeripheralsView.vue`
 - **Dialogs**: See any view/component using `useDialog()`
 - **Modals**: See `src/components/common/Modal.vue`
 - **Forms**: See `src/views/ParametersView.vue`

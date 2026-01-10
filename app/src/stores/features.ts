@@ -37,6 +37,14 @@ export interface FeatureFlags {
   customCommands: boolean // Send custom MAVLink commands
   scriptExecution: boolean // Run custom automation scripts
 
+  // Zone Types & Peripherals
+  security_patrol: boolean // Security surveillance and patrol routes
+  snow_clearing: boolean // Winter snow removal operations
+  precision_spraying: boolean // Chemical/fertilizer application
+  irrigation: boolean // Automated watering and irrigation
+  debris_collection: boolean // Leaf and debris collection
+  environmental_monitoring: boolean // Environmental sensor data collection
+
   // Developer Tools
   apiConsole: boolean // Direct API/MAVLink console
   debugMode: boolean // Debug information and logs
@@ -66,6 +74,12 @@ const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
     rtcmClient: true,
     customCommands: false,
     scriptExecution: false,
+    security_patrol: false,
+    snow_clearing: false,
+    precision_spraying: false,
+    irrigation: false,
+    debris_collection: false,
+    environmental_monitoring: false,
     apiConsole: false,
     debugMode: false,
     experimentalFeatures: false,
@@ -89,6 +103,12 @@ const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
     rtcmClient: true,
     customCommands: false,
     scriptExecution: false,
+    security_patrol: true,
+    snow_clearing: true,
+    precision_spraying: true,
+    irrigation: true,
+    debris_collection: true,
+    environmental_monitoring: true,
     apiConsole: false,
     debugMode: false,
     experimentalFeatures: false,
@@ -112,6 +132,12 @@ const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
     rtcmClient: true,
     customCommands: true,
     scriptExecution: true,
+    security_patrol: true,
+    snow_clearing: true,
+    precision_spraying: true,
+    irrigation: true,
+    debris_collection: true,
+    environmental_monitoring: true,
     apiConsole: true,
     debugMode: true,
     experimentalFeatures: true,

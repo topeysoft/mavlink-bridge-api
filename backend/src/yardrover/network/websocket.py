@@ -37,6 +37,7 @@ class WebSocketConnection:
         websocket: WebSocket,
         connection_id: str,
         remote_address: str,
+        context: Optional[Any] = None,  # SecurityContext, but avoid circular import
     ):
         """Initialize WebSocket connection.
 
@@ -44,10 +45,12 @@ class WebSocketConnection:
             websocket: FastAPI WebSocket instance
             connection_id: Unique connection identifier
             remote_address: Client IP address
+            context: Optional security context for authenticated connections
         """
         self.websocket = websocket
         self.connection_id = connection_id
         self.remote_address = remote_address
+        self.context = context
         self.connected_at = datetime.utcnow()
         self.subscriptions: Set[str] = set()
         self.last_heartbeat = time.time()
@@ -56,11 +59,22 @@ class WebSocketConnection:
     @property
     def info(self) -> ConnectionInfo:
         """Get connection information."""
+        # Extract user info from security context if available
+        username = None
+        role = None
+        if self.context:
+            username = getattr(self.context, "subject_name", None)
+            role = getattr(self.context, "role", None)
+            if role:
+                role = role.value if hasattr(role, "value") else str(role)
+
         return ConnectionInfo(
             connection_id=self.connection_id,
             connected_at=self.connected_at,
             remote_address=self.remote_address,
             subscriptions=list(self.subscriptions),
+            username=username,
+            role=role,
         )
 
     async def send_message(self, message: WebSocketMessage) -> None:
@@ -224,11 +238,16 @@ class WebSocketManager:
         self.connections.clear()
         logger.info("websocket_manager_stopped")
 
-    async def connect(self, websocket: WebSocket) -> WebSocketConnection:
+    async def connect(
+        self,
+        websocket: WebSocket,
+        context: Optional[Any] = None,  # SecurityContext, but avoid circular import
+    ) -> WebSocketConnection:
         """Accept a new WebSocket connection.
 
         Args:
             websocket: FastAPI WebSocket instance
+            context: Optional security context for authenticated connections
 
         Returns:
             WebSocketConnection instance
@@ -238,16 +257,21 @@ class WebSocketManager:
         connection_id = str(uuid.uuid4())
         remote_address = websocket.client.host if websocket.client else "unknown"
 
-        connection = WebSocketConnection(websocket, connection_id, remote_address)
+        connection = WebSocketConnection(websocket, connection_id, remote_address, context)
         self.connections[connection_id] = connection
         self.total_connections += 1
 
-        logger.info(
-            "websocket_connected",
-            connection_id=connection_id,
-            remote_address=remote_address,
-            active_connections=len(self.connections),
-        )
+        # Log with user info if available
+        log_data = {
+            "connection_id": connection_id,
+            "remote_address": remote_address,
+            "active_connections": len(self.connections),
+        }
+        if context:
+            log_data["username"] = getattr(context, "subject_name", None)
+            log_data["role"] = getattr(context, "role", None)
+
+        logger.info("websocket_connected", **log_data)
 
         # Emit connection event
         if self.event_bus:

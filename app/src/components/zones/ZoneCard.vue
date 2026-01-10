@@ -1,32 +1,39 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import Card from '@/components/common/Card.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import Button from '@/components/common/Button.vue'
 import { useUnitsStore } from '@/stores/units'
+import { useFeaturesStore } from '@/stores/features'
+import type { Zone } from '@/types'
+import { getZoneTypeName, getZoneTypeIcon } from '@/types'
 
 const unitsStore = useUnitsStore()
-
-interface Zone {
-  id: string
-  name: string
-  type: string
-  area: number
-  status?: 'active' | 'inactive' | 'pending'
-  color: string
-  lastModified: string
-}
+const featuresStore = useFeaturesStore()
 
 interface Props {
-  zone: Zone
+  zone: Zone & {
+    status?: 'active' | 'inactive' | 'pending'
+  }
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   edit: [id: string]
   delete: [id: string]
   toggleStatus: [id: string]
 }>()
+
+const isConsumerMode = computed(() => featuresStore.userMode === 'consumer')
+
+const zoneTypeName = computed(() => {
+  return getZoneTypeName(props.zone.type, isConsumerMode.value)
+})
+
+const zoneTypeIcon = computed(() => {
+  return getZoneTypeIcon(props.zone.type)
+})
 </script>
 
 <template>
@@ -35,8 +42,11 @@ const emit = defineEmits<{
       <div class="zone-header">
         <div class="zone-color" :style="{ backgroundColor: zone.color }"></div>
         <div class="zone-info">
-          <h3 class="zone-name">{{ zone.name }}</h3>
-          <span class="zone-type">{{ zone.type }}</span>
+          <h3 class="zone-name">
+            <span class="zone-icon">{{ zoneTypeIcon }}</span>
+            {{ zone.name }}
+          </h3>
+          <span class="zone-type">{{ zoneTypeName }}</span>
         </div>
         <StatusBadge :status="zone.status === 'active' ? 'success' : 'pending'" :label="zone.status" />
       </div>
@@ -113,12 +123,18 @@ const emit = defineEmits<{
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: var(--spacing-xs);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.zone-icon {
+  font-size: 1.25rem;
 }
 
 .zone-type {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
-  text-transform: capitalize;
 }
 
 .zone-stats {

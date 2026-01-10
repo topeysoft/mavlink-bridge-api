@@ -22,7 +22,7 @@ export type { TokenProvider, RequestOptions } from './core/HttpClient';
 export { WebSocketClient } from './core/WebSocketClient';
 
 // Auth exports
-export { AuthClient } from './auth/AuthClient';
+export { AuthClient, type LogoutCallback } from './auth/AuthClient';
 export {
   Role,
   Permission,
@@ -211,6 +211,20 @@ export {
   ResourceData,
   ResourceStorageConfig
 } from './resources/ResourceTypes';
+export type { ZoneType } from './resources/ResourceTypes';
+
+// Zone type metadata exports
+export {
+  ZONE_TYPE_METADATA,
+  getZoneTypeColor,
+  getZoneTypeIcon,
+  getZoneTypeName,
+  getZoneTypeDescription,
+  getRequiredFeature,
+  isZoneTypeAvailable,
+  getAvailableZoneTypes
+} from './resources/ZoneTypeMetadata';
+export type { ZoneTypeInfo } from './resources/ZoneTypeMetadata';
 
 // Peripheral management exports
 export { PeripheralClient } from './peripherals/PeripheralClient';
@@ -230,6 +244,17 @@ export {
   CompatibilityCheckResponse,
   PeripheralStats
 } from './peripherals/PeripheralTypes';
+
+// Zone recording exports
+export { ZoneRecordingClient } from './zones/ZoneRecordingClient';
+export type {
+  GPSWaypoint,
+  RecordingConfig,
+  RecordingStatus,
+  RecordingSession,
+  RecordingStartResponse,
+  RecordingCompleteResult
+} from './zones/ZoneRecordingTypes';
 
 
 // Version info

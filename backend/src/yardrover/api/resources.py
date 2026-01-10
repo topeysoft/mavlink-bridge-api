@@ -9,8 +9,9 @@ import time
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from yardrover.auth import SecurityContext, require_viewer
 from yardrover.models.resources import (
     MissionMetadata,
     ResourceSyncResponse,
@@ -39,7 +40,8 @@ def set_storage(storage: ResourceStorage) -> None:
 
 @router.get("/sync", response_model=ResourceSyncResponse)
 async def sync_resources(
-    since: int = Query(0, description="Return only resources modified after this timestamp (microseconds since epoch)")
+    since: int = Query(0, description="Return only resources modified after this timestamp (microseconds since epoch)"),
+    context: SecurityContext = Depends(require_viewer),
 ) -> ResourceSyncResponse:
     """Sync all resources (zones and missions)
 

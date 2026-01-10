@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useConnectionStore, type SavedDevice } from '@/stores/connection'
 import { useConnectionOrchestrator } from '@/stores/connectionOrchestrator'
-import type { MAVLinkBridgeDevice } from '../../../../client/dist/index'
+import type { MAVLinkBridgeDevice } from '@client'
 
 interface Props {
   mode?: 'onboarding' | 'standalone' | 'reconnect'

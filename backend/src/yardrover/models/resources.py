@@ -47,9 +47,21 @@ class ResourceResult(str, Enum):
 class ZoneType(str, Enum):
     """Zone type enumeration"""
 
+    # Core types
     MOWING = "mowing"
     EXCLUSION = "exclusion"
     CHARGING = "charging"
+
+    # Operational types
+    PATROL = "patrol"
+    SNOW_CLEARING = "snow_clearing"
+    STAGING = "staging"
+
+    # Agricultural/maintenance types
+    SPRAYING = "spraying"
+    WATERING = "watering"
+    COLLECTION = "collection"
+    MONITORING = "monitoring"
 
 
 class Zone(BaseModel):

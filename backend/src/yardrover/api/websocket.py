@@ -3,9 +3,12 @@
 This module provides the WebSocket endpoint for real-time communication.
 """
 
-import structlog
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from typing import Optional
 
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+
+from yardrover.auth import SecurityContext, require_viewer, verify_websocket_token
 from yardrover.network.websocket import WebSocketManager
 
 logger = structlog.get_logger(__name__)
@@ -27,8 +30,13 @@ def set_websocket_manager(manager: WebSocketManager) -> None:
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket) -> None:
+async def websocket_endpoint(
+    websocket: WebSocket,
+    token: Optional[str] = Query(None),
+) -> None:
     """WebSocket endpoint for real-time communication.
+
+    **Authentication Required**: Pass JWT token as query parameter: `/ws?token=YOUR_JWT_TOKEN`
 
     Supports the following message types:
     - subscribe: Subscribe to event topics
@@ -48,13 +56,32 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
     Args:
         websocket: FastAPI WebSocket connection
+        token: JWT authentication token (query parameter)
     """
+    # Verify authentication before accepting connection
+    if not token:
+        logger.warning("websocket_connection_rejected", reason="no_token")
+        await websocket.close(code=1008, reason="Authentication required")
+        return
+
+    try:
+        # Verify JWT token
+        context = await verify_websocket_token(token)
+    except HTTPException as e:
+        logger.warning(
+            "websocket_auth_failed",
+            reason=e.detail,
+        )
+        await websocket.close(code=1008, reason="Authentication failed")
+        return
+
     if not ws_manager:
         logger.error("websocket_manager_not_initialized")
         await websocket.close(code=1011, reason="Server not ready")
         return
 
-    connection = await ws_manager.connect(websocket)
+    # Accept connection with authenticated context
+    connection = await ws_manager.connect(websocket, context)
 
     try:
         # Handle incoming messages
@@ -78,7 +105,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
 
 @router.get("/ws/stats")
-async def get_websocket_stats() -> dict:
+async def get_websocket_stats(
+    context: SecurityContext = Depends(require_viewer),
+) -> dict:
     """Get WebSocket server statistics.
 
     Returns:
@@ -95,7 +124,9 @@ async def get_websocket_stats() -> dict:
 
 
 @router.get("/ws/connections")
-async def get_active_connections() -> dict:
+async def get_active_connections(
+    context: SecurityContext = Depends(require_viewer),
+) -> dict:
     """Get information about active WebSocket connections.
 
     Returns:

@@ -35,15 +35,11 @@
             </div>
 
             <div class="form-group">
-              <label for="zoneType">Zone Type</label>
-              <select id="zoneType" v-model="zoneType" class="form-input">
-                <option value="mowing">Mowing</option>
-                <option value="patrol">Patrol</option>
-                <option value="exclusion">Exclusion</option>
-                <option value="parking">Parking</option>
-                <option value="garden">Garden</option>
-                <option value="custom">Custom</option>
-              </select>
+              <ZoneTypeSelector
+                v-model="zoneType"
+                title="Zone Type"
+                description="Select the type of zone you want to create"
+              />
             </div>
 
             <div class="form-group">
@@ -150,6 +146,7 @@ import ModalHeader from '@/components/common/ModalHeader.vue'
 import ModalBody from '@/components/common/ModalBody.vue'
 import ModalActions from '@/components/common/ModalActions.vue'
 import ValidatedInput from '@/components/common/ValidatedInput.vue'
+import ZoneTypeSelector from '@/components/zones/ZoneTypeSelector.vue'
 import { useLeafletMap } from '@/composables/useLeafletMap'
 import { useZoneDrawing } from '@/composables/useZoneDrawing'
 import { useThemeStore } from '@/stores/theme'
@@ -157,6 +154,8 @@ import { useLocationStore } from '@/stores/location'
 import { useDialog } from '@/composables/useDialog'
 import { getCurrentPosition } from '@/utils/geocoding'
 import { useUnitsStore } from '@/stores/units'
+import type { ZoneType } from '@/types'
+import { getZoneTypeColor } from '@/types'
 
 interface Props {
   modelValue: boolean
@@ -192,9 +191,16 @@ const mapCenter = ref<[number, number]>([40.7128, -74.006])
 
 // Form data
 const zoneName = ref('')
-const zoneType = ref('mowing')
+const zoneType = ref<ZoneType>('mowing')
 const zoneDescription = ref('')
 const zoneColor = ref('#2C5F2D')
+
+// Update zone color when type changes
+watch(zoneType, (newType) => {
+  if (newType) {
+    zoneColor.value = getZoneTypeColor(newType)
+  }
+})
 
 const hasChanges = computed(() => {
   return zones.value.length > 0 || zoneName.value.trim() !== ''

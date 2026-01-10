@@ -39,10 +39,22 @@ export interface ResourceChangeEvent {
   timestamp: number;
 }
 
+export type ZoneType =
+  | 'mowing'
+  | 'exclusion'
+  | 'charging'
+  | 'patrol'
+  | 'snow_clearing'
+  | 'staging'
+  | 'spraying'
+  | 'watering'
+  | 'collection'
+  | 'monitoring';
+
 export interface Zone {
   id: string;
   name: string;
-  type: 'mowing' | 'exclusion' | 'charging';
+  type: ZoneType;
   coordinates: Array<[number, number]>;
   color: string;
   area: number;
@@ -50,11 +62,7 @@ export interface Zone {
   tags?: string[];
   created: string;
   lastModified: string;
-  settings?: {
-    pattern?: 'parallel' | 'spiral' | 'random';
-    overlap?: number;
-    speed?: number;
-  };
+  settings?: Record<string, any>;
 }
 
 // ScheduledMission - matches API spec (api-spec.yaml lines 2545-2618)

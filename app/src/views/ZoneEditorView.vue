@@ -13,7 +13,10 @@ import Breadcrumb from '@/components/common/Breadcrumb.vue'
 import { useUnitsStore } from '@/stores/units'
 import ValidatedInput from '@/components/common/ValidatedInput.vue'
 import MapLayerControl from '@/components/zones/MapLayerControl.vue'
+import ZoneTypeSelector from '@/components/zones/ZoneTypeSelector.vue'
 import type { MapLayerType } from '@/composables/useLeafletMap'
+import type { ZoneType } from '@/types'
+import { getZoneTypeColor } from '@/types'
 
 const router = useRouter()
 const route = useRoute()
@@ -37,9 +40,16 @@ const breadcrumbItems = computed(() => [
 
 // Form data
 const zoneName = ref('')
-const zoneType = ref('mowing')
+const zoneType = ref<ZoneType>('mowing')
 const zoneDescription = ref('')
 const zoneColor = ref('#2C5F2D')
+
+// Update zone color when type changes
+watch(zoneType, (newType) => {
+  if (newType) {
+    zoneColor.value = getZoneTypeColor(newType)
+  }
+})
 
 // Map initial center
 const mapCenter = ref<[number, number]>([40.7128, -74.006])
@@ -320,12 +330,11 @@ onMounted(() => {
             </div>
 
             <div class="form-group">
-              <label for="zoneType">Zone Type</label>
-              <select id="zoneType" v-model="zoneType" class="form-input">
-                <option value="mowing">Mowing</option>
-                <option value="exclusion">Exclusion</option>
-                <option value="charging">Charging</option>
-              </select>
+              <ZoneTypeSelector
+                v-model="zoneType"
+                title="Zone Type"
+                description="Select the type of zone you want to create"
+              />
             </div>
 
             <div class="form-group">

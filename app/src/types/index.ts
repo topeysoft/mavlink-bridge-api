@@ -1,25 +1,23 @@
 // YardRover TypeScript Type Definitions
 
-export interface Zone {
-  id: string
-  name: string
-  type: 'mowing' | 'exclusion' | 'charging'
-  coordinates: Array<[number, number]>
-  color: string
-  area: number
-  description?: string
-  tags?: string[]
-  created: string
-  lastModified: string
-  settings?: {
-    pattern?: 'parallel' | 'spiral' | 'random'
-    overlap?: number
-    speed?: number
-  }
-}
+// Import Zone and ZoneType from client library (includes all zone types)
+export type { Zone, ZoneType } from '@client'
 
 // Import Mission type from client library (matches API spec ScheduledMission)
-export type { Mission } from '../../../client/dist/index'
+export type { Mission } from '@client'
+
+// Re-export zone type metadata utilities
+export {
+  ZONE_TYPE_METADATA,
+  getZoneTypeColor,
+  getZoneTypeIcon,
+  getZoneTypeName,
+  getZoneTypeDescription,
+  getRequiredFeature,
+  isZoneTypeAvailable,
+  getAvailableZoneTypes
+} from '@client'
+export type { ZoneTypeInfo } from '@client'
 
 // Import peripheral types from client library
 export type {
@@ -32,7 +30,7 @@ export type {
   PeripheralTelemetry,
   PeripheralCapability,
   PeripheralCompatibilityRule
-} from '../../../client/dist/index'
+} from '@client'
 
 export interface MAVLinkMessage {
   id: number

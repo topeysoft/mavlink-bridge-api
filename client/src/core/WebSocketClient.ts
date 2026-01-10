@@ -18,12 +18,18 @@ function getWebSocketImpl(): typeof WebSocket {
 }
 
 /**
+ * Token provider function for WebSocket authentication
+ */
+export type TokenProvider = () => string | null;
+
+/**
  * WebSocket client for real-time communication with the ESP32 device
  * Works in both browser and Node.js environments
  */
 export class WebSocketClient {
   private ws: WebSocket | null = null;
-  private readonly url: string;
+  private readonly baseUrl: string;
+  private tokenProvider: TokenProvider | null = null;
   private readonly eventHandlers: Map<EventType, EventHandler[]> = new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
@@ -32,8 +38,15 @@ export class WebSocketClient {
   private shouldReconnect = true;
 
   constructor(url: string) {
-    this.url = url;
+    this.baseUrl = url;
     this.initializeEventHandlers();
+  }
+
+  /**
+   * Set the token provider for WebSocket authentication
+   */
+  setTokenProvider(provider: TokenProvider): void {
+    this.tokenProvider = provider;
   }
 
   /**
@@ -52,10 +65,21 @@ export class WebSocketClient {
     return new Promise((resolve, reject) => {
       const WS = getWebSocketImpl();
 
+      // Build WebSocket URL with authentication token
+      let wsUrl = this.baseUrl;
+      if (this.tokenProvider) {
+        const token = this.tokenProvider();
+        if (token) {
+          // Add token as query parameter
+          const separator = wsUrl.includes('?') ? '&' : '?';
+          wsUrl = `${wsUrl}${separator}token=${encodeURIComponent(token)}`;
+        }
+      }
+
       // Set a connection timeout to prevent indefinite hanging
       const connectionTimeout = setTimeout(() => {
         console.warn('[WebSocket] Connection timeout check', {
-          url: this.url,
+          url: wsUrl.replace(/token=[^&]+/, 'token=***'), // Hide token in logs
           readyState: this.ws?.readyState,
           isConnecting: this.ws?.readyState === WS.CONNECTING
         });
@@ -71,7 +95,7 @@ export class WebSocketClient {
       }, 30000); // 30 second timeout (increased from 10s)
 
       try {
-        this.ws = new WS(this.url) as WebSocket;
+        this.ws = new WS(wsUrl) as WebSocket;
 
         // Check if it's Node.js ws module (has .on method) or browser WebSocket
         const isNodeWS = typeof (this.ws as any).on === 'function';
@@ -272,6 +296,13 @@ export class WebSocketClient {
    */
   private handleClose(code: number, reason: string): void {
     this.ws = null;
+
+    // Don't reconnect on authentication failures (code 1008 = policy violation)
+    if (code === 1008) {
+      console.error(`WebSocket authentication failed: ${reason}`);
+      this.shouldReconnect = false;
+      return;
+    }
 
     if (this.shouldReconnect && !this.isReconnecting) {
       this.attemptReconnect();

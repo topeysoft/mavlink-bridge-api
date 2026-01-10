@@ -10,6 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 
+from yardrover.auth import SecurityContext, require_operator, require_viewer
 from yardrover.mavlink.processor import MAVLinkProcessor
 from yardrover.mavlink.router import DataRouter
 from yardrover.models.mavlink import (
@@ -74,6 +75,7 @@ def set_router(data_router: DataRouter) -> None:
 async def send_command(
     command: MAVLinkCommand,
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_operator),
 ) -> MAVLinkCommandResponse:
     """Send MAVLink command to flight controller.
 
@@ -129,6 +131,7 @@ async def send_command(
 async def arm_disarm(
     command: ArmDisarmCommand,
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_operator),
 ) -> MAVLinkCommandResponse:
     """Arm or disarm the vehicle.
 
@@ -175,6 +178,7 @@ async def arm_disarm(
 async def set_mode(
     command: SetModeCommand,
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_operator),
 ) -> MAVLinkCommandResponse:
     """Set flight mode.
 
@@ -223,6 +227,7 @@ async def set_mode(
 async def request_parameter(
     request: ParameterRequest,
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_operator),
 ) -> MAVLinkCommandResponse:
     """Request specific parameter from flight controller.
 
@@ -275,6 +280,7 @@ async def request_parameter(
 async def request_parameter_list(
     request: ParameterListRequest,
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_operator),
 ) -> MAVLinkCommandResponse:
     """Request complete parameter list from flight controller.
 
@@ -318,6 +324,7 @@ async def request_parameter_list(
 async def set_parameter(
     request: ParameterSetRequest,
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_operator),
 ) -> MAVLinkCommandResponse:
     """Set parameter value on flight controller.
 
@@ -363,6 +370,7 @@ async def set_parameter(
 @router.get("/parameters/stream")
 async def stream_parameters(
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_viewer),
 ) -> StreamingResponse:
     """Stream parameters via Server-Sent Events (SSE).
 
@@ -406,6 +414,7 @@ async def stream_parameters(
 async def upload_mission(
     request: MissionUploadRequest,
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_operator),
 ) -> MissionResponse:
     """Upload mission plan to flight controller.
 
@@ -454,6 +463,7 @@ async def upload_mission(
 async def download_mission(
     request: MissionDownloadRequest,
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_operator),
 ) -> MissionResponse:
     """Download mission plan from flight controller.
 
@@ -501,6 +511,7 @@ async def download_mission(
 async def clear_mission(
     request: MissionClearRequest,
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_operator),
 ) -> MissionResponse:
     """Clear all mission items from flight controller.
 
@@ -543,6 +554,7 @@ async def clear_mission(
 async def set_current_mission_item(
     request: MissionSetCurrentRequest,
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_operator),
 ) -> MissionResponse:
     """Set current mission item sequence number.
 
@@ -586,6 +598,7 @@ async def set_current_mission_item(
 async def get_mission_status(
     request: MissionStatusRequest,
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_viewer),
 ) -> MissionResponse:
     """Get current mission status and progress.
 
@@ -618,6 +631,7 @@ async def get_mission_status(
 @router.get("/statistics", response_model=MAVLinkStatistics)
 async def get_statistics(
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_viewer),
 ) -> MAVLinkStatistics:
     """Get MAVLink processor statistics.
 
@@ -633,6 +647,7 @@ async def get_statistics(
 @router.post("/statistics/reset")
 async def reset_statistics(
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_operator),
 ) -> dict:
     """Reset MAVLink statistics.
 
@@ -649,6 +664,7 @@ async def reset_statistics(
 @router.get("/serial/status", response_model=SerialStatus)
 async def get_serial_status(
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_viewer),
 ) -> SerialStatus:
     """Get serial port status.
 
@@ -664,6 +680,7 @@ async def get_serial_status(
 @router.get("/firmware")
 async def get_firmware_info(
     router: DataRouter = Depends(get_router),
+    context: SecurityContext = Depends(require_viewer),
 ) -> dict:
     """Get detected firmware information.
 

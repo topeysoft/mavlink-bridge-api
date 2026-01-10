@@ -14,7 +14,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 # Import API routers
-from yardrover.api import auth, config, health, mavlink, mdns, missions, peripherals, resources, rtcm, setup, websocket, wifi, zones
+from yardrover.api import auth, config, health, mavlink, mdns, missions, peripherals, recording, resources, rtcm, setup, websocket, wifi, zones
 
 # Import auth components
 from yardrover.auth import Role, get_api_key_manager
@@ -52,6 +52,21 @@ settings = Settings()
 configure_logging(settings.log_level, settings.log_format)
 
 logger = structlog.get_logger(__name__)
+
+
+async def _session_cleanup_loop():
+    """Background task to clean up old recording sessions every 5 minutes"""
+    from yardrover.api.recording import get_session_manager
+
+    while True:
+        try:
+            await asyncio.sleep(300)  # 5 minutes
+            manager = get_session_manager()
+            cleaned = manager.cleanup_old_sessions(max_age_seconds=3600)  # 1 hour
+            if cleaned > 0:
+                logger.info("recording_sessions_cleaned", count=cleaned)
+        except Exception as e:
+            logger.error("session_cleanup_error", error=str(e))
 
 
 # Global instances (initialized in lifespan)
@@ -317,6 +332,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # 12. Start background tasks
         health_task = asyncio.create_task(health_monitor.run())
         background_tasks.append(health_task)
+
+        # Recording session cleanup task
+        cleanup_task = asyncio.create_task(_session_cleanup_loop())
+        background_tasks.append(cleanup_task)
+
         logger.info("background_tasks_started", count=len(background_tasks))
 
         logger.info("yardrover_ready")
@@ -487,6 +507,7 @@ app.include_router(mdns.router)
 app.include_router(websocket.router)
 app.include_router(mavlink.router)
 app.include_router(zones.router)
+app.include_router(recording.router)  # Zone recording endpoints
 app.include_router(missions.router)
 app.include_router(resources.router)
 app.include_router(rtcm.router)

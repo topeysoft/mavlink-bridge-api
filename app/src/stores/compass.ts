@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { useConnectionStore } from './connection'
-import type { CompassData, CompassHealth, AttitudeData } from '../../../client/dist/index'
+import type { CompassData, CompassHealth, AttitudeData } from '@client'
 
 interface CompassHistoryEntry {
   timestamp: number

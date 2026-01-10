@@ -277,6 +277,8 @@ class ConnectionInfo(BaseModel):
         default_factory=list,
         description="Active topic subscriptions"
     )
+    username: Optional[str] = Field(None, description="Authenticated username")
+    role: Optional[str] = Field(None, description="User role")
 
     class Config:
         json_encoders = {

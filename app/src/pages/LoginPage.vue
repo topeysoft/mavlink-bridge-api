@@ -291,6 +291,17 @@ async function handlePasswordLogin() {
     // Sync auth state from client (also fetches current user)
     await authStore.initializeFromClient(authClient)
 
+    // Connect WebSocket for real-time updates now that we're authenticated
+    if (connectionStore.client) {
+      try {
+        await connectionStore.client.connectWebSocket()
+        console.log('[Login] WebSocket connected after successful login')
+      } catch (wsError) {
+        console.warn('[Login] WebSocket connection failed:', wsError)
+        // Don't block login flow if WebSocket fails
+      }
+    }
+
     // Redirect to dashboard on success (use replace to avoid back button issues)
     router.replace('/')
   } catch (error: any) {
@@ -325,6 +336,17 @@ async function handlePinLogin() {
 
     // Sync auth state from client (also fetches current user)
     await authStore.initializeFromClient(authClient)
+
+    // Connect WebSocket for real-time updates now that we're authenticated
+    if (connectionStore.client) {
+      try {
+        await connectionStore.client.connectWebSocket()
+        console.log('[Login] WebSocket connected after successful PIN login')
+      } catch (wsError) {
+        console.warn('[Login] WebSocket connection failed:', wsError)
+        // Don't block login flow if WebSocket fails
+      }
+    }
 
     // Redirect to dashboard on success (use replace to avoid back button issues)
     router.replace('/')
@@ -400,6 +422,12 @@ onMounted(() => {
   if (authStore.isAuthenticated) {
     router.push('/')
     return
+  }
+
+  // Check if redirected due to session expiry
+  const route = router.currentRoute.value
+  if (route.query.reason === 'session_expired') {
+    loginError.value = 'Your session has expired. Please log in again.'
   }
 })
 </script>

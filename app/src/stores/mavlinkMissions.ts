@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { useConnectionStore } from './connection'
-import type { MissionItem, MissionPlan } from '../../../client/dist/index'
+import type { MissionItem, MissionPlan } from '@client'
 
 /**
  * Waypoint type with user-friendly properties

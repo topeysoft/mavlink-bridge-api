@@ -1,7 +1,7 @@
 import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type { Mission } from '@/types'
-import type { MissionManager, SyncStatus } from '../../../client/dist/index'
+import type { MissionManager, SyncStatus } from '@client'
 import { useConnectionStore } from './connection'
 
 export const useMissionsStore = defineStore('missions', () => {

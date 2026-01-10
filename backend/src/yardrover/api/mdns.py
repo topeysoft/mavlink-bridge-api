@@ -9,6 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 import structlog
 
+from ..auth import SecurityContext, require_operator, require_viewer
 from ..core.errors import NetworkError
 from ..models.network import (
     MDNSConfig,
@@ -38,6 +39,7 @@ def get_mdns_manager(request: Request) -> MDNSManager:
 @router.get("/status", response_model=MDNSStatus)
 async def get_mdns_status(
     mdns_manager: Annotated[MDNSManager, Depends(get_mdns_manager)],
+    context: SecurityContext = Depends(require_viewer),
 ) -> MDNSStatus:
     """
     Get mDNS service status.
@@ -60,6 +62,7 @@ async def get_mdns_status(
 async def discover_services(
     request_body: MDNSDiscoverRequest,
     mdns_manager: Annotated[MDNSManager, Depends(get_mdns_manager)],
+    context: SecurityContext = Depends(require_viewer),
 ) -> MDNSDiscoverResponse:
     """
     Trigger mDNS service discovery.
@@ -96,6 +99,7 @@ async def discover_services(
 @router.get("/config", response_model=MDNSConfig)
 async def get_mdns_config(
     mdns_manager: Annotated[MDNSManager, Depends(get_mdns_manager)],
+    context: SecurityContext = Depends(require_viewer),
 ) -> MDNSConfig:
     """
     Get mDNS configuration.
@@ -109,6 +113,7 @@ async def get_mdns_config(
 async def update_mdns_config(
     config: MDNSConfig,
     mdns_manager: Annotated[MDNSManager, Depends(get_mdns_manager)],
+    context: SecurityContext = Depends(require_operator),
 ) -> MDNSConfig:
     """
     Update mDNS configuration.

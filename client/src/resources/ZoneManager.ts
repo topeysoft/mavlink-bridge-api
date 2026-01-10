@@ -39,7 +39,7 @@ export class ZoneManager extends ResourceManager<Zone> {
   /**
    * Get zones filtered by type
    */
-  async getByType(type: 'mowing' | 'exclusion' | 'charging'): Promise<Zone[]> {
+  async getByType(type: Zone['type']): Promise<Zone[]> {
     const all = await this.getAll();
     return all.filter(zone => zone.type === type);
   }

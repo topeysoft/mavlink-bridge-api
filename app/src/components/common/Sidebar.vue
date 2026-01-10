@@ -2,7 +2,6 @@
 import { computed, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useThemeStore } from '@/stores/theme'
 import { useFeaturesStore } from '@/stores/features'
 import { useAuthStore } from '@/stores/auth'
 import { useConnectionStore } from '@/stores/connection'
@@ -16,7 +15,6 @@ const { t } = useI18n()
 
 const router = useRouter()
 const route = useRoute()
-const themeStore = useThemeStore()
 const featuresStore = useFeaturesStore()
 const authStore = useAuthStore()
 const connectionStore = useConnectionStore()
@@ -203,12 +201,6 @@ async function handleLogout() {
         <component :is="getIcon('user')" class="user-icon" :size="20" :stroke-width="2" />
         <span class="user-name">{{ displayName }}</span>
       </div>
-
-      <!-- Theme Toggle -->
-      <button class="footer-btn theme-toggle" @click="themeStore.toggleTheme" :aria-label="`Switch to ${themeStore.theme === 'light' ? 'dark' : 'light'} mode`">
-        <component :is="getIcon(themeStore.theme === 'light' ? 'moon' : 'sun')" :size="20" :stroke-width="2" />
-        <span class="nav-text">{{ themeStore.theme === 'light' ? 'Dark' : 'Light' }} Mode</span>
-      </button>
 
       <!-- Logout Button -->
       <button class="footer-btn logout-btn" @click="handleLogout" aria-label="Logout">

@@ -2,7 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useConnectionStore } from '@/stores/connection'
+import { useFeaturesStore } from '@/stores/features'
 import type { UserType } from '@/stores/onboarding'
+import PinInput from '@/components/common/PinInput.vue'
 
 interface Props {
   userType: UserType
@@ -16,17 +18,26 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore()
 const connectionStore = useConnectionStore()
+const featuresStore = useFeaturesStore()
 
 const needsSetup = ref(false)
 const isCheckingSetup = ref(true)
+const loginMethod = ref<'password' | 'pin' | 'apikey'>('password')
+const username = ref('')
+const password = ref('')
+const pin = ref('')
 const apiKey = ref('')
+const showPassword = ref(false)
 const showApiKey = ref(false)
 const isLoggingIn = ref(false)
 const loginError = ref<string | null>(null)
 
 const isConsumerMode = computed(() => props.userType === 'consumer')
+const isDeveloperMode = computed(() => featuresStore.userMode === 'developer')
 
 onMounted(async () => {
+  // Set default login method based on user mode
+  loginMethod.value = isConsumerMode.value ? 'pin' : 'password'
   await checkSetupStatus()
 })
 
@@ -61,7 +72,92 @@ async function checkSetupStatus() {
   }
 }
 
-async function handleLogin() {
+async function handlePasswordLogin() {
+  if (!username.value.trim() || !password.value.trim()) return
+
+  if (!connectionStore.client) {
+    loginError.value = 'No device connected. Please go back and reconnect.'
+    return
+  }
+
+  isLoggingIn.value = true
+  loginError.value = null
+
+  try {
+    const authClient = (connectionStore.client as any).authClient
+    if (!authClient) {
+      throw new Error('Auth client not available')
+    }
+
+    await authClient.loginWithPassword(username.value, password.value)
+    await authStore.initializeFromClient(authClient)
+
+    // Connect WebSocket for real-time updates
+    if (connectionStore.client) {
+      try {
+        await connectionStore.client.connectWebSocket()
+        console.log('[AuthenticationStep] WebSocket connected after login')
+      } catch (wsError) {
+        console.warn('[AuthenticationStep] WebSocket connection failed:', wsError)
+      }
+    }
+
+    emit('complete')
+
+  } catch (error: any) {
+    console.error('Password login failed:', error)
+    handleLoginError(error)
+  } finally {
+    isLoggingIn.value = false
+  }
+}
+
+async function handlePinLogin() {
+  if (!pin.value.trim() || pin.value.length < 4) return
+
+  if (!connectionStore.client) {
+    loginError.value = 'No device connected. Please go back and reconnect.'
+    return
+  }
+
+  isLoggingIn.value = true
+  loginError.value = null
+
+  try {
+    const authClient = (connectionStore.client as any).authClient
+    if (!authClient) {
+      throw new Error('Auth client not available')
+    }
+
+    await authClient.loginWithPin(pin.value)
+    await authStore.initializeFromClient(authClient)
+
+    // Connect WebSocket for real-time updates
+    if (connectionStore.client) {
+      try {
+        await connectionStore.client.connectWebSocket()
+        console.log('[AuthenticationStep] WebSocket connected after PIN login')
+      } catch (wsError) {
+        console.warn('[AuthenticationStep] WebSocket connection failed:', wsError)
+      }
+    }
+
+    emit('complete')
+
+  } catch (error: any) {
+    console.error('PIN login failed:', error)
+
+    if (error?.status === 401 || error?.message?.includes('401') || error?.message?.includes('Unauthorized')) {
+      loginError.value = 'Invalid PIN. Please check your PIN and try again.'
+    } else {
+      handleLoginError(error)
+    }
+  } finally {
+    isLoggingIn.value = false
+  }
+}
+
+async function handleApiKeyLogin() {
   if (!apiKey.value.trim()) return
 
   if (!connectionStore.client) {
@@ -82,23 +178,31 @@ async function handleLogin() {
     emit('complete')
 
   } catch (error: any) {
-    console.error('Login failed:', error)
+    console.error('API key login failed:', error)
 
     if (error?.status === 401 || error?.message?.includes('401') || error?.message?.includes('Unauthorized')) {
       loginError.value = isConsumerMode.value
         ? 'That API key doesn\'t look right. Please check it and try again.'
         : 'Invalid API key. Please verify your key and try again.'
-    } else if (error?.status === 403) {
-      loginError.value = 'Access denied. This API key may not have sufficient permissions.'
-    } else if (error?.message?.includes('Network') || error?.message?.includes('fetch')) {
-      loginError.value = 'Connection error. Please check your connection and try again.'
     } else {
-      loginError.value = error instanceof Error
-        ? error.message
-        : 'Login failed. Please try again.'
+      handleLoginError(error)
     }
   } finally {
     isLoggingIn.value = false
+  }
+}
+
+function handleLoginError(error: any) {
+  if (error?.status === 401 || error?.message?.includes('401') || error?.message?.includes('Unauthorized')) {
+    loginError.value = 'Invalid credentials. Please check your username and password and try again.'
+  } else if (error?.status === 403 || error?.message?.includes('403') || error?.message?.includes('Forbidden')) {
+    loginError.value = 'Access denied. Your account may not have sufficient permissions.'
+  } else if (error?.message?.includes('Network') || error?.message?.includes('fetch')) {
+    loginError.value = 'Connection error. Please check your connection and try again.'
+  } else {
+    loginError.value = error instanceof Error
+      ? error.message
+      : 'Login failed. Please try again.'
   }
 }
 </script>
@@ -158,15 +262,90 @@ async function handleLogin() {
       <div v-else class="state-content login-form">
         <div class="login-icon">🔐</div>
 
-        <form @submit.prevent="handleLogin" class="form">
+        <!-- Login Method Tabs (Power User & Developer modes) -->
+        <div v-if="!isConsumerMode" class="login-tabs">
+          <button
+            type="button"
+            class="tab"
+            :class="{ active: loginMethod === 'password' }"
+            @click="loginMethod = 'password'"
+          >
+            Password
+          </button>
+          <button
+            type="button"
+            class="tab"
+            :class="{ active: loginMethod === 'pin' }"
+            @click="loginMethod = 'pin'"
+          >
+            PIN
+          </button>
+          <button
+            v-if="isDeveloperMode"
+            type="button"
+            class="tab"
+            :class="{ active: loginMethod === 'apikey' }"
+            @click="loginMethod = 'apikey'"
+          >
+            API Key
+          </button>
+        </div>
+
+        <!-- PIN Login -->
+        <div v-if="loginMethod === 'pin'" class="pin-login-section">
+          <div class="form-group-pin">
+            <label class="pin-label">Enter your 6-digit PIN</label>
+            <PinInput
+              v-model="pin"
+              :length="6"
+              :disabled="isLoggingIn"
+              :auto-submit="true"
+              :error="!!loginError"
+              @complete="handlePinLogin"
+            />
+          </div>
+
+          <div v-if="loginError" class="error-message">
+            <span class="error-icon">⚠️</span>
+            {{ loginError }}
+          </div>
+
+          <div v-if="isLoggingIn" class="loading-indicator">
+            <span class="spinner"></span>
+            <span>Signing in...</span>
+          </div>
+
+          <!-- Switch to password option for consumer mode -->
+          <div v-if="isConsumerMode" class="switch-method">
+            <button type="button" class="text-link" @click="loginMethod = 'password'">
+              Use password instead
+            </button>
+          </div>
+        </div>
+
+        <!-- Username/Password Login -->
+        <form v-if="loginMethod === 'password'" @submit.prevent="handlePasswordLogin" class="form">
           <div class="form-group">
-            <label for="apiKey">{{ isConsumerMode ? 'Security Key' : 'API Key' }}</label>
+            <label for="username">Username</label>
+            <input
+              id="username"
+              v-model="username"
+              type="text"
+              placeholder="Enter username"
+              :disabled="isLoggingIn"
+              autocomplete="username"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
             <div class="input-with-toggle">
               <input
-                id="apiKey"
-                v-model="apiKey"
-                :type="showApiKey ? 'text' : 'password'"
-                :placeholder="isConsumerMode ? 'Enter your security key' : 'yr_...'"
+                id="password"
+                v-model="password"
+                :type="showPassword ? 'text' : 'password'"
+                placeholder="Enter password"
                 :disabled="isLoggingIn"
                 autocomplete="current-password"
                 required
@@ -174,8 +353,65 @@ async function handleLogin() {
               <button
                 type="button"
                 class="toggle-visibility"
+                @click="showPassword = !showPassword"
+                :title="showPassword ? 'Hide password' : 'Show password'"
+              >
+                <svg v-if="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div v-if="loginError" class="error-message">
+            <span class="error-icon">⚠️</span>
+            <span>{{ loginError }}</span>
+          </div>
+
+          <button
+            type="submit"
+            class="btn btn-primary btn-large"
+            :disabled="isLoggingIn || !username.trim() || !password.trim()"
+          >
+            <span v-if="!isLoggingIn">{{ isConsumerMode ? 'Sign In' : 'Authenticate' }}</span>
+            <span v-else class="loading-content">
+              <span class="spinner"></span>
+              Signing in...
+            </span>
+          </button>
+
+          <!-- Switch to PIN option for consumer mode -->
+          <div v-if="isConsumerMode" class="switch-method">
+            <button type="button" class="text-link" @click="loginMethod = 'pin'">
+              Use PIN instead
+            </button>
+          </div>
+        </form>
+
+        <!-- API Key Login (Developer mode only) -->
+        <form v-if="loginMethod === 'apikey'" @submit.prevent="handleApiKeyLogin" class="form">
+          <div class="form-group">
+            <label for="apiKey">API Key</label>
+            <div class="input-with-toggle">
+              <input
+                id="apiKey"
+                v-model="apiKey"
+                :type="showApiKey ? 'text' : 'password'"
+                placeholder="yr_..."
+                :disabled="isLoggingIn"
+                autocomplete="off"
+                required
+              />
+              <button
+                type="button"
+                class="toggle-visibility"
                 @click="showApiKey = !showApiKey"
-                :title="showApiKey ? 'Hide key' : 'Show key'"
+                :title="showApiKey ? 'Hide API key' : 'Show API key'"
               >
                 <svg v-if="showApiKey" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
@@ -188,10 +424,7 @@ async function handleLogin() {
               </button>
             </div>
             <small class="form-hint">
-              {{ isConsumerMode
-                ? 'This was provided when you first set up your YardRover'
-                : 'Your API key starts with "yr_" and is case-sensitive'
-              }}
+              Your API key starts with "yr_" and is case-sensitive
             </small>
           </div>
 
@@ -205,21 +438,26 @@ async function handleLogin() {
             class="btn btn-primary btn-large"
             :disabled="isLoggingIn || !apiKey.trim()"
           >
-            <span v-if="!isLoggingIn">{{ isConsumerMode ? 'Continue' : 'Authenticate' }}</span>
+            <span v-if="!isLoggingIn">Sign In</span>
             <span v-else class="loading-content">
               <span class="spinner"></span>
-              {{ isConsumerMode ? 'Checking...' : 'Authenticating...' }}
+              Signing in...
             </span>
           </button>
         </form>
 
         <div class="help-section">
-          <p class="help-text">
-            <strong>{{ isConsumerMode ? 'Can\'t find your key?' : 'Lost your API key?' }}</strong>
-            {{ isConsumerMode
-              ? 'Check the documentation that came with your YardRover, or contact support if you need help.'
-              : 'You\'ll need physical access to the device to reset it. Check the documentation for reset instructions.'
-            }}
+          <p class="help-text" v-if="loginMethod === 'apikey'">
+            <strong>API Key Login</strong>
+            API keys are for automation and CLI tools. Use username/password or PIN for interactive login.
+          </p>
+          <p class="help-text" v-else>
+            <strong>First time logging in?</strong>
+            Use the credentials you created during setup.
+          </p>
+          <p class="help-text" v-if="loginMethod !== 'apikey'">
+            <strong>Forgot your {{ loginMethod === 'pin' ? 'PIN' : 'password' }}?</strong>
+            You'll need physical access to the device to reset it.
           </p>
         </div>
       </div>
@@ -340,6 +578,108 @@ async function handleLogin() {
   }
 }
 
+// Login Tabs
+.login-tabs {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-xs);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  width: 100%;
+
+  .tab {
+    flex: 1;
+    padding: var(--spacing-md);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background: rgba($primary, 0.1);
+      color: $primary;
+    }
+
+    &.active {
+      background: var(--bg-primary);
+      color: $primary;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+  }
+}
+
+// PIN Login Section
+.pin-login-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  width: 100%;
+}
+
+.form-group-pin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  align-items: center;
+
+  .pin-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    text-align: center;
+  }
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  color: $primary;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba($primary, 0.3);
+    border-top-color: $primary;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+}
+
+.switch-method {
+  text-align: center;
+  margin-top: var(--spacing-sm);
+
+  .text-link {
+    background: none;
+    border: none;
+    color: $primary;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    font-size: var(--font-size-sm);
+    text-decoration: underline;
+    transition: all 0.2s;
+
+    &:hover {
+      color: darken($primary, 10%);
+    }
+
+    &:active {
+      transform: translateY(1px);
+    }
+  }
+}
+
 // Form
 .form {
   width: 100%;
@@ -355,6 +695,33 @@ async function handleLogin() {
     color: var(--text-primary);
     margin-bottom: var(--spacing-sm);
     font-size: var(--font-size-base);
+  }
+
+  input:not(.input-with-toggle input) {
+    width: 100%;
+    padding: var(--spacing-md);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: all 0.2s;
+
+    &:focus {
+      outline: none;
+      border-color: $primary;
+      box-shadow: 0 0 0 3px rgba($primary, 0.1);
+    }
+
+    &:disabled {
+      background: var(--bg-secondary);
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    &::placeholder {
+      color: var(--text-light);
+    }
   }
 }
 

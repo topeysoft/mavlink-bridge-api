@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { useConnectionStore } from './connection'
-import type { IMUData, IMUMetrics } from '../../../client/dist/index'
+import type { IMUData, IMUMetrics } from '@client'
 
 interface IMUHistoryEntry {
   timestamp: number

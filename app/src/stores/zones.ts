@@ -1,7 +1,7 @@
 import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type { Zone } from '@/types'
-import type { ZoneManager, SyncStatus } from '../../../client/dist/index'
+import type { ZoneManager, SyncStatus } from '@client'
 import { useConnectionStore } from './connection'
 
 export const useZonesStore = defineStore('zones', () => {
@@ -47,9 +47,17 @@ export const useZonesStore = defineStore('zones', () => {
     return zones.value.find(z => z.id === id)
   }
 
+  // Zone type filters
   const mowingZones = computed(() => zones.value.filter(z => z.type === 'mowing'))
   const exclusionZones = computed(() => zones.value.filter(z => z.type === 'exclusion'))
   const chargingZones = computed(() => zones.value.filter(z => z.type === 'charging'))
+  const patrolZones = computed(() => zones.value.filter(z => z.type === 'patrol'))
+  const snowClearingZones = computed(() => zones.value.filter(z => z.type === 'snow_clearing'))
+  const stagingZones = computed(() => zones.value.filter(z => z.type === 'staging'))
+  const sprayingZones = computed(() => zones.value.filter(z => z.type === 'spraying'))
+  const wateringZones = computed(() => zones.value.filter(z => z.type === 'watering'))
+  const collectionZones = computed(() => zones.value.filter(z => z.type === 'collection'))
+  const monitoringZones = computed(() => zones.value.filter(z => z.type === 'monitoring'))
 
   async function loadZones() {
     if (!zoneManager.value) {
@@ -187,9 +195,18 @@ export const useZonesStore = defineStore('zones', () => {
     isLoading,
     error,
     getZoneById,
+    // Zone type filters
     mowingZones,
     exclusionZones,
     chargingZones,
+    patrolZones,
+    snowClearingZones,
+    stagingZones,
+    sprayingZones,
+    wateringZones,
+    collectionZones,
+    monitoringZones,
+    // Actions
     addZone,
     updateZone,
     deleteZone,

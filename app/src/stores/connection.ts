@@ -115,11 +115,12 @@ export const useConnectionStore = defineStore('connection', () => {
 
     try {
       // Create client instance
+      // Set autoConnectWebSocket to false - we'll connect WebSocket manually after authentication
       const newClient = createClient(deviceUrl, {
         httpTimeout: 15000,
         maxReconnectAttempts: 5,
         reconnectDelay: 1000,
-        autoConnectWebSocket: true
+        autoConnectWebSocket: false
       })
 
       // Initialize client and establish connections
@@ -167,6 +168,81 @@ export const useConnectionStore = defineStore('connection', () => {
       if (authClient) {
         try {
           await authStore.initializeFromClient(authClient)
+
+          // If user is authenticated, connect WebSocket for real-time updates
+          // This will also initialize resource managers (zones, missions)
+          if (authStore.isAuthenticated) {
+            try {
+              await newClient.connectWebSocket()
+              console.log('[Connection] WebSocket and resource managers initialized after authentication')
+            } catch (wsError) {
+              console.warn('[Connection] WebSocket/resource initialization failed:', wsError)
+              // Don't fail the entire connection if WebSocket fails
+            }
+          } else {
+            console.log('[Connection] User not authenticated, skipping WebSocket connection')
+          }
+
+          // Register logout callback to sync auth client logout with auth store
+          // The callback receives a reason: 'manual', 'token_refresh_failed', or 'token_expired'
+          authClient.setLogoutCallback(async (reason: string) => {
+            console.log('[Connection] AuthClient logout callback triggered, reason:', reason)
+            console.log('[Connection] Current connection state - isConnected:', isConnected.value, 'hasClient:', !!client.value)
+
+            // Call the auth store's logout to properly clean up state
+            // Pass skipClientLogout=true to avoid circular calls
+            authStore.logout(authClient, true)
+
+            // If logout was due to token issues (not manual), trigger navigation to login
+            // We need to do this here because the auth guard might not catch it in time
+            if (reason === 'token_refresh_failed' || reason === 'token_expired') {
+              console.log('[Connection] Token issue detected, will redirect to login')
+
+              try {
+                // Import router directly (no nested promises)
+                const { default: router } = await import('@/router')
+                const currentRoute = router.currentRoute.value
+
+                // For token refresh failures, we should redirect to login if connected
+                // or to connect if not connected, regardless of current route
+                // Exception: Don't redirect if already on login or setup
+                const skipRoutes = ['login', 'setup']
+                const shouldSkip = skipRoutes.includes(currentRoute.name as string)
+
+                if (!shouldSkip) {
+                  // Check connection state again right before redirect
+                  // (in case something changed during async operations)
+                  const stillConnected = isConnected.value && client.value !== null
+                  console.log('[Connection] Pre-redirect check - stillConnected:', stillConnected, 'isConnected:', isConnected.value, 'hasClient:', !!client.value)
+
+                  // If still connected to device, go to login page
+                  // Otherwise go to connect page
+                  if (stillConnected) {
+                    console.log('[Connection] Redirecting from', currentRoute.path, 'to /login (still connected)')
+                    await router.push({
+                      name: 'login',
+                      query: {
+                        redirect: currentRoute.fullPath,
+                        reason: reason === 'token_refresh_failed' ? 'token_expired' : 'session_expired'
+                      }
+                    })
+                  } else {
+                    console.log('[Connection] Redirecting from', currentRoute.path, 'to /connect (not connected)')
+                    await router.push({
+                      name: 'connect',
+                      query: {
+                        reason: 'disconnected'
+                      }
+                    })
+                  }
+                } else {
+                  console.log('[Connection] Already on login/setup, no redirect needed')
+                }
+              } catch (error) {
+                console.error('[Connection] Failed to redirect after logout:', error)
+              }
+            }
+          })
         } catch (error) {
           console.error('[Connection] Failed to initialize auth from client:', error)
           // Don't fail the connection if auth initialization fails

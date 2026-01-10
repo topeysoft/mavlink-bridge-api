@@ -8,7 +8,7 @@ import type {
   CompleteSetupRequest,
   Role,
   Permission
-} from '../../../client/dist/index'
+} from '@client'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -117,9 +117,15 @@ export const useAuthStore = defineStore('auth', () => {
   async function checkSetupStatus(authClient: AuthClient): Promise<SetupStatus> {
     isCheckingSetup.value = true
     try {
+      console.log('[Auth] Checking setup status...')
       const status = await authClient.getSetupStatus()
+      console.log('[Auth] Setup status received:', status)
       setupStatus.value = status
       return status
+    } catch (error) {
+      console.error('[Auth] Failed to check setup status:', error)
+      // Re-throw so caller can handle
+      throw error
     } finally {
       isCheckingSetup.value = false
     }
@@ -171,6 +177,10 @@ export const useAuthStore = defineStore('auth', () => {
       // Start session monitoring and auto-refresh
       startSessionMonitoring()
       startAutoRefresh(authClient)
+
+      // Connect WebSocket after successful authentication
+      // This enables real-time features and initializes resource managers
+      await connectWebSocketAfterAuth()
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed'
       loginError.value = errorMessage
@@ -181,10 +191,37 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * Logout
+   * Connect WebSocket after authentication
+   * This is called after login to establish real-time connection
    */
-  async function logout(authClient: AuthClient) {
-    await authClient.logout()
+  async function connectWebSocketAfterAuth(): Promise<void> {
+    try {
+      // Get the connection store and client
+      const { useConnectionStore } = await import('./connection')
+      const connectionStore = useConnectionStore()
+      const client = connectionStore.client
+
+      if (client) {
+        await client.connectWebSocket()
+        console.log('[Auth] WebSocket connected after login')
+      } else {
+        console.warn('[Auth] No client available to connect WebSocket')
+      }
+    } catch (error) {
+      console.error('[Auth] Failed to connect WebSocket after login:', error)
+      // Don't throw - WebSocket connection failure shouldn't fail the login
+    }
+  }
+
+  /**
+   * Logout
+   * @param authClient - The auth client instance
+   * @param skipClientLogout - If true, skip calling authClient.logout (used when called from client logout callback)
+   */
+  async function logout(authClient: AuthClient, skipClientLogout = false) {
+    if (!skipClientLogout) {
+      await authClient.logout()
+    }
     isAuthenticated.value = false
     accessToken.value = null
     refreshToken.value = null
@@ -345,6 +382,8 @@ export const useAuthStore = defineStore('auth', () => {
           startAutoRefresh(authClient)
         } catch (error) {
           console.error('[Auth] Failed to refresh token immediately:', error)
+          // Logout user on refresh failure (router guards will redirect to login)
+          logout(authClient)
         }
       })()
       return
@@ -382,7 +421,8 @@ export const useAuthStore = defineStore('auth', () => {
         startAutoRefresh(authClient)
       } catch (error) {
         console.error('[Auth] Failed to auto-refresh token:', error)
-        // If refresh fails, user will be logged out on next API call
+        // Logout user on refresh failure (router guards will redirect to login)
+        logout(authClient)
       }
     }, actualDelay)
   }

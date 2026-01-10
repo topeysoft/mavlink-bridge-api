@@ -7,9 +7,10 @@ Supports incremental sync with metadata-based queries.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import ValidationError
 
+from yardrover.auth import SecurityContext, require_operator, require_viewer
 from yardrover.models.resources import (
     ResourceResult,
     ResourceType,
@@ -40,7 +41,8 @@ def set_storage(storage: ResourceStorage) -> None:
 
 @router.get("", response_model=ZoneListResponse)
 async def list_zones(
-    since: int = Query(0, description="Return only zones modified after this timestamp (microseconds since epoch)")
+    since: int = Query(0, description="Return only zones modified after this timestamp (microseconds since epoch)"),
+    context: SecurityContext = Depends(require_viewer),
 ) -> ZoneListResponse:
     """List all zones with optional incremental sync
 
@@ -93,7 +95,10 @@ async def list_zones(
 
 
 @router.post("", response_model=ZoneOperationResponse, status_code=status.HTTP_201_CREATED)
-async def create_zone(zone: Zone) -> ZoneOperationResponse:
+async def create_zone(
+    zone: Zone,
+    context: SecurityContext = Depends(require_operator),
+) -> ZoneOperationResponse:
     """Create a new zone
 
     Creates a new zone and queues it for storage. The operation is asynchronous
@@ -148,7 +153,10 @@ async def create_zone(zone: Zone) -> ZoneOperationResponse:
 
 
 @router.get("/{zone_id}", response_model=Zone)
-async def get_zone(zone_id: str) -> Zone:
+async def get_zone(
+    zone_id: str,
+    context: SecurityContext = Depends(require_viewer),
+) -> Zone:
     """Get a specific zone by ID
 
     Retrieves the full zone definition for the specified zone ID.
@@ -204,7 +212,11 @@ async def get_zone(zone_id: str) -> Zone:
 
 
 @router.put("/{zone_id}", response_model=ZoneOperationResponse)
-async def update_zone(zone_id: str, zone: Zone) -> ZoneOperationResponse:
+async def update_zone(
+    zone_id: str,
+    zone: Zone,
+    context: SecurityContext = Depends(require_operator),
+) -> ZoneOperationResponse:
     """Update an existing zone
 
     Updates an existing zone by replacing its data. The zone ID in the path
@@ -278,7 +290,10 @@ async def update_zone(zone_id: str, zone: Zone) -> ZoneOperationResponse:
 
 
 @router.delete("/{zone_id}", response_model=ZoneOperationResponse)
-async def delete_zone(zone_id: str) -> ZoneOperationResponse:
+async def delete_zone(
+    zone_id: str,
+    context: SecurityContext = Depends(require_operator),
+) -> ZoneOperationResponse:
     """Delete a zone
 
     Deletes the specified zone. This operation is synchronous and the zone

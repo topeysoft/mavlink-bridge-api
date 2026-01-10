@@ -15,6 +15,7 @@ import { TaskClient } from './tasks/TaskClient';
 import { ZoneManager } from './resources/ZoneManager';
 import { MissionManager } from './resources/MissionManager';
 import { PeripheralClient } from './peripherals/PeripheralClient';
+import { ZoneRecordingClient } from './zones/ZoneRecordingClient';
 import { EventType, EventHandler, StatusPayload, ConfigChangedPayload, RTCMDataPayload, ErrorPayload, LogPayload, WiFiConnectedPayload, WiFiDisconnectedPayload, WiFiSignalUpdatePayload } from './core/EventTypes';
 import { Configuration, HealthResponse, WiFiCredentials } from './config/ConfigTypes';
 import { WiFiState, WiFiStatus, WiFiNetwork, SignalQuality } from './wifi/WiFiTypes';
@@ -55,6 +56,7 @@ export class MAVLinkBridgeClient {
   private readonly zoneManager: ZoneManager;
   private readonly missionManager: MissionManager;
   private readonly peripheralClient: PeripheralClient;
+  private readonly zoneRecordingClient: ZoneRecordingClient;
   private readonly options: Required<MAVLinkBridgeClientOptions>;
 
   /**
@@ -86,6 +88,9 @@ export class MAVLinkBridgeClient {
     this.wsClient = new WebSocketClient(wsUrl);
     this.wsClient.setMaxReconnectAttempts(this.options.maxReconnectAttempts);
     this.wsClient.setReconnectDelay(this.options.reconnectDelay);
+
+    // Set up token provider for WebSocket authentication
+    this.wsClient.setTokenProvider(() => this.authClient.getAuthTokenSync());
 
     // Initialize configuration client
     this.configClient = new ConfigClient(this.httpClient);
@@ -126,13 +131,20 @@ export class MAVLinkBridgeClient {
 
     // Initialize peripheral client
     this.peripheralClient = new PeripheralClient(this.httpClient);
+
+    // Initialize zone recording client
+    this.zoneRecordingClient = new ZoneRecordingClient(this.httpClient);
   }
 
   /**
    * Initialize the client and establish connections
    */
   async connect (): Promise<void> {
-    if (this.options.autoConnectWebSocket) {
+    // Only connect WebSocket if we have a token (authenticated)
+    // Otherwise, it will be connected after login via connectWebSocket()
+    const hasToken = this.authClient.getAuthTokenSync() !== null;
+
+    if (this.options.autoConnectWebSocket && hasToken) {
       await this.wsClient.connect();
 
       // Subscribe to MAVLink messages after WebSocket is connected
@@ -140,19 +152,23 @@ export class MAVLinkBridgeClient {
       this.subscribeToMAVLinkMessages();
     }
 
-    // Initialize resource managers
-    await this.zoneManager.initialize();
-    await this.missionManager.initialize();
+    // Only initialize and sync resource managers if authenticated
+    // Resource endpoints require authentication
+    if (hasToken) {
+      // Initialize resource managers
+      await this.zoneManager.initialize();
+      await this.missionManager.initialize();
 
-    // Connect resource managers to WebSocket for real-time sync
-    this.zoneManager.connectWebSocket(this.wsClient);
-    this.missionManager.connectWebSocket(this.wsClient);
+      // Connect resource managers to WebSocket for real-time sync
+      this.zoneManager.connectWebSocket(this.wsClient);
+      this.missionManager.connectWebSocket(this.wsClient);
 
-    // Initial sync with server
-    await Promise.all([
-      this.zoneManager.sync().catch(console.error),
-      this.missionManager.sync().catch(console.error)
-    ]);
+      // Initial sync with server
+      await Promise.all([
+        this.zoneManager.sync().catch(console.error),
+        this.missionManager.sync().catch(console.error)
+      ]);
+    }
   }
 
   /**
@@ -346,6 +362,13 @@ export class MAVLinkBridgeClient {
    */
   get peripherals (): PeripheralClient {
     return this.peripheralClient;
+  }
+
+  /**
+   * Get zone recording client for GPS-based zone recording
+   */
+  get recording (): ZoneRecordingClient {
+    return this.zoneRecordingClient;
   }
 
   /**
@@ -619,9 +642,44 @@ export class MAVLinkBridgeClient {
 
   /**
    * Manually connect WebSocket if not auto-connecting
+   * This should be called after authentication to establish real-time connection
    */
   async connectWebSocket (): Promise<void> {
     await this.wsClient.connect();
+
+    // Subscribe to MAVLink messages after WebSocket is connected
+    this.subscribeToMAVLinkMessages();
+
+    // Initialize resource managers if not already initialized
+    // This happens when connecting for the first time after authentication
+    await this.initializeResourceManagers();
+  }
+
+  /**
+   * Initialize resource managers after authentication
+   * Called automatically by connect() if authenticated, or by connectWebSocket() after login
+   */
+  async initializeResourceManagers (): Promise<void> {
+    // Check if already initialized by checking if database is initialized
+    // The 'db' property is protected, so we access it via type assertion
+    const zonesInitialized = (this.zoneManager as any).db !== null;
+    const missionsInitialized = (this.missionManager as any).db !== null;
+
+    if (!zonesInitialized || !missionsInitialized) {
+      // Initialize resource managers
+      await this.zoneManager.initialize();
+      await this.missionManager.initialize();
+
+      // Connect resource managers to WebSocket for real-time sync
+      this.zoneManager.connectWebSocket(this.wsClient);
+      this.missionManager.connectWebSocket(this.wsClient);
+
+      // Initial sync with server
+      await Promise.all([
+        this.zoneManager.sync().catch(console.error),
+        this.missionManager.sync().catch(console.error)
+      ]);
+    }
   }
 
   /**

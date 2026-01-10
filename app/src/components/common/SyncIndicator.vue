@@ -37,7 +37,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { SyncStatus } from '../../../../client/dist/index'
+import type { SyncStatus } from '@client'
 
 interface Props {
   syncStatus: SyncStatus

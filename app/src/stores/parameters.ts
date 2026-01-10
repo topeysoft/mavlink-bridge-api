@@ -14,8 +14,8 @@ import type {
   ParameterValue,
   ParameterChangeEvent,
   ParameterDefinition,
-} from '../../../client/dist/index'
-import { PARAMETER_DEFINITIONS, getParameterDefinition } from '../../../client/dist/mavlink/parameters/ParameterDefinitions'
+} from '@client'
+import { PARAMETER_DEFINITIONS, getParameterDefinition } from '@client/mavlink/parameters/ParameterDefinitions'
 
 export const useParametersStore = defineStore('parameters', () => {
   // State

@@ -5,7 +5,8 @@ import { usePeripheralsStore } from '@/stores/peripherals'
 import { useFeaturesStore } from '@/stores/features'
 import { useDialog } from '@/composables/useDialog'
 import type { Peripheral } from '@/types'
-import { PeripheralState, PeripheralHealth } from '../../../../client/dist/index'
+import { PeripheralState, PeripheralHealth } from '@client'
+import { getIcon, type IconName } from '@/utils/iconMap'
 
 const peripheralsStore = usePeripheralsStore()
 const featuresStore = useFeaturesStore()
@@ -58,35 +59,35 @@ const peripheralCategories = computed(() => {
 })
 
 // Helper functions
-function getPeripheralIcon(type: string): string {
-  const icons: Record<string, string> = {
-    mower: 'grass',
-    grass_collector: 'inventory_2',
-    mulcher: 'eco',
-    edger: 'border_style',
-    aerator: 'air',
-    seeder: 'agriculture',
-    snow_blower: 'ac_unit',
-    snow_plow: 'diamond',
-    salt_spreader: 'grain',
-    sprayer: 'water_drop',
-    fertilizer_spreader: 'yard',
-    vacuum: 'cleaning_services',
-    leaf_blower: 'air',
-    debris_collector: 'delete_sweep',
-    camera: 'camera_alt',
-    environmental_sensor: 'sensors',
-    soil_sensor: 'network_check',
-    lidar: 'radar',
-    power_module: 'power',
-    lighting: 'light_mode',
-    trailer_hitch: 'attach_file',
-    builtin_gps: 'gps_fixed',
-    builtin_imu: 'explore',
-    builtin_battery: 'battery_full',
-    custom: 'extension'
+function getPeripheralIcon(type: string): IconName {
+  const icons: Record<string, IconName> = {
+    mower: 'peripheral-mower',
+    grass_collector: 'peripheral-grass-collector',
+    mulcher: 'peripheral-mulcher',
+    edger: 'peripheral-edger',
+    aerator: 'peripheral-aerator',
+    seeder: 'peripheral-seeder',
+    snow_blower: 'peripheral-snow-blower',
+    snow_plow: 'peripheral-snow-plow',
+    salt_spreader: 'peripheral-salt-spreader',
+    sprayer: 'peripheral-sprayer',
+    fertilizer_spreader: 'peripheral-fertilizer-spreader',
+    vacuum: 'peripheral-vacuum',
+    leaf_blower: 'peripheral-leaf-blower',
+    debris_collector: 'peripheral-debris-collector',
+    camera: 'peripheral-camera',
+    environmental_sensor: 'peripheral-environmental-sensor',
+    soil_sensor: 'peripheral-soil-sensor',
+    lidar: 'peripheral-lidar',
+    power_module: 'peripheral-power-module',
+    lighting: 'peripheral-lighting',
+    trailer_hitch: 'peripheral-trailer-hitch',
+    builtin_gps: 'peripheral-builtin-gps',
+    builtin_imu: 'peripheral-builtin-imu',
+    builtin_battery: 'peripheral-builtin-battery',
+    custom: 'peripheral-custom'
   }
-  return icons[type] || 'extension'
+  return icons[type] || 'peripheral-custom'
 }
 
 function getStateColor(state: PeripheralState): string {
@@ -204,7 +205,7 @@ onUnmounted(() => {
 
       <!-- Compatibility Warning -->
       <div v-if="peripheralsStore.hasCompatibilityIssues" class="compatibility-warning">
-        <span class="material-icons">warning</span>
+        <component :is="getIcon('alert-triangle')" :size="24" :stroke-width="2" />
         <div class="warning-content">
           <strong>Compatibility Issues Detected</strong>
           <ul>
@@ -217,7 +218,7 @@ onUnmounted(() => {
 
       <!-- Power Warning -->
       <div v-if="peripheralsStore.compatibility?.warnings.length" class="power-warning">
-        <span class="material-icons">battery_alert</span>
+        <component :is="getIcon('alert-circle')" :size="24" :stroke-width="2" />
         <div>
           <div v-for="(warning, index) in peripheralsStore.compatibility?.warnings" :key="index">
             {{ warning }}
@@ -228,13 +229,13 @@ onUnmounted(() => {
 
     <!-- Loading State -->
     <div v-if="peripheralsStore.loading" class="loading-state">
-      <span class="material-icons spin">refresh</span>
+      <component :is="getIcon('refresh')" class="spin" :size="64" :stroke-width="2" />
       <p>Loading peripherals...</p>
     </div>
 
     <!-- Empty State -->
     <div v-else-if="peripheralsStore.peripherals.length === 0" class="empty-state">
-      <span class="material-icons">extension_off</span>
+      <component :is="getIcon('peripheral-off')" :size="64" :stroke-width="2" />
       <h3>No Peripherals Detected</h3>
       <p>
         {{ featuresStore.userMode === 'consumer'
@@ -261,9 +262,13 @@ onUnmounted(() => {
           >
             <!-- Header -->
             <div class="peripheral-header">
-              <span class="material-icons icon" :style="{ color: peripheral.status.enabled ? 'var(--primary-green)' : 'var(--text-tertiary)' }">
-                {{ getPeripheralIcon(peripheral.metadata.type) }}
-              </span>
+              <component
+                :is="getIcon(getPeripheralIcon(peripheral.metadata.type))"
+                class="icon"
+                :size="32"
+                :stroke-width="2"
+                :style="{ color: peripheral.status.enabled ? 'var(--primary-green)' : 'var(--text-tertiary)' }"
+              />
 
               <div class="badges">
                 <span class="badge state" :style="{ backgroundColor: getStateColor(peripheral.status.state) }">
@@ -281,11 +286,11 @@ onUnmounted(() => {
 
             <!-- Status Messages -->
             <div v-if="peripheral.status.error_message" class="status-message error">
-              <span class="material-icons">error</span>
+              <component :is="getIcon('x-circle')" :size="18" :stroke-width="2" />
               {{ peripheral.status.error_message }}
             </div>
             <div v-if="peripheral.status.warning_message" class="status-message warning">
-              <span class="material-icons">warning</span>
+              <component :is="getIcon('alert-triangle')" :size="18" :stroke-width="2" />
               {{ peripheral.status.warning_message }}
             </div>
 
@@ -340,7 +345,7 @@ onUnmounted(() => {
                 class="btn btn-danger btn-icon"
                 :title="featuresStore.userMode === 'consumer' ? 'Remove' : 'Unregister'"
               >
-                <span class="material-icons">delete</span>
+                <component :is="getIcon('trash')" :size="20" :stroke-width="2" />
               </button>
             </div>
           </div>
@@ -412,8 +417,8 @@ onUnmounted(() => {
   padding: var(--spacing-md);
   margin-top: var(--spacing-md);
 
-  .material-icons {
-    font-size: 24px;
+  > svg {
+    flex-shrink: 0;
   }
 
   ul {
@@ -430,7 +435,7 @@ onUnmounted(() => {
   background: rgba(255, 193, 7, 0.1);
   border-left: 4px solid var(--status-warning);
 
-  .material-icons {
+  > svg {
     color: var(--status-warning);
   }
 }
@@ -439,7 +444,7 @@ onUnmounted(() => {
   background: rgba(255, 152, 0, 0.1);
   border-left: 4px solid var(--status-warning);
 
-  .material-icons {
+  > svg {
     color: var(--status-warning);
   }
 }
@@ -450,8 +455,7 @@ onUnmounted(() => {
   padding: var(--spacing-3xl) var(--spacing-xl);
   color: var(--text-secondary);
 
-  .material-icons {
-    font-size: 64px;
+  > svg {
     margin-bottom: var(--spacing-lg);
     opacity: 0.5;
 
@@ -524,7 +528,7 @@ onUnmounted(() => {
   margin-bottom: var(--spacing-md);
 
   .icon {
-    font-size: 32px;
+    flex-shrink: 0;
   }
 
   .badges {
@@ -551,8 +555,8 @@ onUnmounted(() => {
   font-size: var(--font-size-sm);
   margin-bottom: var(--spacing-md);
 
-  .material-icons {
-    font-size: 18px;
+  > svg {
+    flex-shrink: 0;
   }
 
   &.error {
@@ -633,9 +637,12 @@ onUnmounted(() => {
     flex: 0;
     padding: var(--spacing-sm);
     min-width: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
-    .material-icons {
-      font-size: 20px;
+    > svg {
+      flex-shrink: 0;
     }
   }
 }

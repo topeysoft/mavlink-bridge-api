@@ -7,8 +7,9 @@ NTRIP connection control, and output routing configuration.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from yardrover.auth import SecurityContext, require_operator, require_viewer
 from yardrover.models.rtcm import (
     NTRIPConfig,
     RTCMAddOutputRequest,
@@ -96,7 +97,10 @@ def set_output_router(router_instance: Optional[RTCMOutputRouter]) -> None:
 # ============================================================================
 
 @router.post("/start", response_model=RTCMStartResponse)
-async def start_rtcm_client(request: RTCMStartRequest) -> RTCMStartResponse:
+async def start_rtcm_client(
+    request: RTCMStartRequest,
+    context: SecurityContext = Depends(require_operator),
+) -> RTCMStartResponse:
     """Start RTCM client with given configuration.
 
     This endpoint starts the NTRIP client connection and begins receiving
@@ -176,7 +180,9 @@ async def start_rtcm_client(request: RTCMStartRequest) -> RTCMStartResponse:
 
 
 @router.post("/stop", response_model=RTCMStopResponse)
-async def stop_rtcm_client() -> RTCMStopResponse:
+async def stop_rtcm_client(
+    context: SecurityContext = Depends(require_operator),
+) -> RTCMStopResponse:
     """Stop RTCM client.
 
     This endpoint stops the NTRIP client connection and ceases receiving
@@ -218,7 +224,9 @@ async def stop_rtcm_client() -> RTCMStopResponse:
 
 
 @router.get("/status", response_model=RTCMStatus)
-async def get_rtcm_status() -> RTCMStatus:
+async def get_rtcm_status(
+    context: SecurityContext = Depends(require_viewer),
+) -> RTCMStatus:
     """Get RTCM client status.
 
     Returns current connection state, statistics, and uptime information.
@@ -251,7 +259,9 @@ async def get_rtcm_status() -> RTCMStatus:
 
 
 @router.get("/statistics")
-async def get_rtcm_statistics() -> dict:
+async def get_rtcm_statistics(
+    context: SecurityContext = Depends(require_viewer),
+) -> dict:
     """Get RTCM statistics.
 
     Returns detailed statistics about RTCM client and output router.
@@ -280,7 +290,9 @@ async def get_rtcm_statistics() -> dict:
 
 
 @router.post("/statistics/reset")
-async def reset_rtcm_statistics() -> dict:
+async def reset_rtcm_statistics(
+    context: SecurityContext = Depends(require_operator),
+) -> dict:
     """Reset RTCM statistics.
 
     Resets all counters and statistics to zero.
@@ -310,7 +322,9 @@ async def reset_rtcm_statistics() -> dict:
 # ============================================================================
 
 @router.get("/config")
-async def get_rtcm_config() -> dict:
+async def get_rtcm_config(
+    context: SecurityContext = Depends(require_viewer),
+) -> dict:
     """Get current RTCM configuration.
 
     Returns the current runtime RTCM configuration including source settings
@@ -355,7 +369,9 @@ async def get_rtcm_config() -> dict:
 # ============================================================================
 
 @router.get("/outputs")
-async def get_outputs() -> dict:
+async def get_outputs(
+    context: SecurityContext = Depends(require_viewer),
+) -> dict:
     """Get all configured output targets.
 
     Returns:
@@ -382,7 +398,10 @@ async def get_outputs() -> dict:
 
 
 @router.post("/outputs", response_model=RTCMAddOutputResponse)
-async def add_output(request: RTCMAddOutputRequest) -> RTCMAddOutputResponse:
+async def add_output(
+    request: RTCMAddOutputRequest,
+    context: SecurityContext = Depends(require_operator),
+) -> RTCMAddOutputResponse:
     """Add a new output routing target.
 
     Args:
@@ -422,7 +441,10 @@ async def add_output(request: RTCMAddOutputRequest) -> RTCMAddOutputResponse:
 
 
 @router.delete("/outputs/{name}", response_model=RTCMRemoveOutputResponse)
-async def remove_output(name: str) -> RTCMRemoveOutputResponse:
+async def remove_output(
+    name: str,
+    context: SecurityContext = Depends(require_operator),
+) -> RTCMRemoveOutputResponse:
     """Remove an output routing target.
 
     Args:
@@ -461,7 +483,11 @@ async def remove_output(name: str) -> RTCMRemoveOutputResponse:
 
 
 @router.patch("/outputs/{name}/enabled", response_model=RTCMSetOutputEnabledResponse)
-async def set_output_enabled(name: str, request: RTCMSetOutputEnabledRequest) -> RTCMSetOutputEnabledResponse:
+async def set_output_enabled(
+    name: str,
+    request: RTCMSetOutputEnabledRequest,
+    context: SecurityContext = Depends(require_operator),
+) -> RTCMSetOutputEnabledResponse:
     """Enable or disable an output target.
 
     Args:
@@ -502,7 +528,10 @@ async def set_output_enabled(name: str, request: RTCMSetOutputEnabledRequest) ->
 
 
 @router.post("/outputs/toggle", response_model=RTCMToggleOutputsResponse)
-async def toggle_outputs(request: RTCMToggleOutputsRequest) -> RTCMToggleOutputsResponse:
+async def toggle_outputs(
+    request: RTCMToggleOutputsRequest,
+    context: SecurityContext = Depends(require_operator),
+) -> RTCMToggleOutputsResponse:
     """Toggle multiple output targets on or off.
 
     This endpoint allows bulk enabling/disabling of multiple output targets

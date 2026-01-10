@@ -26,34 +26,6 @@ const toast = inject<any>('toast')
 const showEmergencyConfirm = ref(false)
 const isDisconnecting = ref(false)
 
-// Session expiry time remaining
-const sessionTimeRemaining = computed(() => {
-  if (!authStore.isAuthenticated || !authStore.timeUntilExpiry) return null
-
-  const totalSeconds = Math.floor(authStore.timeUntilExpiry / 1000)
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-
-  // Only show if less than 1 hour remaining
-  if (totalSeconds > 3600) return null
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`
-  }
-  return `${minutes}m`
-})
-
-// Determine session expiry color based on time remaining
-const sessionExpiryColor = computed(() => {
-  if (!authStore.timeUntilExpiry) return 'var(--text-secondary)'
-
-  const minutesRemaining = Math.floor(authStore.timeUntilExpiry / 1000 / 60)
-
-  if (minutesRemaining <= 5) return 'var(--status-danger)'
-  if (minutesRemaining <= 15) return 'var(--status-warning)'
-  return 'var(--status-success)'
-})
-
 // Battery level from live data
 const batteryLevel = computed(() => Math.round(batteryStore.batteryInfo.percent))
 
@@ -263,17 +235,6 @@ const modeLabel = computed(() => {
     </div>
 
     <div class="header-right">
-      <!-- Session Expiry Indicator (only shown when < 1 hour remaining) -->
-      <div
-        v-if="sessionTimeRemaining"
-        class="session-expiry"
-        :class="{ warning: authStore.willExpireSoon }"
-        :title="`Session expires in ${sessionTimeRemaining}`"
-      >
-        <component :is="getIcon('clock')" :size="18" :stroke-width="2" :color="sessionExpiryColor" />
-        <span :style="{ color: sessionExpiryColor }">{{ sessionTimeRemaining }}</span>
-      </div>
-
       <!-- Connection Status Indicator -->
       <div
         class="connection-status"
@@ -548,40 +509,6 @@ const modeLabel = computed(() => {
   }
   50% {
     opacity: 0.5;
-  }
-}
-
-.session-expiry {
-  @include flex-center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  border: 1px solid var(--border-color);
-  transition: all 0.2s;
-
-  svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  span {
-    white-space: nowrap;
-  }
-
-  &.warning {
-    animation: session-pulse 2s ease-in-out infinite;
-  }
-}
-
-@keyframes session-pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
   }
 }
 

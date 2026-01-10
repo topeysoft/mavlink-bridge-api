@@ -10,6 +10,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request
 import structlog
 
+from ..auth import SecurityContext, require_operator, require_viewer
 from ..core.errors import NetworkError
 from ..models.network import (
     WiFiConnectResponse,
@@ -40,6 +41,7 @@ def get_wifi_manager(request: Request) -> WiFiManager:
 async def connect_wifi(
     credentials: WiFiCredentials,
     wifi_manager: Annotated[WiFiManager, Depends(get_wifi_manager)],
+    context: SecurityContext = Depends(require_operator),
 ) -> WiFiConnectResponse:
     """
     Connect to a WiFi network.
@@ -71,6 +73,7 @@ async def connect_wifi(
 @router.post("/disconnect")
 async def disconnect_wifi(
     wifi_manager: Annotated[WiFiManager, Depends(get_wifi_manager)],
+    context: SecurityContext = Depends(require_operator),
 ) -> dict[str, str]:
     """Disconnect from current WiFi network."""
     logger.info("api_wifi_disconnect")
@@ -87,6 +90,7 @@ async def disconnect_wifi(
 @router.get("/status", response_model=WiFiStatus)
 async def get_wifi_status(
     wifi_manager: Annotated[WiFiManager, Depends(get_wifi_manager)],
+    context: SecurityContext = Depends(require_viewer),
 ) -> WiFiStatus:
     """Get current WiFi connection status."""
     return await wifi_manager.get_status()
@@ -96,6 +100,7 @@ async def get_wifi_status(
 async def scan_wifi(
     wifi_manager: Annotated[WiFiManager, Depends(get_wifi_manager)],
     force: Annotated[bool, Query(description="Force new scan")] = False,
+    context: SecurityContext = Depends(require_viewer),
 ) -> WiFiScanResponse:
     """
     Scan for available WiFi networks.

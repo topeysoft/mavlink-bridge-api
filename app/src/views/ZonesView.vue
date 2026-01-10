@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import ZoneStatsHeader from '@/components/zones/ZoneStatsHeader.vue';
 import ZonesToolbar from '@/components/zones/ZonesToolbar.vue';
 import ZoneCard from '@/components/zones/ZoneCard.vue';
+import ZoneRecordingModal from '@/components/zones/ZoneRecordingModal.vue';
 import EmptyState from '@/components/common/EmptyState.vue';
 import SkeletonCard from '@/components/common/SkeletonCard.vue';
 import { useZonesStore } from '@/stores/zones';
@@ -18,6 +19,7 @@ const zonesStore = useZonesStore();
 
 const searchQuery = ref('');
 const filterType = ref('all');
+const showRecordingModal = ref(false);
 
 // Use store data
 const zones = computed(() => zonesStore.zones);
@@ -56,6 +58,10 @@ const activeZones = computed(() => {
 
 const handleCreateZone = () => {
   router.push('/zones/edit');
+};
+
+const handleRecordZone = () => {
+  showRecordingModal.value = true;
 };
 
 const handleImport = async () => {
@@ -157,6 +163,7 @@ const formatRelativeTime = (timestamp: string) => {
 
     <ZonesToolbar
       @create-zone="handleCreateZone"
+      @record-zone="handleRecordZone"
       @import="handleImport"
       @export="handleExport"
       @search="handleSearch"
@@ -187,6 +194,9 @@ const formatRelativeTime = (timestamp: string) => {
       action-label="Create Zone"
       @action="handleCreateZone"
     />
+
+    <!-- Zone Recording Modal -->
+    <ZoneRecordingModal v-model="showRecordingModal" />
   </div>
 </template>
 

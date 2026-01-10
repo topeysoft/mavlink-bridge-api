@@ -7,9 +7,10 @@ Supports incremental sync with metadata-based queries.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import ValidationError
 
+from yardrover.auth import SecurityContext, require_operator, require_viewer
 from yardrover.models.resources import (
     MissionListResponse,
     MissionMetadata,
@@ -40,7 +41,8 @@ def set_storage(storage: ResourceStorage) -> None:
 
 @router.get("", response_model=MissionListResponse)
 async def list_missions(
-    since: int = Query(0, description="Return only missions modified after this timestamp (microseconds since epoch)")
+    since: int = Query(0, description="Return only missions modified after this timestamp (microseconds since epoch)"),
+    context: SecurityContext = Depends(require_viewer),
 ) -> MissionListResponse:
     """List all missions with optional incremental sync
 
@@ -93,7 +95,10 @@ async def list_missions(
 
 
 @router.post("", response_model=MissionOperationResponse, status_code=status.HTTP_201_CREATED)
-async def create_mission(mission: ScheduledMission) -> MissionOperationResponse:
+async def create_mission(
+    mission: ScheduledMission,
+    context: SecurityContext = Depends(require_operator),
+) -> MissionOperationResponse:
     """Create a new mission
 
     Creates a new scheduled mission and queues it for storage. The operation is
@@ -148,7 +153,10 @@ async def create_mission(mission: ScheduledMission) -> MissionOperationResponse:
 
 
 @router.get("/{mission_id}", response_model=ScheduledMission)
-async def get_mission(mission_id: str) -> ScheduledMission:
+async def get_mission(
+    mission_id: str,
+    context: SecurityContext = Depends(require_viewer),
+) -> ScheduledMission:
     """Get a specific mission by ID
 
     Retrieves the full mission definition for the specified mission ID.
@@ -204,7 +212,11 @@ async def get_mission(mission_id: str) -> ScheduledMission:
 
 
 @router.put("/{mission_id}", response_model=MissionOperationResponse)
-async def update_mission(mission_id: str, mission: ScheduledMission) -> MissionOperationResponse:
+async def update_mission(
+    mission_id: str,
+    mission: ScheduledMission,
+    context: SecurityContext = Depends(require_operator),
+) -> MissionOperationResponse:
     """Update an existing mission
 
     Updates an existing mission by replacing its data. The mission ID in the path
@@ -278,7 +290,10 @@ async def update_mission(mission_id: str, mission: ScheduledMission) -> MissionO
 
 
 @router.delete("/{mission_id}", response_model=MissionOperationResponse)
-async def delete_mission(mission_id: str) -> MissionOperationResponse:
+async def delete_mission(
+    mission_id: str,
+    context: SecurityContext = Depends(require_operator),
+) -> MissionOperationResponse:
     """Delete a mission
 
     Deletes the specified mission. This operation is synchronous and the mission

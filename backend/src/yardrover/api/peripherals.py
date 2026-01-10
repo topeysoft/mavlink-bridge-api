@@ -7,8 +7,9 @@ status monitoring, and command execution.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from yardrover.auth import SecurityContext, require_operator, require_viewer
 from yardrover.models.peripherals import (
     CompatibilityCheckResponse,
     Peripheral,
@@ -91,7 +92,9 @@ async def list_peripherals(
 
 
 @router.get("/stats")
-async def get_stats() -> dict:
+async def get_stats(
+    context: SecurityContext = Depends(require_viewer),
+) -> dict:
     """Get peripheral manager statistics
 
     Returns statistics about peripherals including counts and totals.
@@ -118,6 +121,19 @@ async def get_stats() -> dict:
 
 @router.get("/compatibility/check", response_model=CompatibilityCheckResponse)
 async def check_compatibility() -> CompatibilityCheckResponse:
+    """Check peripheral compatibility
+
+    Checks compatibility of currently enabled peripherals and reports
+    any conflicts, missing requirements, or warnings.
+
+    Returns:
+        Compatibility check response with conflicts and warnings
+    """
+    if not _manager:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Peripheral manager not available",
+        )
     """Check peripheral compatibility
 
     Checks compatibility of currently enabled peripherals and reports
@@ -194,7 +210,10 @@ async def register_peripheral(
 
 
 @router.get("/{peripheral_id}", response_model=Peripheral)
-async def get_peripheral(peripheral_id: str) -> Peripheral:
+async def get_peripheral(
+    peripheral_id: str,
+    context: SecurityContext = Depends(require_viewer),
+) -> Peripheral:
     """Get peripheral details
 
     Retrieves full peripheral information including metadata, status, and telemetry.
@@ -284,7 +303,10 @@ async def unregister_peripheral(peripheral_id: str) -> PeripheralOperationRespon
 
 
 @router.get("/{peripheral_id}/status", response_model=dict)
-async def get_peripheral_status(peripheral_id: str) -> dict:
+async def get_peripheral_status(
+    peripheral_id: str,
+    context: SecurityContext = Depends(require_viewer),
+) -> dict:
     """Get peripheral status
 
     Returns current operational status of the peripheral.
@@ -326,7 +348,10 @@ async def get_peripheral_status(peripheral_id: str) -> dict:
 
 
 @router.get("/{peripheral_id}/telemetry", response_model=PeripheralTelemetry)
-async def get_peripheral_telemetry(peripheral_id: str) -> PeripheralTelemetry:
+async def get_peripheral_telemetry(
+    peripheral_id: str,
+    context: SecurityContext = Depends(require_viewer),
+) -> PeripheralTelemetry:
     """Get peripheral telemetry
 
     Returns latest telemetry data from the peripheral.
@@ -374,7 +399,10 @@ async def get_peripheral_telemetry(peripheral_id: str) -> PeripheralTelemetry:
 
 
 @router.post("/{peripheral_id}/enable", response_model=PeripheralOperationResponse)
-async def enable_peripheral(peripheral_id: str) -> PeripheralOperationResponse:
+async def enable_peripheral(
+    peripheral_id: str,
+    context: SecurityContext = Depends(require_operator),
+) -> PeripheralOperationResponse:
     """Enable a peripheral
 
     Enables the peripheral for operation. Checks compatibility with
@@ -430,7 +458,10 @@ async def enable_peripheral(peripheral_id: str) -> PeripheralOperationResponse:
 
 
 @router.post("/{peripheral_id}/disable", response_model=PeripheralOperationResponse)
-async def disable_peripheral(peripheral_id: str) -> PeripheralOperationResponse:
+async def disable_peripheral(
+    peripheral_id: str,
+    context: SecurityContext = Depends(require_operator),
+) -> PeripheralOperationResponse:
     """Disable a peripheral
 
     Disables the peripheral and stops its operation.

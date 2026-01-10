@@ -11,7 +11,7 @@ network:
   mdns:
     enabled: true
 serial:
-  port: /dev/cu.usbmodem101
+  port: /dev/cu.usbmodem2101
   baudrate: 115200
   timeout: 1.0
 storage:

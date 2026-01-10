@@ -61,7 +61,31 @@ import {
   Search,
   Filter,
   Zap,
-  Wifi as WifiConnected
+  Wifi as WifiConnected,
+  // Peripheral icons
+  Scissors,
+  Package,
+  Leaf,
+  ScanLine,
+  Wind,
+  Sprout,
+  Snowflake,
+  Mountain,
+  Droplets,
+  Tractor,
+  Trash2,
+  Camera,
+  Gauge,
+  Network,
+  Radar,
+  Power,
+  Lightbulb,
+  Link,
+  MapPinned,
+  Compass,
+  BatteryCharging,
+  Cog,
+  PlugZap
 } from 'lucide-vue-next'
 
 export type IconName =
@@ -125,6 +149,44 @@ export type IconName =
   | 'search'
   | 'filter'
   | 'zap'
+  // Peripheral Types
+  | 'peripheral-mower'
+  | 'peripheral-grass-collector'
+  | 'peripheral-mulcher'
+  | 'peripheral-edger'
+  | 'peripheral-aerator'
+  | 'peripheral-seeder'
+  | 'peripheral-snow-blower'
+  | 'peripheral-snow-plow'
+  | 'peripheral-salt-spreader'
+  | 'peripheral-sprayer'
+  | 'peripheral-fertilizer-spreader'
+  | 'peripheral-vacuum'
+  | 'peripheral-leaf-blower'
+  | 'peripheral-debris-collector'
+  | 'peripheral-camera'
+  | 'peripheral-environmental-sensor'
+  | 'peripheral-soil-sensor'
+  | 'peripheral-lidar'
+  | 'peripheral-power-module'
+  | 'peripheral-lighting'
+  | 'peripheral-trailer-hitch'
+  | 'peripheral-builtin-gps'
+  | 'peripheral-builtin-imu'
+  | 'peripheral-builtin-battery'
+  | 'peripheral-custom'
+  | 'peripheral-off'
+  // Zone Types
+  | 'zone-mowing'
+  | 'zone-exclusion'
+  | 'zone-charging'
+  | 'zone-patrol'
+  | 'zone-snow-clearing'
+  | 'zone-staging'
+  | 'zone-spraying'
+  | 'zone-watering'
+  | 'zone-collection'
+  | 'zone-monitoring'
 
 /**
  * Icon component map
@@ -189,7 +251,45 @@ export const iconMap: Record<IconName, Component> = {
   'eye-off': EyeOff,
   search: Search,
   filter: Filter,
-  zap: Zap
+  zap: Zap,
+  // Peripheral Types
+  'peripheral-mower': Scissors,
+  'peripheral-grass-collector': Package,
+  'peripheral-mulcher': Leaf,
+  'peripheral-edger': ScanLine,
+  'peripheral-aerator': Wind,
+  'peripheral-seeder': Sprout,
+  'peripheral-snow-blower': Snowflake,
+  'peripheral-snow-plow': Mountain,
+  'peripheral-salt-spreader': Droplets,
+  'peripheral-sprayer': Droplets,
+  'peripheral-fertilizer-spreader': Tractor,
+  'peripheral-vacuum': Trash2,
+  'peripheral-leaf-blower': Wind,
+  'peripheral-debris-collector': Trash2,
+  'peripheral-camera': Camera,
+  'peripheral-environmental-sensor': Gauge,
+  'peripheral-soil-sensor': Network,
+  'peripheral-lidar': Radar,
+  'peripheral-power-module': Power,
+  'peripheral-lighting': Lightbulb,
+  'peripheral-trailer-hitch': Link,
+  'peripheral-builtin-gps': MapPinned,
+  'peripheral-builtin-imu': Compass,
+  'peripheral-builtin-battery': BatteryCharging,
+  'peripheral-custom': Cog,
+  'peripheral-off': PlugZap,
+  // Zone Types
+  'zone-mowing': Scissors,
+  'zone-exclusion': Shield,
+  'zone-charging': BatteryCharging,
+  'zone-patrol': Eye,
+  'zone-snow-clearing': Snowflake,
+  'zone-staging': Package,
+  'zone-spraying': Droplets,
+  'zone-watering': Droplets,
+  'zone-collection': Trash2,
+  'zone-monitoring': Gauge
 }
 
 /**

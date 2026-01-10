@@ -16,6 +16,7 @@ from .dependencies import (
     require_authenticated,
     require_operator,
     require_viewer,
+    verify_websocket_token,
 )
 from .jwt_handler import JWTHandler, create_access_token, get_jwt_handler, verify_token
 from .refresh_tokens import RefreshTokenStore, get_refresh_token_store, initialize_refresh_token_store
@@ -95,4 +96,5 @@ __all__ = [
     "require_admin",
     "require_operator",
     "require_viewer",
+    "verify_websocket_token",
 ]
