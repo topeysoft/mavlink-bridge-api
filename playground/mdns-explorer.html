@@ -324,6 +324,209 @@
       .toast.error {
         border-left: 4px solid #f56565;
       }
+
+      /* Data Capture Panel Styles */
+      .data-capture-panel {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #f7fafc;
+        border-radius: 8px;
+        border: 2px solid #e2e8f0;
+        display: none;
+      }
+
+      .data-capture-panel.active {
+        display: block;
+      }
+
+      .capture-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e2e8f0;
+      }
+
+      .capture-header h4 {
+        margin: 0;
+        font-size: 1rem;
+        color: #2d3748;
+      }
+
+      .capture-controls {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .capture-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+      }
+
+      .capture-stat {
+        background: white;
+        padding: 0.75rem;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+      }
+
+      .capture-stat-label {
+        font-size: 0.75rem;
+        color: #718096;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .capture-stat-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #2d3748;
+        font-family: 'Courier New', monospace;
+      }
+
+      .data-viewer {
+        background: white;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .data-viewer-tabs {
+        display: flex;
+        border-bottom: 1px solid #e2e8f0;
+        background: #f7fafc;
+        border-radius: 6px 6px 0 0;
+      }
+
+      .data-viewer-tab {
+        padding: 0.75rem 1rem;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-weight: 600;
+        color: #718096;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+      }
+
+      .data-viewer-tab.active {
+        color: #667eea;
+        border-bottom-color: #667eea;
+        background: white;
+      }
+
+      .data-viewer-content {
+        padding: 1rem;
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        min-height: 200px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .data-packet {
+        margin-bottom: 0.75rem;
+        padding: 0.5rem;
+        background: #f7fafc;
+        border-left: 3px solid #667eea;
+        border-radius: 4px;
+      }
+
+      .packet-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: #718096;
+        margin-bottom: 0.25rem;
+      }
+
+      .packet-data {
+        color: #2d3748;
+        word-break: break-all;
+      }
+
+      .hexdump {
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+        line-height: 1.6;
+      }
+
+      .hexdump-row {
+        display: grid;
+        grid-template-columns: 80px 1fr 200px;
+        gap: 1rem;
+        margin-bottom: 0.25rem;
+      }
+
+      .hexdump-offset {
+        color: #718096;
+      }
+
+      .hexdump-bytes {
+        color: #2d3748;
+      }
+
+      .hexdump-ascii {
+        color: #48bb78;
+      }
+
+      .btn-icon {
+        padding: 0.5rem;
+        min-width: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .monitoring-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        background: #48bb78;
+        color: white;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.7;
+        }
+      }
+
+      .protocol-selector {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .protocol-btn {
+        padding: 0.5rem 1rem;
+        border: 2px solid #e2e8f0;
+        background: white;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        color: #718096;
+        transition: all 0.2s;
+      }
+
+      .protocol-btn.selected {
+        border-color: #667eea;
+        color: #667eea;
+        background: #f0f4ff;
+      }
     </style>
   </head>
   <body>

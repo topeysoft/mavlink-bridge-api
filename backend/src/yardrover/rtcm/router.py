@@ -65,17 +65,79 @@ class SerialTransport(RTCMTransport):
             config: Serial configuration
         """
         self.config = config
+        self._reader: Optional[asyncio.StreamReader] = None
         self._writer: Optional[asyncio.StreamWriter] = None
+        self._connected = False
+
+    async def _ensure_connected(self) -> bool:
+        """Ensure serial connection is established.
+
+        Retries up to 3 times with delays to handle OS resource release timing.
+
+        Returns:
+            True if connected
+        """
+        if self._connected and self._writer:
+            return True
+
+        # Try up to 3 times with delays for resource release
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                # Import serial_asyncio for async serial communication
+                from serial_asyncio import open_serial_connection
+                import serial
+
+                if attempt > 0:
+                    logger.info(
+                        "Retrying serial port open",
+                        serial_port=self.config.port,
+                        attempt=attempt + 1,
+                        max_attempts=max_attempts
+                    )
+
+                logger.info("Opening serial port", serial_port=self.config.port, baudrate=self.config.baudrate)
+
+                self._reader, self._writer = await open_serial_connection(
+                    url=self.config.port,
+                    baudrate=self.config.baudrate,
+                    bytesize=serial.EIGHTBITS,
+                    parity=serial.PARITY_NONE,
+                    stopbits=serial.STOPBITS_ONE,
+                )
+                self._connected = True
+                logger.info("Serial port opened successfully")
+                return True
+
+            except ImportError:
+                logger.error("pyserial-asyncio not installed. Install with: pip install pyserial-asyncio")
+                return False
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    # Retry after a short delay
+                    logger.warning(
+                        "Failed to open serial port, retrying",
+                        serial_port=self.config.port,
+                        error=str(e),
+                        attempt=attempt + 1
+                    )
+                    await asyncio.sleep(0.1)
+                    continue
+                else:
+                    # Final attempt failed
+                    logger.error("Failed to open serial port after all retries", serial_port=self.config.port, error=str(e))
+                    self._connected = False
+                    return False
+
+        return False
 
     async def send(self, data: bytes) -> bool:
         """Send data via serial port."""
         try:
-            # Lazy initialization of serial connection
+            if not await self._ensure_connected():
+                return False
+
             if not self._writer:
-                # In Python, we'd use pyserial-asyncio here
-                # For now, this is a placeholder showing the pattern
-                # TODO: Implement actual serial transport with pyserial-asyncio
-                logger.warning("Serial transport not yet implemented", port=self.config.port)
                 return False
 
             self._writer.write(data)
@@ -84,14 +146,22 @@ class SerialTransport(RTCMTransport):
 
         except Exception as e:
             logger.error("Failed to send data via serial", error=str(e))
+            self._connected = False
+            await self.close()
             return False
 
     async def close(self) -> None:
         """Close serial connection."""
         if self._writer:
-            self._writer.close()
-            await self._writer.wait_closed()
-            self._writer = None
+            try:
+                self._writer.close()
+                await self._writer.wait_closed()
+            except Exception as e:
+                logger.warning("Error closing serial connection", error=str(e))
+            finally:
+                self._writer = None
+                self._reader = None
+                self._connected = False
 
 
 class TCPTransport(RTCMTransport):
@@ -260,8 +330,14 @@ class MAVLinkFormatter(RTCMFormatter):
     to flight controllers.
     """
 
+    MAX_PAYLOAD_SIZE = 180  # GPS_RTCM_DATA max data length
+
     def __init__(self) -> None:
         """Initialize MAVLink formatter."""
+        from pymavlink import mavutil
+
+        # Create MAVLink connection for encoding (memory buffer)
+        self._mav = mavutil.mavlink_connection('udpin:0.0.0.0:0', dialect='ardupilotmega')
         self._sequence = 0
 
     def format(self, data: bytes) -> bytes:
@@ -270,17 +346,67 @@ class MAVLinkFormatter(RTCMFormatter):
         GPS_RTCM_DATA can carry up to 180 bytes per message. Large RTCM
         messages are fragmented across multiple MAVLink messages.
 
+        Fragment flags (bit field):
+        - Bit 0 (LSB): 1 = message is fragmented
+        - Bit 1: 1 = not the first fragment
+        - Bit 2: 1 = not the last fragment
+
         Args:
             data: Raw RTCM data
 
         Returns:
             MAVLink-wrapped data (potentially multiple messages)
         """
-        # TODO: Implement MAVLink GPS_RTCM_DATA wrapping
-        # This requires pymavlink integration
-        # For now, return raw data as placeholder
-        logger.warning("MAVLink formatter not yet implemented, returning raw data")
-        return data
+        if not data:
+            return b''
+
+        data_len = len(data)
+        result = b''
+
+        # Single message case (no fragmentation needed)
+        if data_len <= self.MAX_PAYLOAD_SIZE:
+            # Pad data to 180 bytes
+            data_array = list(data) + [0] * (self.MAX_PAYLOAD_SIZE - data_len)
+
+            msg = self._mav.mav.gps_rtcm_data_encode(
+                flags=0,  # Not fragmented
+                len=data_len,
+                data=data_array
+            )
+            result = msg.pack(self._mav.mav)
+
+        else:
+            # Fragmented message case
+            offset = 0
+            fragment_index = 0
+            total_fragments = (data_len + self.MAX_PAYLOAD_SIZE - 1) // self.MAX_PAYLOAD_SIZE
+
+            while offset < data_len:
+                chunk_len = min(self.MAX_PAYLOAD_SIZE, data_len - offset)
+                chunk = data[offset:offset + chunk_len]
+
+                # Calculate fragment flags
+                flags = 0b001  # Bit 0: message is fragmented
+                if fragment_index > 0:
+                    flags |= 0b010  # Bit 1: not first fragment
+                if fragment_index < total_fragments - 1:
+                    flags |= 0b100  # Bit 2: not last fragment
+
+                # Pad chunk to 180 bytes
+                data_array = list(chunk) + [0] * (self.MAX_PAYLOAD_SIZE - chunk_len)
+
+                msg = self._mav.mav.gps_rtcm_data_encode(
+                    flags=flags,
+                    len=chunk_len,
+                    data=data_array
+                )
+                result += msg.pack(self._mav.mav)
+
+                offset += chunk_len
+                fragment_index += 1
+
+        self._sequence += 1
+        return result
 
 
 # ============================================================================
@@ -304,11 +430,14 @@ class RTCMOutputRouter:
         self._targets: dict[str, tuple[RTCMOutputTarget, RTCMFormatter, RTCMTransport]] = {}
         self._lock = asyncio.Lock()
 
-        # Statistics
+        # Global statistics
         self._messages_routed = 0
         self._bytes_routed = 0
         self._routing_errors = 0
         self._last_route_time: Optional[float] = None
+
+        # Per-target statistics: {target_name: {messages_sent, bytes_sent, send_errors, last_send_time}}
+        self._target_stats: dict[str, dict[str, int | float]] = {}
 
     async def add_target(self, target: RTCMOutputTarget) -> bool:
         """Add output routing target.
@@ -332,6 +461,15 @@ class RTCMOutputRouter:
                 transport = self._create_transport(target.transport)
 
                 self._targets[target.name] = (target, formatter, transport)
+
+                # Initialize per-target statistics
+                self._target_stats[target.name] = {
+                    "messages_sent": 0,
+                    "bytes_sent": 0,
+                    "send_errors": 0,
+                    "last_send_time": 0.0,
+                }
+
                 logger.info("Added output target", name=target.name, format=target.format, transport=target.transport.type)
                 return True
 
@@ -358,6 +496,11 @@ class RTCMOutputRouter:
             await transport.close()
 
             del self._targets[name]
+
+            # Remove per-target statistics
+            if name in self._target_stats:
+                del self._target_stats[name]
+
             logger.info("Removed output target", name=name)
             return True
 
@@ -397,12 +540,22 @@ class RTCMOutputRouter:
             return 0
 
         success_count = 0
-        self._last_route_time = time.time()
+        current_time = time.time()
+        self._last_route_time = current_time
 
         async with self._lock:
             for name, (target, formatter, transport) in list(self._targets.items()):
                 if not target.enabled:
                     continue
+
+                # Initialize stats if missing (shouldn't happen, but be defensive)
+                if name not in self._target_stats:
+                    self._target_stats[name] = {
+                        "messages_sent": 0,
+                        "bytes_sent": 0,
+                        "send_errors": 0,
+                        "last_send_time": 0.0,
+                    }
 
                 try:
                     # Format data
@@ -412,12 +565,19 @@ class RTCMOutputRouter:
                     if await transport.send(formatted_data):
                         success_count += 1
                         self._bytes_routed += len(formatted_data)
+
+                        # Update per-target statistics
+                        self._target_stats[name]["messages_sent"] += 1
+                        self._target_stats[name]["bytes_sent"] += len(formatted_data)
+                        self._target_stats[name]["last_send_time"] = current_time
                     else:
                         self._routing_errors += 1
+                        self._target_stats[name]["send_errors"] += 1
                         logger.warning("Failed to send to target", name=name)
 
                 except Exception as e:
                     self._routing_errors += 1
+                    self._target_stats[name]["send_errors"] += 1
                     logger.error("Error routing to target", name=name, error=str(e))
 
         if success_count > 0:
@@ -456,7 +616,33 @@ class RTCMOutputRouter:
             "bytes_routed": self._bytes_routed,
             "routing_errors": self._routing_errors,
             "last_route_time": int(self._last_route_time * 1000) if self._last_route_time else None,
+            "targets": self.get_target_statistics(),
         }
+
+    def get_target_statistics(self) -> list[dict]:
+        """Get per-target statistics.
+
+        Returns:
+            List of dictionaries with per-target statistics
+        """
+        target_stats = []
+        current_time = time.time()
+
+        for name, stats in self._target_stats.items():
+            # Calculate data rate for last second
+            last_send = stats.get("last_send_time", 0.0)
+            is_active = (current_time - last_send) < 2.0 if last_send > 0 else False
+
+            target_stats.append({
+                "name": name,
+                "messages_sent": int(stats.get("messages_sent", 0)),
+                "bytes_sent": int(stats.get("bytes_sent", 0)),
+                "send_errors": int(stats.get("send_errors", 0)),
+                "last_send_time": int(last_send * 1000) if last_send > 0 else None,
+                "is_active": is_active,
+            })
+
+        return target_stats
 
     def reset_statistics(self) -> None:
         """Reset routing statistics."""
@@ -464,6 +650,16 @@ class RTCMOutputRouter:
         self._bytes_routed = 0
         self._routing_errors = 0
         self._last_route_time = None
+
+        # Reset per-target statistics
+        for name in self._target_stats:
+            self._target_stats[name] = {
+                "messages_sent": 0,
+                "bytes_sent": 0,
+                "send_errors": 0,
+                "last_send_time": 0.0,
+            }
+
         logger.info("Reset routing statistics")
 
     def get_target_info(self) -> list[dict]:

@@ -12,7 +12,7 @@ const currentStep = ref(0)
 const baseStationIP = ref('')
 const baseStationPort = ref(5015)
 const isScanning = ref(false)
-const discoveredStations = ref<Array<{ host: string; port: number; name: string }>>([])
+const discoveredStations = ref<Array<{ host: string; port: number; name: string; protocol?: string }>>([])
 
 // Steps
 const steps = [
@@ -61,6 +61,19 @@ const dataRateDisplay = computed(() => {
   }
 })
 
+const connectionBadgeClass = computed(() => {
+  switch (rtcmStore.currentClientType) {
+    case 'NTRIP':
+      return 'badge-ntrip'
+    case 'TCP':
+      return 'badge-tcp'
+    case 'UDP':
+      return 'badge-udp'
+    default:
+      return 'badge-default'
+  }
+})
+
 // Methods
 function next() {
   if (canGoNext.value && currentStep.value < steps.length - 1) {
@@ -97,7 +110,8 @@ async function scanForBaseStations() {
     discoveredStations.value = rtcmServers.map(server => ({
       host: server.ip,
       port: server.port,
-      name: server.friendlyName || server.hostname
+      name: server.friendlyName || server.hostname,
+      protocol: server.protocol
     }))
 
     console.log(`Found ${discoveredStations.value.length} RTCM base stations`)
@@ -115,7 +129,7 @@ async function scanForBaseStations() {
   }
 }
 
-function selectStation(station: { host: string; port: number; name: string }) {
+function selectStation(station: { host: string; port: number; name: string; protocol?: string }) {
   baseStationIP.value = station.host
   baseStationPort.value = station.port
 }
@@ -247,7 +261,7 @@ onMounted(() => {
           <div class="stations-list">
             <div
               v-for="station in discoveredStations"
-              :key="station.host"
+              :key="`${station.host}:${station.port}`"
               class="station-card"
               :class="{ selected: baseStationIP === station.host }"
               @click="selectStation(station)"
@@ -255,7 +269,12 @@ onMounted(() => {
               <div class="station-icon">📡</div>
               <div class="station-info">
                 <strong>{{ station.name }}</strong>
-                <small>{{ station.host }}:{{ station.port }}</small>
+                <small>
+                  {{ station.host }}:{{ station.port }}
+                  <span v-if="station.protocol" class="protocol-badge" :class="`protocol-${station.protocol}`">
+                    {{ station.protocol.toUpperCase() }}
+                  </span>
+                </small>
               </div>
               <div v-if="baseStationIP === station.host" class="check-icon">✓</div>
             </div>
@@ -346,6 +365,9 @@ onMounted(() => {
         </div>
 
         <div v-if="rtcmStore.isConnected" class="connection-stats">
+          <div v-if="rtcmStore.connectionDescription" class="connection-badge-large" :class="connectionBadgeClass">
+            {{ rtcmStore.connectionDescription }}
+          </div>
           <div class="stat-box">
             <div class="stat-label">Accuracy</div>
             <div class="stat-value">{{ accuracyDisplay }}</div>
@@ -378,6 +400,9 @@ onMounted(() => {
           </p>
 
           <div class="final-stats">
+            <div v-if="rtcmStore.connectionDescription" class="connection-badge-large" :class="connectionBadgeClass">
+              {{ rtcmStore.connectionDescription }}
+            </div>
             <div class="final-stat">
               <div class="final-stat-icon">📍</div>
               <div>
@@ -386,10 +411,10 @@ onMounted(() => {
               </div>
             </div>
             <div class="final-stat">
-              <div class="final-stat-icon">📡</div>
+              <div class="final-stat-icon">{{ rtcmStore.connectionTypeIcon }}</div>
               <div>
-                <div class="final-stat-label">Base Station</div>
-                <div class="final-stat-value">{{ baseStationIP }}</div>
+                <div class="final-stat-label">Connection Type</div>
+                <div class="final-stat-value">{{ rtcmStore.connectionTypeDisplay }}</div>
               </div>
             </div>
             <div class="final-stat">
@@ -684,6 +709,28 @@ onMounted(() => {
   small {
     color: var(--text-secondary);
     font-family: monospace;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+.protocol-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+
+  &.protocol-tcp {
+    background-color: rgba(44, 95, 45, 0.1);
+    color: var(--primary-green);
+  }
+
+  &.protocol-udp {
+    background-color: rgba(135, 206, 235, 0.15);
+    color: #0284c7;
   }
 }
 
@@ -834,6 +881,46 @@ onMounted(() => {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 1rem;
   margin-top: 2rem;
+
+  .connection-badge-large {
+    grid-column: 1 / -1;
+    text-align: center;
+    margin-bottom: 0.5rem;
+  }
+}
+
+.connection-badge-large {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1.25rem;
+  border-radius: 16px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: monospace;
+
+  &.badge-ntrip {
+    background-color: rgba(135, 206, 235, 0.15);
+    color: #0284c7;
+    border: 2px solid rgba(135, 206, 235, 0.3);
+  }
+
+  &.badge-tcp {
+    background-color: rgba(44, 95, 45, 0.1);
+    color: var(--primary-green);
+    border: 2px solid rgba(44, 95, 45, 0.2);
+  }
+
+  &.badge-udp {
+    background-color: rgba(147, 51, 234, 0.1);
+    color: #7c3aed;
+    border: 2px solid rgba(147, 51, 234, 0.2);
+  }
+
+  &.badge-default {
+    background-color: rgba(107, 114, 128, 0.1);
+    color: #4b5563;
+    border: 2px solid rgba(107, 114, 128, 0.2);
+  }
 }
 
 .stat-box {
@@ -879,6 +966,11 @@ onMounted(() => {
   flex-direction: column;
   gap: 1rem;
   margin: 2rem 0;
+
+  .connection-badge-large {
+    align-self: center;
+    margin-bottom: 1rem;
+  }
 }
 
 .final-stat {

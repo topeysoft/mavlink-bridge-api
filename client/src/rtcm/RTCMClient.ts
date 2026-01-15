@@ -16,6 +16,7 @@ import {
 export class RTCMClient {
   private dataCallbacks: Array<(data: RTCMDataEvent) => void> = [];
   private stateChangeCallbacks: Array<(state: RTCMState) => void> = [];
+  private statusChangeCallbacks: Array<(status: RTCMStatus) => void> = [];
 
   constructor(
     private httpClient: HttpClient,
@@ -28,7 +29,7 @@ export class RTCMClient {
    * Start RTCM client with the given configuration
    */
   async start (config: Partial<RTCMConfig>): Promise<RTCMResponse> {
-    const response = await this.httpClient.post<RTCMResponse>('/api/rtcm/start', config);
+    const response = await this.httpClient.post<RTCMResponse>('/api/rtcm/start', { config });
     return response;
   }
 
@@ -82,6 +83,21 @@ export class RTCMClient {
       const index = this.stateChangeCallbacks.indexOf(callback);
       if (index > -1) {
         this.stateChangeCallbacks.splice(index, 1);
+      }
+    };
+  }
+
+  /**
+   * Register callback for status change events (full status updates)
+   */
+  onStatusChange (callback: (status: RTCMStatus) => void): () => void {
+    this.statusChangeCallbacks.push(callback);
+
+    // Return unsubscribe function
+    return () => {
+      const index = this.statusChangeCallbacks.indexOf(callback);
+      if (index > -1) {
+        this.statusChangeCallbacks.splice(index, 1);
       }
     };
   }
@@ -152,7 +168,7 @@ export class RTCMClient {
 
   private setupEventListeners () {
     // Listen for RTCM data events
-    this.wsClient.on(EventType.RTCM_DATA_RECEIVED, ((data: RTCMDataEvent) => {
+    this.wsClient.on(EventType.RTCM_DATA, ((data: RTCMDataEvent) => {
       this.dataCallbacks.forEach(callback => callback(data));
     }) as any);
 
@@ -160,6 +176,11 @@ export class RTCMClient {
     this.wsClient.on(EventType.RTCM_STATE_CHANGE, ((data: RTCMStateChangeEvent) => {
       const state = this.mapStateNumberToEnum(data.state);
       this.stateChangeCallbacks.forEach(callback => callback(state));
+    }) as any);
+
+    // Listen for full status change events
+    this.wsClient.on(EventType.RTCM_STATUS_CHANGED, ((status: RTCMStatus) => {
+      this.statusChangeCallbacks.forEach(callback => callback(status));
     }) as any);
   }
 

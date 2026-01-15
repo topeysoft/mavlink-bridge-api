@@ -130,10 +130,10 @@ export const useRTCMStore = defineStore('rtcm', () => {
   const isStopping = ref(false)
   const currentState = ref<RTCMState>(RTCMState.DISCONNECTED)
   const currentConfig = ref<RTCMConfig | null>(null)
+  const currentClientType = ref<string | null>(null)
   const statistics = ref<RTCMStatistics | null>(null)
   const lastError = ref<string | null>(null)
   const recentMessages = ref<RTCMDataEvent[]>([])
-  const statusPollInterval = ref<number | null>(null)
 
   // Saved configurations
   const savedConfigs = ref<Array<{ id: string; name: string; config: RTCMConfig }>>(
@@ -161,13 +161,70 @@ export const useRTCMStore = defineStore('rtcm', () => {
 
   const dataRate = computed(() => {
     if (!statistics.value) return 0
-    return statistics.value.dataRate || 0
+    // Support both camelCase and snake_case from backend
+    // Backend sends data_rate in KB/s, convert to B/s for consistency
+    const rateKBps = statistics.value.dataRate || (statistics.value as any).data_rate || 0
+    return rateKBps * 1024 // Convert KB/s to B/s
   })
 
   const messagesPerSecond = computed(() => {
-    if (!statistics.value || !statistics.value.connectionTime) return 0
-    const seconds = statistics.value.connectionTime / 1000
-    return seconds > 0 ? statistics.value.messagesReceived / seconds : 0
+    if (!statistics.value) return 0
+    // Support both camelCase and snake_case from backend
+    const connectionTime = statistics.value.connectionTime || (statistics.value as any).connection_time
+    const messagesReceived = statistics.value.messagesReceived || (statistics.value as any).messages_received
+    if (!connectionTime) return 0
+    const seconds = connectionTime / 1000
+    return seconds > 0 ? messagesReceived / seconds : 0
+  })
+
+  /**
+   * Get connection type icon
+   */
+  const connectionTypeIcon = computed(() => {
+    switch (currentClientType.value) {
+      case 'NTRIP':
+        return '📡'
+      case 'TCP':
+        return '🔌'
+      case 'UDP':
+        return '📤'
+      default:
+        return '🔗'
+    }
+  })
+
+  /**
+   * Get connection type display name
+   */
+  const connectionTypeDisplay = computed(() => {
+    return currentClientType.value || 'Unknown'
+  })
+
+  /**
+   * Get connection details string (host:port or mountpoint info)
+   */
+  const connectionDetails = computed(() => {
+    if (!currentConfig.value?.source) return null
+
+    const source = currentConfig.value.source
+
+    if (source.type === 'ntrip') {
+      return `${source.host}:${source.port}/${source.mountpoint}`
+    } else if (source.type === 'tcp') {
+      return `${source.host}:${source.port}`
+    } else if (source.type === 'udp') {
+      return `Port ${source.port}${source.remoteHost ? ` → ${source.remoteHost}:${source.remotePort}` : ''}`
+    }
+
+    return null
+  })
+
+  /**
+   * Get full connection description with type and details
+   */
+  const connectionDescription = computed(() => {
+    if (!currentClientType.value || !connectionDetails.value) return null
+    return `${connectionTypeIcon.value} ${currentClientType.value} • ${connectionDetails.value}`
   })
 
   // Actions
@@ -192,10 +249,7 @@ export const useRTCMStore = defineStore('rtcm', () => {
         isRunning.value = true
         currentConfig.value = config as RTCMConfig
 
-        // Start polling for status updates
-        startStatusPolling()
-
-        // Setup real-time event listeners
+        // Setup real-time event listeners for WebSocket updates
         setupEventListeners()
 
         console.log('RTCM client started successfully')
@@ -236,9 +290,6 @@ export const useRTCMStore = defineStore('rtcm', () => {
         currentConfig.value = null
         statistics.value = null
 
-        // Stop polling
-        stopStatusPolling()
-
         console.log('RTCM client stopped successfully')
         return true
       } else {
@@ -270,6 +321,7 @@ export const useRTCMStore = defineStore('rtcm', () => {
 
       isRunning.value = status.running
       currentState.value = status.state || RTCMState.DISCONNECTED
+      currentClientType.value = status.clientType || null
       statistics.value = status.statistics || null
 
       return status
@@ -310,7 +362,8 @@ export const useRTCMStore = defineStore('rtcm', () => {
     const config: RTCMConfig = {
       enabled: true,
       source,
-      outputFormat: 'raw'
+      outputFormat: 'raw',
+      outputs: []  // Backend automatically adds FC output using YARDROVER_SERIAL_PORT
     }
 
     return await start(config)
@@ -329,7 +382,8 @@ export const useRTCMStore = defineStore('rtcm', () => {
     const config: RTCMConfig = {
       enabled: true,
       source,
-      outputFormat: 'raw'
+      outputFormat: 'raw',
+      outputs: []  // Backend automatically adds FC output using YARDROVER_SERIAL_PORT
     }
 
     return await start(config)
@@ -349,7 +403,8 @@ export const useRTCMStore = defineStore('rtcm', () => {
     const config: RTCMConfig = {
       enabled: true,
       source,
-      outputFormat: 'raw'
+      outputFormat: 'raw',
+      outputs: []  // Backend automatically adds FC output using YARDROVER_SERIAL_PORT
     }
 
     return await start(config)
@@ -398,6 +453,7 @@ export const useRTCMStore = defineStore('rtcm', () => {
 
   /**
    * Setup real-time event listeners for RTCM data
+   * Uses WebSocket events for all state updates - no polling needed
    */
   function setupEventListeners(): void {
     if (!connectionStore.client) return
@@ -421,30 +477,53 @@ export const useRTCMStore = defineStore('rtcm', () => {
         lastError.value = 'RTCM connection error'
       }
     })
+
+    // Listen for status/statistics updates via WebSocket
+    // The backend emits 'rtcm.status.changed' events with updated statistics
+    client.rtcm.onStatusChange((status: RTCMStatus) => {
+      isRunning.value = status.running
+      currentState.value = status.state || RTCMState.DISCONNECTED
+      currentClientType.value = status.clientType || null
+
+      // Ensure deep reactivity by creating new object reference
+      // This is critical for Vue to detect changes in nested arrays like output_targets
+      if (status.statistics) {
+        statistics.value = {
+          ...status.statistics,
+          // Explicitly spread output_targets array to ensure reactivity
+          output_targets: status.statistics.output_targets ? [...status.statistics.output_targets] : [],
+          outputTargets: status.statistics.output_targets ? [...status.statistics.output_targets] : []
+        }
+      } else {
+        statistics.value = null
+      }
+
+      // Debug: Log output targets received via WebSocket
+      if (status.statistics?.output_targets) {
+        console.log('[RTCM Store] WebSocket received output targets:', {
+          count: status.statistics.output_targets.length,
+          targets: status.statistics.output_targets
+        })
+      } else {
+        console.log('[RTCM Store] WebSocket stats received but NO output_targets:', {
+          hasStats: !!status.statistics,
+          keys: status.statistics ? Object.keys(status.statistics) : []
+        })
+      }
+    })
   }
 
   /**
-   * Start polling for status updates (fallback if WebSocket events aren't working)
+   * Initialize event listeners (should be called on component mount)
    */
-  function startStatusPolling(): void {
-    if (statusPollInterval.value) {
-      clearInterval(statusPollInterval.value)
-    }
+  async function initialize(): Promise<void> {
+    if (!connectionStore.isConnected) return
 
-    // Poll every 2 seconds
-    statusPollInterval.value = window.setInterval(async () => {
-      await refreshStatus()
-    }, 2000)
-  }
+    // Setup event listeners
+    setupEventListeners()
 
-  /**
-   * Stop status polling
-   */
-  function stopStatusPolling(): void {
-    if (statusPollInterval.value) {
-      clearInterval(statusPollInterval.value)
-      statusPollInterval.value = null
-    }
+    // Fetch initial status
+    await refreshStatus()
   }
 
   /**
@@ -456,10 +535,10 @@ export const useRTCMStore = defineStore('rtcm', () => {
     isStopping.value = false
     currentState.value = RTCMState.DISCONNECTED
     currentConfig.value = null
+    currentClientType.value = null
     statistics.value = null
     lastError.value = null
     recentMessages.value = []
-    stopStatusPolling()
   }
 
   return {
@@ -469,6 +548,7 @@ export const useRTCMStore = defineStore('rtcm', () => {
     isStopping,
     currentState,
     currentConfig,
+    currentClientType,
     statistics,
     lastError,
     recentMessages,
@@ -481,6 +561,10 @@ export const useRTCMStore = defineStore('rtcm', () => {
     hasError,
     dataRate,
     messagesPerSecond,
+    connectionTypeIcon,
+    connectionTypeDisplay,
+    connectionDetails,
+    connectionDescription,
 
     // Actions
     start,
@@ -493,6 +577,7 @@ export const useRTCMStore = defineStore('rtcm', () => {
     loadConfig,
     deleteConfig,
     clearError,
+    initialize,
     reset
   }
 })

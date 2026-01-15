@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import structlog
-from zeroconf import IPVersion, ServiceInfo, Zeroconf
+from zeroconf import IPVersion, ServiceInfo, ServiceStateChange, Zeroconf
 from zeroconf.asyncio import (
     AsyncServiceBrowser,
     AsyncServiceInfo,
@@ -32,25 +32,67 @@ logger = structlog.get_logger(__name__)
 class ServiceListener(AsyncServiceListener):
     """Async listener for mDNS service discovery events."""
 
-    def __init__(self, event_bus: EventBus, service_type: str):
+    def __init__(self, event_bus: EventBus, service_type: str, zeroconf: Zeroconf):
         """
         Initialize service listener.
 
         Args:
             event_bus: Event bus for publishing discovery events
             service_type: Service type to listen for
+            zeroconf: Zeroconf instance for getting service info
         """
         self.event_bus = event_bus
         self.service_type = service_type
+        self.zeroconf = zeroconf
         self.discovered: dict[str, DiscoveredService] = {}
+        self._pending_adds: asyncio.Queue = asyncio.Queue()
+
+    def add_service(self, zc: Zeroconf, service_type: str, name: str) -> None:
+        """Handle service added event (sync stub - async version is used)."""
+        pass
+
+    def remove_service(self, zc: Zeroconf, service_type: str, name: str) -> None:
+        """Handle service removed event (sync stub - async version is used)."""
+        pass
+
+    def update_service(self, zc: Zeroconf, service_type: str, name: str) -> None:
+        """Handle service updated event (sync stub - async version is used)."""
+        pass
+
+    def sync_add_service_handler(
+        self, zeroconf: Zeroconf, service_type: str, name: str, state_change: ServiceStateChange
+    ) -> None:
+        """Handle service added event (sync). Queues service for async processing."""
+        # Handler must be sync, so just queue it
+        try:
+            self._pending_adds.put_nowait((service_type, name))
+            logger.debug(
+                "mdns_service_queued",
+                service_type=service_type,
+                name=name,
+                state=state_change.name,
+            )
+        except Exception as e:
+            logger.error("mdns_queue_service_error", name=name, error=str(e))
 
     async def async_add_service(
-        self, zc: AsyncZeroconf, service_type: str, name: str
+        self, zc: "AsyncZeroconf", service_type: str, name: str
     ) -> None:
-        """Handle service added event (async)."""
+        """Handle service added event (async - for AsyncServiceListener interface)."""
+        # Not used with handlers approach
+        pass
+
+    async def process_service(self, service_type: str, name: str) -> None:
+        """Process a discovered service asynchronously."""
         try:
+            logger.debug(
+                "mdns_service_processing",
+                service_type=service_type,
+                name=name,
+            )
+
             info = AsyncServiceInfo(service_type, name)
-            if await info.async_request(zc.zeroconf, 3000):
+            if await info.async_request(self.zeroconf, 3000):
                 # Convert to discovered service
                 txt_records = {}
                 if info.properties:
@@ -68,6 +110,11 @@ class ServiceListener(AsyncServiceListener):
                         break
 
                 if not ip_address:
+                    logger.warning(
+                        "mdns_service_no_ipv4",
+                        service_type=service_type,
+                        name=name,
+                    )
                     return
 
                 service = DiscoveredService(
@@ -99,38 +146,45 @@ class ServiceListener(AsyncServiceListener):
                     name=name,
                     ip=ip_address,
                     port=info.port,
+                    txt_records=txt_records,
+                )
+            else:
+                logger.warning(
+                    "mdns_service_info_request_failed",
+                    service_type=service_type,
+                    name=name,
                 )
 
         except Exception as e:
             logger.error("mdns_add_service_error", name=name, error=str(e))
 
-    async def async_remove_service(
-        self, zc: AsyncZeroconf, service_type: str, name: str
+    def sync_remove_service_handler(
+        self, zeroconf: Zeroconf, service_type: str, name: str, state_change: ServiceStateChange
     ) -> None:
-        """Handle service removed event (async)."""
+        """Handle service removed event (sync)."""
         if name in self.discovered:
             del self.discovered[name]
+            logger.info("mdns_service_removed_sync", service_type=service_type, name=name)
 
-            await self.event_bus.emit(
-                "mdns.service_removed",
-                {
-                    "service_type": service_type,
-                    "service_name": name,
-                },
-            )
+    async def async_remove_service(
+        self, zc: "AsyncZeroconf", service_type: str, name: str
+    ) -> None:
+        """Handle service removed event (async - for AsyncServiceListener interface)."""
+        # Not used with handlers approach
+        pass
 
-            logger.info(
-                "mdns_service_removed",
-                service_type=service_type,
-                name=name,
-            )
+    def sync_update_service_handler(
+        self, zeroconf: Zeroconf, service_type: str, name: str, state_change: ServiceStateChange
+    ) -> None:
+        """Handle service updated event (sync). Treat as add."""
+        self.sync_add_service_handler(zeroconf, service_type, name, state_change)
 
     async def async_update_service(
-        self, zc: AsyncZeroconf, service_type: str, name: str
+        self, zc: "AsyncZeroconf", service_type: str, name: str
     ) -> None:
-        """Handle service updated event (async)."""
-        # Treat as add
-        await self.async_add_service(zc, service_type, name)
+        """Handle service updated event (async - for AsyncServiceListener interface)."""
+        # Not used with handlers approach
+        pass
 
 
 class MDNSManager:
@@ -405,34 +459,101 @@ class MDNSManager:
         if not self._azc:
             raise NetworkError("mDNS not started")
 
-        logger.info("mdns_discover", service_type=service_type, timeout=timeout)
+        logger.info("mdns_discover_start", service_type=service_type, timeout=timeout)
 
         # Ensure service type ends with .local.
         if not service_type.endswith(".local."):
             service_type = f"{service_type}.local."
+            logger.debug("mdns_discover_normalized", service_type=service_type)
 
         # Check if we already have a browser for this service type
         if service_type in self._listeners:
             listener, _ = self._listeners[service_type]
+
+            logger.info(
+                "mdns_discover_using_existing_browser",
+                service_type=service_type,
+                current_count=len(listener.discovered),
+                queue_size=listener._pending_adds.qsize(),
+            )
+
+            # Process any pending services in the queue
+            start_time = asyncio.get_event_loop().time()
+            end_time = start_time + timeout
+
+            while asyncio.get_event_loop().time() < end_time:
+                # Process any pending services
+                while not listener._pending_adds.empty():
+                    try:
+                        svc_type, svc_name = listener._pending_adds.get_nowait()
+                        await listener.process_service(svc_type, svc_name)
+                    except asyncio.QueueEmpty:
+                        break
+
+                # Sleep a bit before checking again
+                await asyncio.sleep(0.1)
+
+            # Process any remaining services in queue
+            while not listener._pending_adds.empty():
+                try:
+                    svc_type, svc_name = listener._pending_adds.get_nowait()
+                    await listener.process_service(svc_type, svc_name)
+                except asyncio.QueueEmpty:
+                    break
+
+            existing_services = list(listener.discovered.values())
+            logger.info(
+                "mdns_discover_complete_existing",
+                service_type=service_type,
+                count=len(existing_services),
+            )
+
             # Return current discoveries
-            return list(listener.discovered.values())
+            return existing_services
 
         try:
             # Create listener
-            listener = ServiceListener(self.event_bus, service_type)
+            listener = ServiceListener(self.event_bus, service_type, self._azc.zeroconf)
 
-            # Create browser with the listener parameter (not handlers)
+            # Create browser with sync handlers
+            logger.debug("mdns_discover_creating_browser", service_type=service_type)
             browser = AsyncServiceBrowser(
                 self._azc.zeroconf,
-                service_type,
-                listener=listener,
+                [service_type],  # Must be a list
+                handlers=[
+                    listener.sync_add_service_handler,
+                    listener.sync_remove_service_handler,
+                    listener.sync_update_service_handler,
+                ],
             )
 
             # Store listener and browser
             self._listeners[service_type] = (listener, browser)
 
-            # Wait for discovery
-            await asyncio.sleep(timeout)
+            logger.debug("mdns_discover_waiting", timeout=timeout)
+            # Wait for discovery and process queue
+            start_time = asyncio.get_event_loop().time()
+            end_time = start_time + timeout
+
+            while asyncio.get_event_loop().time() < end_time:
+                # Process any pending services
+                while not listener._pending_adds.empty():
+                    try:
+                        svc_type, svc_name = listener._pending_adds.get_nowait()
+                        await listener.process_service(svc_type, svc_name)
+                    except asyncio.QueueEmpty:
+                        break
+
+                # Sleep a bit before checking again
+                await asyncio.sleep(0.1)
+
+            # Process any remaining services in queue
+            while not listener._pending_adds.empty():
+                try:
+                    svc_type, svc_name = listener._pending_adds.get_nowait()
+                    await listener.process_service(svc_type, svc_name)
+                except asyncio.QueueEmpty:
+                    break
 
             # Return discovered services
             services = list(listener.discovered.values())
@@ -441,6 +562,7 @@ class MDNSManager:
                 "mdns_discover_complete",
                 service_type=service_type,
                 count=len(services),
+                services=[s.service_name for s in services],
             )
 
             return services

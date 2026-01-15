@@ -15,6 +15,10 @@ from serial_asyncio import open_serial_connection
 from yardrover.core.events import EventBus
 from yardrover.models.mavlink import SerialConfig, SerialStatistics, SerialStatus
 
+# Define custom VERBOSE log level (below DEBUG)
+VERBOSE = 5
+logging.addLevelName(VERBOSE, "VERBOSE")
+
 logger = logging.getLogger(__name__)
 
 
@@ -246,8 +250,8 @@ class SerialManager:
                 self.stats.bytes_received += len(data)
                 self.stats.packets_received += 1
 
-                # Log data reception for debugging
-                logger.debug(f"Serial data received: {len(data)} bytes (total: {self.stats.bytes_received})")
+                # Log data reception at VERBOSE level (below DEBUG)
+                logger.log(VERBOSE, f"Serial data received: {len(data)} bytes (total: {self.stats.bytes_received})")
 
                 # Add to buffer
                 buffer.extend(data)

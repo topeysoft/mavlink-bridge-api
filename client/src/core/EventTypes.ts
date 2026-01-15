@@ -14,6 +14,7 @@ export enum EventType {
   // RTCM events
   RTCM_DATA_RECEIVED = 'rtcm.data.received',
   RTCM_STATE_CHANGE = 'rtcm.state.change',
+  RTCM_STATUS_CHANGED = 'rtcm.status.changed',
   // WiFi events
   WIFI_CONNECTING = 'wifi.connecting',
   WIFI_CONNECTED = 'wifi.connected',

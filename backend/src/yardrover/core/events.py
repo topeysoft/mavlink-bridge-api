@@ -21,6 +21,9 @@ class EventBus:
     Provides type-safe async event distribution with wildcard support.
     """
 
+    # High-frequency events that should not be logged at DEBUG level
+    _QUIET_EVENTS = {"mavlink.message", "telemetry.update"}
+
     def __init__(self) -> None:
         """Initialize event bus."""
         self._subscribers: dict[str, list[EventHandler]] = defaultdict(list)
@@ -45,15 +48,19 @@ class EventBus:
             subscribers.extend(self._wildcard_subscribers)
 
         if not subscribers:
-            logger.debug("event_emitted_no_subscribers", event_name=event)
+            # Only log if not a high-frequency event
+            if event not in self._QUIET_EVENTS:
+                logger.debug("event_emitted_no_subscribers", event_name=event)
             return
 
-        logger.debug(
-            "event_emitted",
-            event_name=event,
-            subscriber_count=len(subscribers),
-            has_data=data is not None,
-        )
+        # Only log if not a high-frequency event
+        if event not in self._QUIET_EVENTS:
+            logger.debug(
+                "event_emitted",
+                event_name=event,
+                subscriber_count=len(subscribers),
+                has_data=data is not None,
+            )
 
         # Execute all handlers concurrently
         tasks = [self._safe_handler_call(handler, event, data) for handler in subscribers]

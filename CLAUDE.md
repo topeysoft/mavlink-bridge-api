@@ -72,7 +72,41 @@ if (featuresStore.isFeatureEnabled('systemMonitoring')) {
 - Client: `client/src/auth/AuthClient.ts` (loginWithPassword, loginWithPin, login)
 - Frontend: `app/src/pages/LoginPage.vue`, `app/src/components/settings/SecuritySettings.vue`
 
-### 5. File Organization
+### 5. WebSocket-First Architecture
+
+**ALWAYS prefer WebSocket events over HTTP polling** for real-time updates:
+
+```typescript
+// ✅ CORRECT - Use WebSocket events
+client.rtcm.onStatusChange((status) => {
+  currentState.value = status.state
+  statistics.value = status.statistics
+})
+
+// ❌ WRONG - Don't poll with setInterval
+setInterval(async () => {
+  const status = await client.rtcm.getStatus()
+  currentState.value = status.state
+}, 2000)
+```
+
+**WebSocket Event Types Available:**
+- **System**: `health.update`, `status`, `log`, `error`
+- **WiFi**: `wifi.connected`, `wifi.disconnected`, `wifi.signal.update`
+- **MAVLink**: `mavlink.message`, `telemetry.update`, `heartbeat`
+- **Resources**: `zone.created/updated/deleted`, `mission.created/updated/deleted`
+- **RTCM**: `rtcm.status.changed`, `rtcm.data.received`, `rtcm.state.change`
+- **Peripherals**: `peripheral.connected/disconnected`, `peripheral.telemetry`, `peripheral.status.changed`
+
+**Pattern for stores:**
+1. Initial fetch on mount (HTTP GET)
+2. Setup WebSocket listeners for updates
+3. Update local state on WebSocket events
+4. No polling intervals
+
+**External APIs only:** Use polling for external services (OpenWeatherMap, etc.) where WebSocket isn't available.
+
+### 6. File Organization
 
 - **`app/src/pages/`** - Pre-auth standalone pages (`*Page.vue`, use `StandaloneLayout`)
 - **`app/src/views/`** - Authenticated app views (`*View.vue`, show sidebar/header)

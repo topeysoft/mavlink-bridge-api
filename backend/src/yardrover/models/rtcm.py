@@ -174,6 +174,16 @@ class RTCMClientConfig(BaseModel):
 # Statistics and Status
 # ============================================================================
 
+class RTCMOutputTargetStats(BaseModel):
+    """Per-target output statistics."""
+    name: str = Field(..., description="Target name")
+    messages_sent: int = Field(0, ge=0, description="Messages sent to this target")
+    bytes_sent: int = Field(0, ge=0, description="Bytes sent to this target")
+    send_errors: int = Field(0, ge=0, description="Send errors for this target")
+    last_send_time: Optional[int] = Field(None, description="Last send timestamp (ms)")
+    is_active: bool = Field(False, description="Whether target is currently receiving data")
+
+
 class RTCMStatistics(BaseModel):
     """RTCM client statistics."""
     messages_received: int = Field(0, ge=0, description="Total messages received")
@@ -186,6 +196,17 @@ class RTCMStatistics(BaseModel):
     messages_sent: int = Field(0, ge=0, description="Messages routed to outputs")
     bytes_sent: int = Field(0, ge=0, description="Bytes sent to outputs")
     routing_errors: int = Field(0, ge=0, description="Output routing errors")
+
+    # Parser diagnostics
+    parser_buffer_size: int = Field(0, ge=0, description="Current parser buffer size (bytes)")
+    frames_with_no_preamble: int = Field(0, ge=0, description="Data chunks with no RTCM preamble (0xD3)")
+    frames_with_invalid_crc: int = Field(0, ge=0, description="Messages that failed CRC24 validation")
+    frames_with_invalid_length: int = Field(0, ge=0, description="Messages with malformed length fields")
+
+    # Output router statistics
+    output_targets: list[RTCMOutputTargetStats] = Field(default_factory=list, description="Per-target output statistics")
+    total_targets: int = Field(0, ge=0, description="Total number of output targets")
+    active_targets: int = Field(0, ge=0, description="Number of enabled output targets")
 
 
 class RTCMStatus(BaseModel):

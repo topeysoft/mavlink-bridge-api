@@ -529,6 +529,7 @@ class WebSocketManager:
                 "mission.updated": MessageType.MISSION_UPDATED,
                 "mission.deleted": MessageType.MISSION_DELETED,
                 "rtcm.status.changed": MessageType.RTCM_STATUS_CHANGED,
+                "rtcm.state": MessageType.RTCM_STATE_CHANGE,
                 "rtcm.data": MessageType.RTCM_DATA,
             }
 

@@ -66,6 +66,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
 
   /**
    * Fetch current system health from device
+   * Called once on startup, then relies on WebSocket events for updates
    */
   async function fetchSystemHealth(): Promise<void> {
     if (!connectionStore.isConnected) return
@@ -84,7 +85,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
                 health.system.status === 'degraded' ? 'warning' : 'critical'
       }
 
-      console.log('System health updated:', systemHealth.value)
+      console.log('System health fetched:', systemHealth.value)
     } catch (error) {
       console.error('Failed to fetch system health:', error)
     }
@@ -92,13 +93,25 @@ export const useMonitoringStore = defineStore('monitoring', () => {
 
   /**
    * Setup WebSocket event listeners for real-time updates
+   * Uses WebSocket events exclusively - no polling required
    */
   function setupEventListeners() {
     if (!connectionStore.client) return
 
     const client = connectionStore.client
 
-    // Listen for status updates
+    // Listen for health update events (periodic broadcasts from backend)
+    const healthUnsubscribe = client.onHealthUpdate((health: any) => {
+      updateSystemHealth({
+        cpu: health.cpu_percent || health.cpuUsage || systemHealth.value.cpu,
+        memory: health.memory_percent || health.memoryUsage || systemHealth.value.memory,
+        temperature: health.temperature || systemHealth.value.temperature,
+        uptime: health.uptime || systemHealth.value.uptime,
+        status: health.status || systemHealth.value.status
+      })
+    })
+
+    // Listen for status updates (fallback for older backends)
     statusUnsubscribe = client.onStatus((status: StatusPayload) => {
       // Update system health from status
       updateSystemHealth({
@@ -162,7 +175,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       })
     })
 
-    console.log('Monitoring event listeners setup')
+    console.log('Monitoring WebSocket event listeners setup')
   }
 
   /**
@@ -181,7 +194,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   }
 
   /**
-   * Start monitoring (setup listeners and fetch initial data)
+   * Start monitoring (setup WebSocket listeners and fetch initial data)
+   * All updates are then received via WebSocket events - no polling
    */
   async function startMonitoring() {
     if (!connectionStore.isConnected) {
@@ -198,7 +212,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       timestamp: new Date().toISOString(),
       type: 'success',
       title: 'Monitoring Started',
-      description: 'Real-time monitoring started'
+      description: 'Real-time WebSocket monitoring started'
     })
   }
 

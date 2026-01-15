@@ -293,11 +293,146 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             )
             resource_storage = None
 
-        # 9. Initialize RTCM output router (client started via API)
+        # 9. Initialize RTCM output router and auto-restore saved configuration
         try:
             rtcm_router = RTCMOutputRouter(event_bus)
             rtcm.set_output_router(rtcm_router)
-            logger.info("rtcm_router_initialized", note="RTCM client will be started via API")
+            logger.info("rtcm_router_initialized")
+
+            # Auto-restore saved RTCM configuration if it exists
+            from yardrover.rtcm.storage import get_rtcm_config_store
+            from yardrover.core.errors import StorageNotFoundError
+
+            config_store = get_rtcm_config_store()
+            if await config_store.has_config():
+                try:
+                    saved_config = await config_store.load_config()
+                    logger.info(
+                        "rtcm_config_auto_restore_starting",
+                        source_type=saved_config.source.type,
+                        output_count=len(saved_config.outputs),
+                    )
+
+                    # Import client classes
+                    from yardrover.rtcm.ntrip import NTRIPClient
+                    from yardrover.rtcm.tcp_client import TCPClient
+                    from yardrover.rtcm.udp_client import UDPClient
+                    from yardrover.models.rtcm import (
+                        NTRIPConfig,
+                        TCPSourceConfig,
+                        UDPSourceConfig,
+                        OutputFormat,
+                        SerialOutputConfig,
+                        RTCMOutputTarget,
+                    )
+
+                    # Helper function to detect FC outputs
+                    def is_fc_output(target) -> bool:
+                        """Check if output target is for Flight Controller."""
+                        name_lower = target.name.lower()
+                        is_fc_name = 'flight' in name_lower or 'controller' in name_lower or 'fc' in name_lower
+                        is_serial = target.transport.type == 'serial'
+                        return is_fc_name and is_serial
+
+                    # Handle Flight Controller output routing
+                    if config_manager.config.rtcm.output_to_fc:
+                        # Add backend-configured FC output (uses YARDROVER_SERIAL_PORT)
+                        fc_output = RTCMOutputTarget(
+                            name="flight_controller",
+                            enabled=True,
+                            format=OutputFormat.MAVLINK,
+                            transport=SerialOutputConfig(
+                                port=config_manager.config.serial.port,
+                                baudrate=config_manager.config.serial.baudrate,
+                            ),
+                        )
+                        await rtcm_router.add_target(fc_output)
+                        logger.info(
+                            "rtcm_fc_output_added",
+                            port=config_manager.config.serial.port,
+                            baudrate=config_manager.config.serial.baudrate,
+                        )
+
+                        # Filter out saved FC outputs (they may use old/hardcoded ports)
+                        user_outputs = [t for t in saved_config.outputs if not is_fc_output(t)]
+                        filtered_count = len(saved_config.outputs) - len(user_outputs)
+                        if filtered_count > 0:
+                            logger.info(
+                                "rtcm_saved_fc_outputs_filtered",
+                                count=filtered_count,
+                                reason="output_to_fc enabled, using current serial port config",
+                            )
+                    else:
+                        # Use all saved outputs as-is
+                        user_outputs = saved_config.outputs
+
+                    # Add user-configured output targets (non-FC outputs)
+                    for target in user_outputs:
+                        await rtcm_router.add_target(target)
+
+                    # Data callback routes RTCM data to outputs
+                    async def data_callback(data: bytes) -> None:
+                        await rtcm_router.route(data)
+
+                    # Create client based on source type
+                    client = None
+                    client_type = "Unknown"
+
+                    if isinstance(saved_config.source, NTRIPConfig):
+                        client = NTRIPClient(
+                            config=saved_config.source,
+                            event_bus=event_bus,
+                            data_callback=lambda data: asyncio.create_task(data_callback(data))
+                        )
+                        client_type = "NTRIP"
+                    elif isinstance(saved_config.source, TCPSourceConfig):
+                        client = TCPClient(
+                            config=saved_config.source,
+                            event_bus=event_bus,
+                            data_callback=lambda data: asyncio.create_task(data_callback(data))
+                        )
+                        client_type = "TCP"
+                    elif isinstance(saved_config.source, UDPSourceConfig):
+                        client = UDPClient(
+                            config=saved_config.source,
+                            event_bus=event_bus,
+                            data_callback=lambda data: asyncio.create_task(data_callback(data))
+                        )
+                        client_type = "UDP"
+
+                    # Start client
+                    if client:
+                        success = await client.start()
+                        if success:
+                            rtcm.set_ntrip_client(client)
+                            logger.info(
+                                "rtcm_config_auto_restored",
+                                client_type=client_type,
+                                source_type=saved_config.source.type,
+                            )
+                        else:
+                            logger.warning(
+                                "rtcm_config_auto_restore_failed",
+                                client_type=client_type,
+                                note="Saved configuration exists but client failed to start",
+                            )
+                    else:
+                        logger.warning(
+                            "rtcm_config_auto_restore_failed",
+                            note="Unsupported source type in saved configuration",
+                        )
+
+                except StorageNotFoundError:
+                    logger.debug("rtcm_config_not_found_for_auto_restore")
+                except Exception as e:
+                    logger.warning(
+                        "rtcm_config_auto_restore_error",
+                        error=str(e),
+                        note="Saved configuration will be preserved for manual start",
+                    )
+            else:
+                logger.debug("rtcm_no_saved_config", note="RTCM client will be started via API")
+
         except Exception as e:
             logger.warning(
                 "rtcm_router_initialization_failed",

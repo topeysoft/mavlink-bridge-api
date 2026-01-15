@@ -42,6 +42,7 @@ class NTRIPClient:
         config: NTRIPConfig,
         event_bus: Optional[EventBus] = None,
         data_callback: Optional[Callable[[bytes], None]] = None,
+        enable_stats_broadcast: bool = True,
     ) -> None:
         """Initialize NTRIP client.
 
@@ -49,16 +50,20 @@ class NTRIPClient:
             config: NTRIP configuration
             event_bus: Event bus for publishing state changes and data events
             data_callback: Optional callback for received RTCM data
+            enable_stats_broadcast: Whether to enable internal stats broadcasting (default: True)
+                                   Set to False when stats are broadcast externally with router stats
         """
         self.config = config
         self.event_bus = event_bus
         self.data_callback = data_callback
+        self.enable_stats_broadcast = enable_stats_broadcast
 
         self._state = RTCMState.DISCONNECTED
         self._reader: Optional[asyncio.StreamReader] = None
         self._writer: Optional[asyncio.StreamWriter] = None
         self._receive_task: Optional[asyncio.Task] = None
         self._gga_task: Optional[asyncio.Task] = None
+        self._stats_task: Optional[asyncio.Task] = None
         self._parser = RTCMParser()
 
         # Statistics
@@ -72,6 +77,9 @@ class NTRIPClient:
         self._last_reconnect_attempt: Optional[float] = None
         self._running = False
 
+        # Error tracking
+        self._last_error: Optional[str] = None
+
     @property
     def state(self) -> RTCMState:
         """Get current connection state."""
@@ -83,12 +91,25 @@ class NTRIPClient:
         stats = self._stats.copy()
         if self._connection_start_time:
             stats.connection_time = int((time.time() - self._connection_start_time) * 1000)
+
+        # Include parser diagnostics
+        diagnostics = self._parser.get_diagnostics()
+        stats.parser_buffer_size = diagnostics["buffer_size"]
+        stats.frames_with_no_preamble = diagnostics["frames_no_preamble"]
+        stats.frames_with_invalid_crc = diagnostics["frames_invalid_crc"]
+        stats.frames_with_invalid_length = diagnostics["frames_invalid_length"]
+
         return stats
 
     @property
     def is_connected(self) -> bool:
         """Check if connected to NTRIP caster."""
         return self._state == RTCMState.CONNECTED and self._writer is not None
+
+    @property
+    def last_error(self) -> Optional[str]:
+        """Get the last error message."""
+        return self._last_error
 
     async def start(self) -> bool:
         """Start NTRIP client and connect to caster.
@@ -99,6 +120,18 @@ class NTRIPClient:
         if self._running:
             logger.warning("NTRIP client already running")
             return self.is_connected
+
+        # Reset state before starting
+        from yardrover.models.rtcm import RTCMStatistics
+        from yardrover.rtcm.parser import RTCMParser
+
+        self._state = RTCMState.DISCONNECTED
+        self._stats = RTCMStatistics()
+        self._connection_start_time = None
+        self._last_data_time = None
+        self._data_rate_window = []
+        self._parser = RTCMParser()
+        self._last_error = None  # Clear previous errors
 
         self._running = True
         return await self._connect()
@@ -173,10 +206,72 @@ class NTRIPClient:
             if self.config.send_position and self.config.position:
                 self._gga_task = asyncio.create_task(self._gga_loop())
 
+            # Start statistics broadcasting task (only if not disabled)
+            if self.enable_stats_broadcast:
+                self._stats_task = asyncio.create_task(self._stats_broadcast_loop())
+                logger.info("Started internal RTCM stats broadcast")
+            else:
+                logger.info("Internal RTCM stats broadcast disabled (handled externally)")
+
             return True
 
+        except asyncio.TimeoutError:
+            self._last_error = f"Connection timed out to {self.config.host}:{self.config.port}"
+            logger.error(
+                "ntrip_connection_timeout",
+                host=self.config.host,
+                port=self.config.port,
+                mountpoint=self.config.mountpoint,
+                error=self._last_error,
+            )
+            self._set_state(RTCMState.ERROR)
+            await self._disconnect()
+            return False
+
+        except OSError as e:
+            # Network-related errors (connection refused, host unreachable, DNS failure, etc.)
+            error_type = type(e).__name__
+            error_detail = str(e)
+
+            # Categorize common network errors
+            if "refused" in error_detail.lower():
+                reason = "Connection refused - server may be down or port blocked"
+            elif "unreachable" in error_detail.lower():
+                reason = "Host unreachable - check network connectivity"
+            elif "name or service not known" in error_detail.lower() or "nodename nor servname provided" in error_detail.lower():
+                reason = "DNS resolution failed - check hostname"
+            elif "timed out" in error_detail.lower():
+                reason = "Connection timed out"
+            else:
+                reason = f"Network error: {error_detail}"
+
+            self._last_error = f"{reason} ({self.config.host}:{self.config.port}{self.config.mountpoint})"
+            logger.error(
+                "ntrip_connection_network_error",
+                host=self.config.host,
+                port=self.config.port,
+                mountpoint=self.config.mountpoint,
+                error_type=error_type,
+                error=error_detail,
+                reason=reason,
+            )
+            self._set_state(RTCMState.ERROR)
+            await self._disconnect()
+            return False
+
         except Exception as e:
-            logger.error("Failed to connect to NTRIP caster", error=str(e))
+            # Unexpected errors - log with more detail
+            error_type = type(e).__name__
+            self._last_error = f"Unexpected error: {error_type} - {str(e)}"
+            logger.error(
+                "ntrip_connection_unexpected_error",
+                host=self.config.host,
+                port=self.config.port,
+                mountpoint=self.config.mountpoint,
+                error_type=error_type,
+                error=str(e),
+                exc_info=True,  # Include stack trace
+            )
             self._set_state(RTCMState.ERROR)
             await self._disconnect()
             return False
@@ -199,6 +294,14 @@ class NTRIPClient:
             except asyncio.CancelledError:
                 pass
             self._gga_task = None
+
+        if self._stats_task:
+            self._stats_task.cancel()
+            try:
+                await self._stats_task
+            except asyncio.CancelledError:
+                pass
+            self._stats_task = None
 
         # Close connection
         if self._writer:
@@ -398,6 +501,35 @@ class NTRIPClient:
             logger.info("GGA loop cancelled")
             raise
 
+    async def _stats_broadcast_loop(self) -> None:
+        """Periodically broadcast RTCM status with updated statistics."""
+        logger.info("Starting RTCM statistics broadcast loop")
+
+        try:
+            while self._running:
+                try:
+                    # Wait 2 seconds between updates
+                    await asyncio.sleep(2.0)
+
+                    # Publish status update event with current statistics
+                    if self.event_bus and self.is_connected:
+                        status_data = {
+                            "running": True,
+                            "state": self._state.value,
+                            "client_type": "NTRIP",
+                            "connected": self.is_connected,
+                            "statistics": self.statistics.model_dump(),
+                        }
+                        await self.event_bus.publish("rtcm.status.changed", status_data)
+
+                except Exception as e:
+                    logger.error("Error broadcasting RTCM statistics", error=str(e))
+                    await asyncio.sleep(2.0)
+
+        except asyncio.CancelledError:
+            logger.info("Statistics broadcast loop cancelled")
+            raise
+
     async def _reconnect_loop(self) -> None:
         """Automatic reconnection loop."""
         while self._running and not self.is_connected:
@@ -476,19 +608,29 @@ class NTRIPClient:
         return f"${gga_sentence}*{checksum:02X}\r\n"
 
     def _update_data_rate(self) -> None:
-        """Update data rate calculation."""
-        now = time.time()
+        """Update data rate calculation.
 
-        # Remove old entries (older than 1 second)
+        Uses a sliding window average to smooth out rate fluctuations.
+        Always calculates rate over the full window duration for stability.
+        """
+        current_time = time.time()
+        window_duration = 5.0  # 5 second window
+
+        # Remove old entries outside the window
         self._data_rate_window = [
-            (ts, bytes_count) for ts, bytes_count in self._data_rate_window
-            if now - ts < 1.0
+            (ts, size)
+            for ts, size in self._data_rate_window
+            if current_time - ts <= window_duration
         ]
 
-        # Calculate rate (KB/s)
+        # Calculate rate over the full window duration
         if self._data_rate_window:
-            total_bytes = sum(count for _, count in self._data_rate_window)
-            self._stats.data_rate = total_bytes / 1024.0
+            total_bytes = sum(size for _, size in self._data_rate_window)
+
+            # Always use the full window duration for averaging
+            # This provides stable rate calculation regardless of when data arrives
+            # Convert to KB/s
+            self._stats.data_rate = (total_bytes / window_duration) / 1024
         else:
             self._stats.data_rate = 0.0
 

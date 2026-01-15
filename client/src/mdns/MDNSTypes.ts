@@ -4,12 +4,12 @@
 
 export interface MDNSService {
   hostname: string;
-  name: string;
-  type: string;
-  ip: string;
+  service_name: string;
+  service_type: string;
+  ip_address: string;
   port: number;
-  lastSeen: number;
-  txtRecords?: string;
+  last_seen: number;
+  txt_records?: Record<string, string>;
 }
 
 export interface RTCMServerInfo {
@@ -35,11 +35,9 @@ export interface MDNSDiscoveryRequest {
 }
 
 export interface MDNSDiscoveryResponse {
-  success: boolean;
-  message?: string;
-  serviceType?: string;
+  service_type: string;
   services: MDNSService[];
-  error?: string;
+  discovery_time: string;
 }
 
 export interface MDNSConfig {

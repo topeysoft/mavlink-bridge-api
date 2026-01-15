@@ -183,7 +183,12 @@ export class MAVLinkBridgeClient {
       const subscribeMessage = JSON.stringify({
         type: 'subscribe',
         data: {
-          topics: ['mavlink.message', 'health.update', 'wifi.*']
+          topics: [
+            'mavlink.message',
+            'health.update',
+            'wifi.*',
+            'rtcm.*'  // Subscribe to all RTCM events (status, data, state)
+          ]
         }
       });
 

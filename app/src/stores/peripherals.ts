@@ -250,41 +250,58 @@ export const usePeripheralsStore = defineStore('peripherals', () => {
 
   /**
    * Setup WebSocket listeners for real-time peripheral updates
+   * Uses WebSocket events exclusively - no polling required
    */
   function setupWebSocketListeners(): void {
     if (!connectionStore.client) return
 
+    const client = connectionStore.client
+
     // Listen for peripheral connection events
-    connectionStore.client.ws.on('peripheral.connected' as any, (data: any) => {
-      console.log('Peripheral connected:', data)
+    client.ws.on('peripheral.connected' as any, (data: any) => {
+      console.log('[Peripherals] Peripheral connected via WebSocket:', data)
       fetchPeripherals() // Refresh list
     })
 
     // Listen for peripheral disconnection events
-    connectionStore.client.ws.on('peripheral.disconnected' as any, (data: any) => {
-      console.log('Peripheral disconnected:', data)
+    client.ws.on('peripheral.disconnected' as any, (data: any) => {
+      console.log('[Peripherals] Peripheral disconnected via WebSocket:', data)
       fetchPeripherals() // Refresh list
     })
 
-    // Listen for peripheral telemetry updates
-    connectionStore.client.ws.on('peripheral.telemetry' as any, (data: any) => {
-      // Update telemetry for specific peripheral
+    // Listen for peripheral telemetry updates (real-time data)
+    client.ws.on('peripheral.telemetry' as any, (data: any) => {
+      // Update telemetry for specific peripheral without full refresh
       const peripheral = peripherals.value.find(p => p.metadata.peripheral_id === data.peripheral_id)
       if (peripheral) {
-        peripheral.telemetry = data
+        peripheral.telemetry = data.telemetry || data
       }
     })
 
     // Listen for peripheral state changes
-    connectionStore.client.ws.on('peripheral.enabled' as any, () => {
+    client.ws.on('peripheral.enabled' as any, () => {
+      console.log('[Peripherals] Peripheral enabled via WebSocket')
       fetchPeripherals() // Refresh list
       checkCompatibility() // Re-check compatibility
     })
 
-    connectionStore.client.ws.on('peripheral.disabled' as any, () => {
+    client.ws.on('peripheral.disabled' as any, () => {
+      console.log('[Peripherals] Peripheral disabled via WebSocket')
       fetchPeripherals() // Refresh list
       checkCompatibility() // Re-check compatibility
     })
+
+    // Listen for peripheral status changes
+    client.ws.on('peripheral.status.changed' as any, (data: any) => {
+      console.log('[Peripherals] Peripheral status changed via WebSocket:', data)
+      // Update specific peripheral status without full refresh
+      const peripheral = peripherals.value.find(p => p.metadata.peripheral_id === data.peripheral_id)
+      if (peripheral && data.status) {
+        peripheral.status = { ...peripheral.status, ...data.status }
+      }
+    })
+
+    console.log('[Peripherals] WebSocket event listeners setup')
   }
 
   /**

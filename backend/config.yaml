@@ -21,6 +21,7 @@ rtcm:
   enabled: false
   source:
     port: 2101
+  output_to_fc: true
 tls:
   enabled: false
   port: 443

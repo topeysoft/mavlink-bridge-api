@@ -20,6 +20,10 @@ from yardrover.models.mavlink import (
     MessageFilter,
 )
 
+# Define custom VERBOSE log level (below DEBUG)
+VERBOSE = 5
+logging.addLevelName(VERBOSE, "VERBOSE")
+
 logger = logging.getLogger(__name__)
 
 
@@ -91,9 +95,9 @@ class MAVLinkProcessor:
 
         self.stats.total_messages += 1  # Count data packets processed
 
-        # Log incoming data for debugging
+        # Log incoming data at VERBOSE level (below DEBUG)
         if len(data) > 0:
-            logger.debug(f"Processing {len(data)} bytes of MAVLink data (total packets: {self.stats.total_messages})")
+            logger.log(VERBOSE, f"Processing {len(data)} bytes of MAVLink data (total packets: {self.stats.total_messages})")
 
         # Parse MAVLink messages from data using pymavlink's parser
         # Feed bytes to the stateful parser
@@ -150,12 +154,8 @@ class MAVLinkProcessor:
         # Check sequence number
         self._handle_sequence_check(msg)
 
-        # Filter message if filtering is enabled
+        # Filter message if filtering is enabled (no debug log to reduce verbosity)
         if self._should_filter_message(msg):
-            logger.debug(
-                f"Filtered message: sysid={msg.get_srcSystem()}, "
-                f"compid={msg.get_srcComponent()}, msgid={msg.get_msgId()}"
-            )
             return
 
         # Detect firmware from heartbeat

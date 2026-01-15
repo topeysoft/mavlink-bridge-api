@@ -28,8 +28,13 @@
         </button>
       </div>
 
-      <div class="status-badge" :class="stateClass">
-        {{ stateDisplay }}
+      <div class="status-badges">
+        <div v-if="rtcmStore.connectionDescription" class="connection-type-badge" :class="connectionBadgeClass">
+          {{ rtcmStore.connectionDescription }}
+        </div>
+        <div class="status-badge" :class="stateClass">
+          {{ stateDisplay }}
+        </div>
       </div>
     </div>
 
@@ -81,6 +86,78 @@
         </div>
       </Card>
 
+      <!-- Health Status Card -->
+      <Card v-if="rtcmStore.isRunning" class="health-card">
+        <template #header>
+          <h3>Connection Health</h3>
+        </template>
+
+        <div class="health-status">
+          <div class="health-indicator" :class="`health-${healthStatus}`">
+            <span class="health-icon">
+              {{ healthStatus === 'healthy' ? '✅' : healthStatus === 'warning' ? '⚠️' : healthStatus === 'error' ? '❌' : '⏳' }}
+            </span>
+            <span class="health-text">{{ healthMessage }}</span>
+          </div>
+
+          <button
+            v-if="hasDiagnosticIssues"
+            class="btn btn-sm btn-secondary"
+            @click="showDiagnostics = !showDiagnostics"
+          >
+            {{ showDiagnostics ? 'Hide' : 'Show' }} Diagnostics
+          </button>
+        </div>
+
+        <!-- Diagnostics Section (expandable) -->
+        <div v-if="showDiagnostics && statistics" class="diagnostics-section">
+          <h4>Parser Diagnostics</h4>
+          <div class="diagnostics-grid">
+            <div class="diagnostic-item">
+              <span class="diagnostic-label">Raw Data Received:</span>
+              <span class="diagnostic-value">{{ formatBytes(statistics.bytesReceived || 0) }}</span>
+            </div>
+            <div class="diagnostic-item">
+              <span class="diagnostic-label">Valid RTCM Messages:</span>
+              <span class="diagnostic-value">{{ (statistics.messagesReceived || 0).toLocaleString() }}</span>
+            </div>
+            <div class="diagnostic-item">
+              <span class="diagnostic-label">Parser Buffer Size:</span>
+              <span class="diagnostic-value">
+                {{ (statistics.parser_buffer_size || statistics.parserBufferSize || 0) }} bytes
+              </span>
+            </div>
+            <div class="diagnostic-item" :class="{ 'diagnostic-issue': (statistics.frames_with_no_preamble || statistics.framesWithNoPreamble || 0) > 0 }">
+              <span class="diagnostic-label">❌ No RTCM Frames Found:</span>
+              <span class="diagnostic-value">
+                {{ (statistics.frames_with_no_preamble || statistics.framesWithNoPreamble || 0).toLocaleString() }} chunks
+              </span>
+            </div>
+            <div class="diagnostic-item" :class="{ 'diagnostic-issue': (statistics.frames_with_invalid_crc || statistics.framesWithInvalidCrc || 0) > 0 }">
+              <span class="diagnostic-label">CRC Validation Failures:</span>
+              <span class="diagnostic-value">
+                {{ (statistics.frames_with_invalid_crc || statistics.framesWithInvalidCrc || 0).toLocaleString() }}
+              </span>
+            </div>
+            <div class="diagnostic-item" :class="{ 'diagnostic-issue': (statistics.frames_with_invalid_length || statistics.framesWithInvalidLength || 0) > 0 }">
+              <span class="diagnostic-label">Invalid Length Fields:</span>
+              <span class="diagnostic-value">
+                {{ (statistics.frames_with_invalid_length || statistics.framesWithInvalidLength || 0).toLocaleString() }}
+              </span>
+            </div>
+          </div>
+
+          <div v-if="(statistics.frames_with_no_preamble || statistics.framesWithNoPreamble || 0) > 0" class="diagnostic-suggestion">
+            💡 <strong>Suggestion:</strong> Data source may not be sending RTCM3 format.
+            Verify that your TCP server is configured to send RTCM correction data.
+          </div>
+          <div v-else-if="(statistics.frames_with_invalid_crc || statistics.framesWithInvalidCrc || 0) > 0" class="diagnostic-suggestion">
+            💡 <strong>Suggestion:</strong> High CRC failure rate indicates data corruption.
+            Check network connection quality or cable integrity.
+          </div>
+        </div>
+      </Card>
+
       <!-- Statistics Card -->
       <Card class="statistics-card">
         <template #header>
@@ -90,29 +167,29 @@
         <div v-if="statistics" class="stats-grid">
           <div class="stat-box">
             <div class="stat-label">Messages Received</div>
-            <div class="stat-value">{{ statistics.messagesReceived.toLocaleString() }}</div>
+            <div class="stat-value">{{ (statistics.messagesReceived || statistics.messages_received || 0).toLocaleString() }}</div>
           </div>
           <div class="stat-box">
             <div class="stat-label">Bytes Received</div>
-            <div class="stat-value">{{ formatBytes(statistics.bytesReceived) }}</div>
+            <div class="stat-value">{{ formatBytes(statistics.bytesReceived || statistics.bytes_received || 0) }}</div>
           </div>
           <div class="stat-box">
             <div class="stat-label">Data Rate</div>
-            <div class="stat-value">{{ formatDataRate(statistics.dataRate) }}</div>
+            <div class="stat-value">{{ formatDataRate((statistics.dataRate || statistics.data_rate || 0) * 1024) }}</div>
           </div>
           <div class="stat-box">
             <div class="stat-label">CRC Errors</div>
-            <div class="stat-value" :class="{ 'text-danger': statistics.crcErrors > 0 }">
-              {{ statistics.crcErrors }}
+            <div class="stat-value" :class="{ 'text-danger': (statistics.crc_errors || statistics.crcErrors || 0) > 0 }">
+              {{ statistics.crc_errors || statistics.crcErrors || 0 }}
             </div>
           </div>
           <div class="stat-box">
             <div class="stat-label">Messages/sec</div>
             <div class="stat-value">{{ rtcmStore.messagesPerSecond.toFixed(1) }}</div>
           </div>
-          <div v-if="statistics.connectionTime" class="stat-box">
+          <div v-if="statistics.connectionTime || statistics.connection_time" class="stat-box">
             <div class="stat-label">Uptime</div>
-            <div class="stat-value">{{ formatUptime(statistics.connectionTime) }}</div>
+            <div class="stat-value">{{ formatUptime(statistics.connectionTime || statistics.connection_time) }}</div>
           </div>
         </div>
         <div v-else class="empty-state">
@@ -126,9 +203,9 @@
           <h3>Message Types</h3>
         </template>
 
-        <div v-if="statistics?.messageTypes && Object.keys(statistics.messageTypes).length > 0" class="message-list">
+        <div v-if="messageTypeCounts && Object.keys(messageTypeCounts).length > 0" class="message-list">
           <div
-            v-for="(count, type) in statistics.messageTypes"
+            v-for="(count, type) in messageTypeCounts"
             :key="type"
             class="message-type-row"
           >
@@ -164,6 +241,60 @@
         </div>
         <div v-else class="empty-state">
           No recent messages
+        </div>
+      </Card>
+
+      <!-- Output Routing Card -->
+      <Card v-if="rtcmStore.isRunning && outputTargets && outputTargets.length > 0" class="output-routing-card">
+        <template #header>
+          <h3>Output Routing</h3>
+          <span class="output-status-badge">
+            {{ activeTargetsCount }} / {{ outputTargets.length }} Active
+          </span>
+        </template>
+
+        <div class="output-targets-list">
+          <div
+            v-for="target in outputTargets"
+            :key="target.name"
+            class="output-target-row"
+            :class="{ 'target-active': isTargetActive(target) }"
+          >
+            <div class="target-header">
+              <div class="target-name-group">
+                <span class="target-indicator" :class="isTargetActive(target) ? 'active' : 'inactive'">●</span>
+                <span class="target-name">{{ target.name }}</span>
+              </div>
+              <span class="target-status">
+                {{ isTargetActive(target) ? 'Active' : 'Idle' }}
+              </span>
+            </div>
+            <div class="target-stats">
+              <div class="target-stat">
+                <span class="target-stat-label">Messages:</span>
+                <span class="target-stat-value">{{ getTargetMessagesSent(target).toLocaleString() }}</span>
+              </div>
+              <div class="target-stat">
+                <span class="target-stat-label">Bytes:</span>
+                <span class="target-stat-value">{{ formatBytes(getTargetBytesSent(target)) }}</span>
+              </div>
+              <div v-if="getTargetSendErrors(target) > 0" class="target-stat target-stat-error">
+                <span class="target-stat-label">Errors:</span>
+                <span class="target-stat-value text-danger">{{ getTargetSendErrors(target) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="output-summary">
+          <div class="summary-stat">
+            <span class="summary-label">Total Forwarded:</span>
+            <span class="summary-value">{{ formatBytes(totalBytesSent) }}</span>
+          </div>
+          <div v-if="totalRoutingErrors > 0" class="summary-stat">
+            <span class="summary-label">Routing Errors:</span>
+            <span class="summary-value text-danger">{{ totalRoutingErrors }}</span>
+          </div>
         </div>
       </Card>
     </div>
@@ -306,7 +437,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRTCMStore } from '@/stores/rtcm'
 import { useConnectionStore } from '@/stores/connection'
 import Card from '@/components/common/Card.vue'
@@ -315,6 +446,11 @@ import type { RTCMConfig } from "@mavlinkbridge/api-client/dist/rtcm/RTCMTypes"
 
 const rtcmStore = useRTCMStore()
 const connectionStore = useConnectionStore()
+
+// Initialize RTCM store on mount (fetch status and setup event listeners)
+onMounted(async () => {
+  await rtcmStore.initialize()
+})
 
 const showConfigDialog = ref(false)
 const showSavedConfigs = ref(false)
@@ -358,6 +494,19 @@ const stateDisplay = computed(() => {
   return rtcmStore.currentState.toUpperCase()
 })
 
+const connectionBadgeClass = computed(() => {
+  switch (rtcmStore.currentClientType) {
+    case 'NTRIP':
+      return 'badge-ntrip'
+    case 'TCP':
+      return 'badge-tcp'
+    case 'UDP':
+      return 'badge-udp'
+    default:
+      return 'badge-default'
+  }
+})
+
 const connectionType = computed(() => {
   return rtcmStore.currentConfig?.source.type.toUpperCase() || 'N/A'
 })
@@ -383,6 +532,121 @@ const mountpoint = computed(() => {
   return null
 })
 
+// Health status based on statistics
+const healthStatus = computed(() => {
+  const stats = statistics.value
+  if (!stats || !rtcmStore.isRunning) return 'unknown'
+
+  // Error state
+  if (rtcmStore.currentState === 'error') return 'error'
+
+  // Healthy: messages flowing, low error rate
+  if (stats.messagesReceived > 0) {
+    const crcErrors = stats.crc_errors || stats.crcErrors || 0
+    const errorRate = crcErrors / Math.max(stats.messagesReceived, 1)
+    return errorRate < 0.05 ? 'healthy' : 'warning'
+  }
+
+  // Warning: bytes received but no valid messages
+  if (stats.bytesReceived > 0) return 'warning'
+
+  // Connecting/waiting
+  return 'unknown'
+})
+
+const healthMessage = computed(() => {
+  const stats = statistics.value
+  switch (healthStatus.value) {
+    case 'healthy':
+      return 'RTCM data flowing normally'
+    case 'warning':
+      if (stats && stats.bytesReceived > 0 && stats.messagesReceived === 0) {
+        const noPreamble = stats.frames_with_no_preamble || stats.framesWithNoPreamble || 0
+        const invalidCrc = stats.frames_with_invalid_crc || stats.framesWithInvalidCrc || 0
+        if (noPreamble > 0) {
+          return 'Data source is not sending RTCM3 format'
+        } else if (invalidCrc > 0) {
+          return 'RTCM data corrupt - check connection quality'
+        }
+        return 'Waiting for valid RTCM messages'
+      }
+      return 'High error rate detected'
+    case 'error':
+      return 'Connection error'
+    default:
+      return 'Connecting...'
+  }
+})
+
+const showDiagnostics = ref(false)
+
+const hasDiagnosticIssues = computed(() => {
+  const stats = statistics.value
+  if (!stats) return false
+  const noPreamble = stats.frames_with_no_preamble || stats.framesWithNoPreamble || 0
+  const invalidCrc = stats.frames_with_invalid_crc || stats.framesWithInvalidCrc || 0
+  const invalidLength = stats.frames_with_invalid_length || stats.framesWithInvalidLength || 0
+  return noPreamble > 0 || invalidCrc > 0 || invalidLength > 0
+})
+
+// Handle both snake_case (backend) and camelCase (frontend) for message type counts
+const messageTypeCounts = computed(() => {
+  const stats = statistics.value
+  if (!stats) return {}
+  return stats.message_type_counts || stats.messageTypes || {}
+})
+
+// Output routing statistics
+const outputTargets = computed(() => {
+  const stats = statistics.value
+  if (!stats) return []
+  return stats.output_targets || stats.outputTargets || []
+})
+
+// Diagnostic watcher to debug reactive updates
+watch([() => statistics.value, outputTargets, () => rtcmStore.isRunning], ([newStats, newTargets, isRunning]) => {
+  console.log('[AdvancedRTCMPanel] Stats/targets changed:', {
+    hasStats: !!newStats,
+    hasOutputTargets: !!(newStats?.output_targets || (newStats as any)?.outputTargets),
+    outputTargetsCount: newTargets?.length || 0,
+    targets: newTargets,
+    isRunning: isRunning,
+    cardShouldShow: isRunning && newTargets && newTargets.length > 0
+  })
+}, { deep: true, immediate: true })
+
+const activeTargetsCount = computed(() => {
+  return outputTargets.value.filter(target => isTargetActive(target)).length
+})
+
+const totalBytesSent = computed(() => {
+  const stats = statistics.value
+  if (!stats) return 0
+  return stats.bytes_sent || stats.bytesSent || 0
+})
+
+const totalRoutingErrors = computed(() => {
+  const stats = statistics.value
+  if (!stats) return 0
+  return stats.routing_errors || stats.routingErrors || 0
+})
+
+function isTargetActive(target: any): boolean {
+  return target.is_active || target.isActive || false
+}
+
+function getTargetMessagesSent(target: any): number {
+  return target.messages_sent || target.messagesSent || 0
+}
+
+function getTargetBytesSent(target: any): number {
+  return target.bytes_sent || target.bytesSent || 0
+}
+
+function getTargetSendErrors(target: any): number {
+  return target.send_errors || target.sendErrors || 0
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
@@ -391,7 +655,7 @@ function formatBytes(bytes: number): string {
 
 function formatDataRate(rate: number): string {
   if (rate < 1024) return `${rate.toFixed(0)} B/s`
-  return `${(rate / 1024).toFixed(2)} KB/s`
+  return `${(rate / 1024).toFixed(1)} KB/s`
 }
 
 function formatUptime(ms: number): string {
@@ -547,6 +811,47 @@ function deleteConfig(configId: string) {
 .control-group {
   display: flex;
   gap: 0.75rem;
+}
+
+.status-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.connection-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.875rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: monospace;
+
+  &.badge-ntrip {
+    background-color: rgba(135, 206, 235, 0.15);
+    color: #0284c7;
+    border: 1px solid rgba(135, 206, 235, 0.3);
+  }
+
+  &.badge-tcp {
+    background-color: rgba(44, 95, 45, 0.1);
+    color: var(--primary-green);
+    border: 1px solid rgba(44, 95, 45, 0.2);
+  }
+
+  &.badge-udp {
+    background-color: rgba(147, 51, 234, 0.1);
+    color: #7c3aed;
+    border: 1px solid rgba(147, 51, 234, 0.2);
+  }
+
+  &.badge-default {
+    background-color: rgba(107, 114, 128, 0.1);
+    color: #4b5563;
+    border: 1px solid rgba(107, 114, 128, 0.2);
+  }
 }
 
 .btn {
@@ -782,6 +1087,138 @@ function deleteConfig(configId: string) {
   flex-shrink: 0;
 }
 
+// Output routing card styles
+.output-routing-card {
+  .output-status-badge {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.75rem;
+    background-color: var(--bg-secondary);
+    border-radius: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+}
+
+.output-targets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.output-target-row {
+  padding: 0.875rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--bg-card);
+  transition: all 0.2s ease;
+
+  &.target-active {
+    border-color: var(--primary-green);
+    background-color: rgba(44, 95, 45, 0.02);
+  }
+}
+
+.target-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.625rem;
+}
+
+.target-name-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.target-indicator {
+  font-size: 0.75rem;
+
+  &.active {
+    color: var(--primary-green);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  &.inactive {
+    color: var(--text-light);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.target-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+}
+
+.target-status {
+  font-size: 0.8125rem;
+  padding: 0.2rem 0.625rem;
+  border-radius: 10px;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.target-stats {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.target-stat {
+  display: flex;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.target-stat-label {
+  color: var(--text-secondary);
+}
+
+.target-stat-value {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: 'Courier New', monospace;
+}
+
+.target-stat-error {
+  .target-stat-value {
+    color: var(--negative);
+  }
+}
+
+.output-summary {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.summary-stat {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.summary-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.summary-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: 'Courier New', monospace;
+}
+
 .empty-state {
   padding: 2rem;
   text-align: center;
@@ -870,5 +1307,113 @@ function deleteConfig(configId: string) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+}
+
+// Health Status Card
+.health-card {
+  margin-bottom: 1.5rem;
+}
+
+.health-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background-color: var(--bg-secondary);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.health-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 600;
+  font-size: 1rem;
+
+  &.health-healthy {
+    color: var(--status-success);
+  }
+
+  &.health-warning {
+    color: var(--status-warning);
+  }
+
+  &.health-error {
+    color: var(--status-danger);
+  }
+
+  &.health-unknown {
+    color: var(--text-secondary);
+  }
+}
+
+.health-icon {
+  font-size: 1.5rem;
+}
+
+.health-text {
+  flex: 1;
+}
+
+.diagnostics-section {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: var(--bg-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+
+  h4 {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    color: var(--text-primary);
+  }
+}
+
+.diagnostics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.diagnostic-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+
+  &.diagnostic-issue {
+    background-color: rgba(255, 193, 7, 0.1);
+    border: 1px solid var(--status-warning);
+
+    .diagnostic-label {
+      color: var(--status-warning);
+      font-weight: 600;
+    }
+  }
+}
+
+.diagnostic-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.diagnostic-value {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.diagnostic-suggestion {
+  padding: 0.75rem;
+  background-color: rgba(23, 162, 184, 0.1);
+  border-left: 3px solid var(--status-info);
+  border-radius: 4px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-primary);
 }
 </style>

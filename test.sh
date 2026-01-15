@@ -1,0 +1,16 @@
+curl 'http://127.0.0.1:8000/api/mdns/discover' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: en-US,en;q=0.9' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyOjU1MTQ3N2Y5LTAzMmYtNDlhMS04MjBmLTgwZTM0N2RmMWU2MyIsImp0aSI6Ijg5ZTg1NjY2LTkyNDgtNDU0OS05OGFhLTMzYTcwYjRjZjY3OCIsInR5cGUiOiJhY2Nlc3MiLCJyb2xlIjoiYWRtaW4iLCJwZXJtaXNzaW9ucyI6WyJjb25maWc6cmVhZCIsImNvbmZpZzp3cml0ZSIsIm1hdmxpbms6cmVhZCIsIm1hdmxpbms6d3JpdGUiLCJtYXZsaW5rOmFybSIsIm1hdmxpbms6ZGlzYXJtIiwicmVzb3VyY2U6cmVhZCIsInJlc291cmNlOndyaXRlIiwicmVzb3VyY2U6ZGVsZXRlIiwibmV0d29yazpyZWFkIiwibmV0d29yazp3cml0ZSIsInJ0Y206cmVhZCIsInJ0Y206d3JpdGUiLCJzeXN0ZW06cmVhZCIsInN5c3RlbTpyZXN0YXJ0IiwidXNlcjpyZWFkIiwidXNlcjp3cml0ZSIsInVzZXI6ZGVsZXRlIl0sImV4cCI6MTc2ODA2NTg0MCwiaWF0IjoxNzY4MDY0OTQwfQ.9o-G769b-gY2SDJc9a035NRNE2DVulgK_055aMWdezM' \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json' \
+  -H 'Origin: http://localhost:5173' \
+  -H 'Referer: http://localhost:5173/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: cross-site' \
+  -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' \
+  -H 'sec-ch-ua: "Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "macOS"' \
+  --data-raw '{"serviceType":"rtk"}'

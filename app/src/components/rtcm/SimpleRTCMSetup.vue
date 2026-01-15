@@ -4,9 +4,14 @@
     <Card v-if="rtcmStore.isRunning" class="status-card">
       <template #header>
         <div class="status-header">
-          <div class="status-indicator" :class="statusClass">
-            <span class="status-dot"></span>
-            <span class="status-text">{{ statusText }}</span>
+          <div class="status-indicator-group">
+            <div class="status-indicator" :class="statusClass">
+              <span class="status-dot"></span>
+              <span class="status-text">{{ statusText }}</span>
+            </div>
+            <div v-if="rtcmStore.connectionDescription" class="connection-badge" :class="connectionBadgeClass">
+              {{ rtcmStore.connectionDescription }}
+            </div>
           </div>
           <button class="btn btn-danger btn-sm" @click="handleStop" :disabled="rtcmStore.isStopping">
             <span v-if="rtcmStore.isStopping">Stopping...</span>
@@ -22,7 +27,7 @@
         </div>
         <div class="stat-item">
           <div class="stat-label">Messages</div>
-          <div class="stat-value">{{ statistics?.messagesReceived || 0 }}</div>
+          <div class="stat-value">{{ (statistics?.messagesReceived || statistics?.messages_received || 0).toLocaleString() }}</div>
         </div>
         <div class="stat-item">
           <div class="stat-label">Data Rate</div>
@@ -174,6 +179,50 @@
         <div v-else-if="selectedPreset.type === 'tcp'" class="config-form">
           <h4 class="config-title">TCP Server Details</h4>
 
+          <!-- Auto-discovery for docking station -->
+          <div v-if="selectedPreset.id === 'docking-station'" class="discovery-section">
+            <button
+              class="btn btn-secondary"
+              @click="scanForBaseStations"
+              :disabled="isScanning"
+            >
+              <span v-if="!isScanning">🔍 Scan for Base Stations</span>
+              <span v-else class="scanning-text">
+                <span class="spinner"></span>
+                Scanning...
+              </span>
+            </button>
+
+            <div v-if="discoveredStations.length > 0" class="discovered-stations">
+              <h5>Discovered Base Stations</h5>
+              <div class="stations-list">
+                <div
+                  v-for="station in discoveredStations"
+                  :key="`${station.host}:${station.port}`"
+                  class="station-card"
+                  :class="{ selected: tcpConfig.host === station.host }"
+                  @click="selectStation(station)"
+                >
+                  <div class="station-icon">📡</div>
+                  <div class="station-info">
+                    <strong>{{ station.name }}</strong>
+                    <small>
+                      {{ station.host }}:{{ station.port }}
+                      <span v-if="station.protocol" class="protocol-badge" :class="`protocol-${station.protocol}`">
+                        {{ station.protocol.toUpperCase() }}
+                      </span>
+                    </small>
+                  </div>
+                  <div v-if="tcpConfig.host === station.host" class="check-icon">✓</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="divider">
+              <span>Or enter manually</span>
+            </div>
+          </div>
+
           <div class="form-group">
             <label>Server Address <span class="required">*</span></label>
             <input
@@ -289,14 +338,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRTCMStore, NTRIP_PRESETS, type RTCMPreset } from '@/stores/rtcm'
+import { useConnectionStore } from '@/stores/connection'
+import { useGpsStore } from '@/stores/gps'
 import Card from '@/components/common/Card.vue'
 
 const rtcmStore = useRTCMStore()
+const connectionStore = useConnectionStore()
+const gpsStore = useGpsStore()
+
+// Initialize RTCM store on mount (fetch status and setup event listeners)
+onMounted(async () => {
+  await rtcmStore.initialize()
+})
 
 // Preset selection
 const selectedPreset = ref<RTCMPreset | null>(null)
+
+// Base station discovery
+const isScanning = ref(false)
+const discoveredStations = ref<Array<{ host: string; port: number; name: string; protocol?: string }>>([])
 
 // NTRIP configuration
 const ntripConfig = ref({
@@ -358,11 +420,26 @@ const statusText = computed(() => {
 })
 
 const accuracyDisplay = computed(() => {
-  if (rtcmStore.isConnected) {
-    return '~2cm' // RTK Fix
-  } else if (rtcmStore.currentState === 'connecting') {
-    return 'Acquiring...'
+  // Hybrid approach: Show actual GPS accuracy based on fix type
+  const isRTKFix = gpsStore.gpsInfo.fixType >= 5
+
+  if (rtcmStore.isConnected && isRTKFix) {
+    // RTCM active AND GPS has achieved RTK fix
+    // Use actual accuracy if available from MAVLink hAcc field
+    if (gpsStore.gpsInfo.accuracy !== null && gpsStore.gpsInfo.accuracy < 1) {
+      const accCm = gpsStore.gpsInfo.accuracy * 100
+      return `~${accCm.toFixed(0)}cm`
+    }
+    // Fallback to fix type
+    return gpsStore.gpsInfo.fixType === 6 ? '~2cm' : '~25cm'
+  } else if (rtcmStore.isConnected) {
+    // RTCM corrections flowing but GPS hasn't achieved RTK fix yet
+    return 'Acquiring RTK...'
+  } else if (gpsStore.gpsInfo.hasLock) {
+    // No RTCM, but GPS has standard fix
+    return '~3m'
   } else {
+    // No GPS fix
     return 'N/A'
   }
 })
@@ -391,7 +468,62 @@ const canStart = computed(() => {
   }
 })
 
+const connectionBadgeClass = computed(() => {
+  switch (rtcmStore.currentClientType) {
+    case 'NTRIP':
+      return 'badge-ntrip'
+    case 'TCP':
+      return 'badge-tcp'
+    case 'UDP':
+      return 'badge-udp'
+    default:
+      return 'badge-default'
+  }
+})
+
 // Methods
+async function scanForBaseStations() {
+  isScanning.value = true
+  discoveredStations.value = []
+
+  try {
+    if (!connectionStore.isConnected) {
+      console.warn('Not connected to device, cannot scan for RTCM servers')
+      return
+    }
+
+    // Use the device's mDNS discovery to find RTCM base stations on the network
+    const client = connectionStore.getClient()
+    const rtcmServers = await client.mdns.discoverRTCMServers()
+
+    // Convert RTCMServerInfo to our station format
+    discoveredStations.value = rtcmServers.map(server => ({
+      host: server.ip,
+      port: server.port,
+      name: server.friendlyName || server.hostname,
+      protocol: server.protocol
+    }))
+
+    console.log(`Found ${discoveredStations.value.length} RTCM base stations`)
+
+  } catch (error) {
+    console.error('Failed to scan for base stations:', error)
+
+    // Fallback: if mDNS fails, suggest common local addresses
+    discoveredStations.value = [
+      { host: '192.168.4.1', port: 5015, name: 'Docking Station (common)' },
+      { host: '192.168.1.100', port: 5015, name: 'Local Network (common)' }
+    ]
+  } finally {
+    isScanning.value = false
+  }
+}
+
+function selectStation(station: { host: string; port: number; name: string }) {
+  tcpConfig.value.host = station.host
+  tcpConfig.value.port = station.port
+}
+
 function selectPreset(preset: RTCMPreset) {
   selectedPreset.value = preset
 
@@ -410,6 +542,11 @@ function selectPreset(preset: RTCMPreset) {
       tcpConfig.value = {
         host: source.host || '',
         port: source.port || 5015
+      }
+
+      // Auto-scan for docking station preset
+      if (preset.id === 'docking-station') {
+        scanForBaseStations()
       }
     } else if (source.type === 'udp') {
       udpConfig.value = {
@@ -480,6 +617,14 @@ async function handleStop() {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
+}
+
+.status-indicator-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
 }
 
 .status-indicator {
@@ -488,6 +633,41 @@ async function handleStop() {
   gap: 0.5rem;
   font-weight: 600;
   font-size: 1.125rem;
+}
+
+.connection-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: monospace;
+  align-self: flex-start;
+
+  &.badge-ntrip {
+    background-color: rgba(135, 206, 235, 0.15);
+    color: #0284c7;
+    border: 1px solid rgba(135, 206, 235, 0.3);
+  }
+
+  &.badge-tcp {
+    background-color: rgba(44, 95, 45, 0.1);
+    color: var(--primary-green);
+    border: 1px solid rgba(44, 95, 45, 0.2);
+  }
+
+  &.badge-udp {
+    background-color: rgba(147, 51, 234, 0.1);
+    color: #7c3aed;
+    border: 1px solid rgba(147, 51, 234, 0.2);
+  }
+
+  &.badge-default {
+    background-color: rgba(107, 114, 128, 0.1);
+    color: #4b5563;
+    border: 1px solid rgba(107, 114, 128, 0.2);
+  }
 }
 
 .status-dot {
@@ -844,6 +1024,144 @@ async function handleStop() {
     &:hover {
       text-decoration: underline;
     }
+  }
+}
+
+// Discovery section
+.discovery-section {
+  margin-bottom: 1.5rem;
+}
+
+.btn-secondary {
+  background-color: var(--sky-blue);
+  color: white;
+
+  &:hover:not(:disabled) {
+    background-color: #70b8d6;
+  }
+}
+
+.scanning-text {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.discovered-stations {
+  margin-top: 1.5rem;
+  animation: fadeIn 0.3s ease;
+
+  h5 {
+    margin: 0 0 1rem 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+  }
+}
+
+.stations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.station-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: white;
+
+  &:hover {
+    border-color: var(--primary-green);
+    box-shadow: 0 2px 8px rgba(44, 95, 45, 0.1);
+  }
+
+  &.selected {
+    border-color: var(--primary-green);
+    background-color: #e8f5e9;
+  }
+}
+
+.station-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.station-info {
+  flex: 1;
+
+  strong {
+    display: block;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+  }
+
+  small {
+    color: var(--text-secondary);
+    font-family: monospace;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+.protocol-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+
+  &.protocol-tcp {
+    background-color: rgba(44, 95, 45, 0.1);
+    color: var(--primary-green);
+  }
+
+  &.protocol-udp {
+    background-color: rgba(135, 206, 235, 0.15);
+    color: #0284c7;
+  }
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.5rem 0;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background-color: var(--border-color);
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
   }
 }
 

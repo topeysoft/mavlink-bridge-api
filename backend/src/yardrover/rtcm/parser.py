@@ -20,7 +20,11 @@ This implementation provides:
 import struct
 from typing import Optional
 
+import structlog
+
 from yardrover.models.rtcm import RTCMMessage, get_message_type_name
+
+logger = structlog.get_logger(__name__)
 
 
 class RTCMParser:
@@ -41,6 +45,11 @@ class RTCMParser:
     def __init__(self) -> None:
         """Initialize RTCM parser."""
         self._buffer = bytearray()
+
+        # Diagnostic counters
+        self._frames_no_preamble = 0
+        self._frames_invalid_crc = 0
+        self._frames_invalid_length = 0
 
     def parse_message(self, data: bytes) -> Optional[RTCMMessage]:
         """Parse a complete RTCM message from data.
@@ -163,6 +172,13 @@ class RTCMParser:
             start = self.find_message_start(bytes(self._buffer))
             if start == -1:
                 # No preamble found, clear buffer
+                if len(self._buffer) > 0:
+                    self._frames_no_preamble += 1
+                    logger.debug(
+                        "rtcm_no_preamble_found",
+                        buffer_size=len(self._buffer),
+                        first_bytes=bytes(self._buffer[:min(20, len(self._buffer))]).hex(),
+                    )
                 self._buffer.clear()
                 break
 
@@ -177,7 +193,8 @@ class RTCMParser:
             # Get expected message length
             msg_length = self.get_message_length(bytes(self._buffer))
             if msg_length == 0:
-                # Invalid message, skip preamble
+                # Invalid message length, skip preamble
+                self._frames_invalid_length += 1
                 del self._buffer[0]
                 continue
 
@@ -194,7 +211,13 @@ class RTCMParser:
                 # Remove parsed message from buffer
                 del self._buffer[:msg_length]
             else:
-                # Invalid message, skip preamble
+                # Invalid message - likely CRC failed (preamble & length were valid)
+                self._frames_invalid_crc += 1
+                logger.debug(
+                    "rtcm_parse_failed",
+                    msg_length=msg_length,
+                    first_bytes=msg_data[:min(10, len(msg_data))].hex(),
+                )
                 del self._buffer[0]
 
         # Limit buffer size to prevent memory issues
@@ -206,6 +229,19 @@ class RTCMParser:
     def reset(self) -> None:
         """Clear the parser buffer."""
         self._buffer.clear()
+
+    def get_diagnostics(self) -> dict[str, int]:
+        """Get parser diagnostic information.
+
+        Returns:
+            Dictionary with diagnostic counters and buffer state
+        """
+        return {
+            "buffer_size": len(self._buffer),
+            "frames_no_preamble": self._frames_no_preamble,
+            "frames_invalid_crc": self._frames_invalid_crc,
+            "frames_invalid_length": self._frames_invalid_length,
+        }
 
     # ========================================================================
     # Private Methods

@@ -18,8 +18,18 @@ export class ApiExplorer {
    */
   async init() {
     this.setupEventListeners();
-    await this.loadOpenApiSpec();
-    this.renderEndpoints();
+
+    // Load spec when device connects
+    this.deviceConnection.onConnect(() => {
+      this.loadOpenApiSpec();
+    });
+
+    // Try to load spec if already connected
+    if (this.deviceConnection.isConnected()) {
+      await this.loadOpenApiSpec();
+    } else {
+      this.showPlaceholder();
+    }
   }
 
   /**
@@ -40,28 +50,35 @@ export class ApiExplorer {
    */
   async loadOpenApiSpec() {
     try {
-      console.log('Fetching OpenAPI spec from ./api-spec.yaml...');
-      const response = await fetch('./api-spec.yaml');
+      const client = this.deviceConnection.getClient();
+      if (!client) {
+        throw new Error('Please connect to a device first');
+      }
+
+      const baseUrl = client.baseUrl || client.httpClient?.baseUrl;
+      if (!baseUrl) {
+        throw new Error('Device base URL not available');
+      }
+
+      const openApiUrl = `${baseUrl}/openapi.json`;
+      console.log('Fetching OpenAPI spec from', openApiUrl);
+
+      const response = await fetch(openApiUrl);
       console.log('Response status:', response.status, response.statusText);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const yamlText = await response.text();
-      console.log('YAML text length:', yamlText.length);
-      console.log('First 100 chars:', yamlText.substring(0, 100));
-
-      if (typeof jsyaml === 'undefined') {
-        throw new Error('js-yaml library not loaded');
-      }
-
-      this.spec = jsyaml.load(yamlText);
+      this.spec = await response.json();
       console.log('Loaded OpenAPI spec:', this.spec);
       console.log(
         'Number of paths:',
         Object.keys(this.spec.paths || {}).length,
       );
+
+      // Render endpoints after loading spec
+      this.renderEndpoints();
     } catch (error) {
       console.error('Failed to load OpenAPI spec:', error);
       this.showError('Failed to load API specification: ' + error.message);
@@ -544,6 +561,21 @@ export class ApiExplorer {
     container.innerHTML = `
             <div style="text-align: center; padding: 3rem; color: var(--danger-color);">
                 <p>${message}</p>
+            </div>
+        `;
+  }
+
+  /**
+   * Show placeholder when not connected
+   */
+  showPlaceholder() {
+    const container = document.getElementById('apiEndpoints');
+    container.innerHTML = `
+            <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                <p>🔌 Connect to a device to view API endpoints</p>
+                <p style="font-size: 0.9rem; margin-top: 1rem;">
+                    Enter your device URL above and click Connect to get started.
+                </p>
             </div>
         `;
   }

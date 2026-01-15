@@ -92,6 +92,10 @@ class RTCMConfig(BaseModel):
 
     enabled: bool = Field(default=False)
     source: NTRIPConfig = Field(default_factory=NTRIPConfig)
+    output_to_fc: bool = Field(
+        default=True,
+        description="Automatically send RTCM corrections to Flight Controller via MAVLink"
+    )
 
 
 class TLSConfig(BaseModel):
@@ -209,6 +213,7 @@ class Settings(BaseSettings):
 
     # RTCM settings
     rtcm_enabled: bool = Field(default=False)
+    rtcm_output_to_fc: bool = Field(default=True)
     ntrip_host: Optional[str] = None
     ntrip_port: int = Field(default=2101)
     ntrip_mountpoint: Optional[str] = None
@@ -335,6 +340,7 @@ class Settings(BaseSettings):
             ),
             rtcm=RTCMConfig(
                 enabled=self.rtcm_enabled,
+                output_to_fc=self.rtcm_output_to_fc,
                 source=NTRIPConfig(
                     host=self.ntrip_host,
                     port=self.ntrip_port,
