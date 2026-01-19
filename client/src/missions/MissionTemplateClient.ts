@@ -130,7 +130,11 @@ export class MissionTemplateClient {
     category: TemplateCategory,
     userMode?: UserMode
   ): Promise<MissionTemplateSummary[]> {
-    const response = await this.listTemplates({ category, userMode });
+    const options: ListTemplatesOptions = { category };
+    if (userMode) {
+      options.userMode = userMode;
+    }
+    const response = await this.listTemplates(options);
     return response.templates;
   }
 
@@ -143,10 +147,11 @@ export class MissionTemplateClient {
    * @returns List of available template summaries
    */
   async getAvailableTemplates(userMode?: UserMode): Promise<MissionTemplateSummary[]> {
-    const response = await this.listTemplates({
-      userMode,
-      includeUnavailable: false
-    });
+    const options: ListTemplatesOptions = { includeUnavailable: false };
+    if (userMode) {
+      options.userMode = userMode;
+    }
+    const response = await this.listTemplates(options);
     return response.templates;
   }
 

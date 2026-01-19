@@ -4,10 +4,14 @@ import Card from '@/components/common/Card.vue'
 import Button from '@/components/common/Button.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import ZoneSelectionStep from './steps/ZoneSelectionStep.vue'
+import PathConfigurationStep from './steps/PathConfigurationStep.vue'
 import ScheduleStep from './steps/ScheduleStep.vue'
 import ReviewStep from './steps/ReviewStep.vue'
 import { useMissionTemplatesStore } from '@/stores/missionTemplates'
 import { useFeaturesStore } from '@/stores/features'
+import { DEFAULT_PATH_CONFIG, type PathConfiguration, type PatternType } from '@/composables/useMissionPathGeneration'
+import type { TypeSpecificSettings } from '@/components/missions/path/controls'
+import type { TemplateCategory } from '@/config/missionTypeConfig'
 import type { MissionTemplateDetail, MissionFromTemplateRequest } from '@client'
 
 interface Props {
@@ -34,6 +38,8 @@ const templateDetail = ref<MissionTemplateDetail | null>(null)
 
 // Form data
 const selectedZoneIds = ref<string[]>([])
+const pathConfig = ref<PathConfiguration>({ ...DEFAULT_PATH_CONFIG })
+const typeSpecificSettings = ref<TypeSpecificSettings>({})
 const scheduledTime = ref<Date | null>(null)
 const scheduleType = ref<'now' | 'scheduled'>('now')
 const missionName = ref('')
@@ -46,6 +52,13 @@ const steps = computed(() => {
       description: isConsumerMode.value
         ? 'Choose where you want the job done'
         : 'Choose zones for this mission'
+    },
+    {
+      id: 'path',
+      title: isConsumerMode.value ? 'Preview' : 'Configure Path',
+      description: isConsumerMode.value
+        ? 'See how we\'ll cover your areas'
+        : 'Configure mowing pattern'
     },
     {
       id: 'schedule',
@@ -68,9 +81,12 @@ const steps = computed(() => {
 const currentStepData = computed(() => steps.value[currentStep.value])
 
 const canGoNext = computed(() => {
-  switch (currentStepData.value.id) {
+  const stepId = currentStepData.value?.id
+  switch (stepId) {
     case 'zones':
       return selectedZoneIds.value.length > 0
+    case 'path':
+      return true // Path config is always valid (has defaults)
     case 'schedule':
       return scheduleType.value === 'now' || scheduledTime.value !== null
     case 'review':
@@ -78,6 +94,23 @@ const canGoNext = computed(() => {
     default:
       return false
   }
+})
+
+// Extract template defaults for path configuration
+const templatePathDefaults = computed(() => {
+  if (!templateDetail.value?.template.default_settings) return undefined
+
+  const settings = templateDetail.value.template.default_settings
+  return {
+    mowing_pattern: settings.mowing_pattern as PatternType | undefined,
+    edge_mode: settings.edge_mode as 'trim' | 'skip' | 'overlap' | undefined
+  }
+})
+
+// Template category for type-specific controls
+const templateCategory = computed((): TemplateCategory | undefined => {
+  if (!templateDetail.value?.template.category) return undefined
+  return templateDetail.value.template.category as TemplateCategory
 })
 
 const canGoBack = computed(() => currentStep.value > 0)
@@ -140,7 +173,12 @@ async function handleComplete() {
       zone_ids: selectedZoneIds.value,
       name: missionName.value || undefined,
       schedule_type: scheduleType.value === 'now' ? 'once' : 'once',
-      start_time: startTime
+      start_time: startTime,
+      settings_overrides: {
+        path_config: pathConfig.value,
+        // Include type-specific settings
+        ...typeSpecificSettings.value
+      }
     }
 
     const missionId = await templatesStore.createMissionFromTemplate(props.templateId, request)
@@ -168,6 +206,8 @@ onMounted(() => {
 watch(() => props.templateId, () => {
   currentStep.value = 0
   selectedZoneIds.value = []
+  pathConfig.value = { ...DEFAULT_PATH_CONFIG }
+  typeSpecificSettings.value = {}
   scheduledTime.value = null
   scheduleType.value = 'now'
   missionName.value = ''
@@ -231,15 +271,26 @@ watch(() => props.templateId, () => {
       <template v-else-if="templateDetail">
         <!-- Step: Zone Selection -->
         <ZoneSelectionStep
-          v-if="currentStepData.id === 'zones'"
+          v-if="currentStepData?.id === 'zones'"
           v-model:selected-zones="selectedZoneIds"
           :compatible-zone-types="templateDetail.template.compatible_zone_types"
           :available-zones="templateDetail.compatible_zones"
         />
 
+        <!-- Step: Path Configuration -->
+        <PathConfigurationStep
+          v-else-if="currentStepData?.id === 'path'"
+          v-model:path-config="pathConfig"
+          v-model:type-settings="typeSpecificSettings"
+          :selected-zone-ids="selectedZoneIds"
+          :available-zones="templateDetail.compatible_zones"
+          :template-defaults="templatePathDefaults"
+          :template-category="templateCategory"
+        />
+
         <!-- Step: Schedule -->
         <ScheduleStep
-          v-else-if="currentStepData.id === 'schedule'"
+          v-else-if="currentStepData?.id === 'schedule'"
           v-model:schedule-type="scheduleType"
           v-model:scheduled-time="scheduledTime"
           :weather-status="templateDetail.weather_status"
@@ -248,7 +299,7 @@ watch(() => props.templateId, () => {
 
         <!-- Step: Review -->
         <ReviewStep
-          v-else-if="currentStepData.id === 'review'"
+          v-else-if="currentStepData?.id === 'review'"
           v-model:mission-name="missionName"
           :template="templateDetail.template"
           :selected-zones="selectedZoneIds"
@@ -256,6 +307,7 @@ watch(() => props.templateId, () => {
           :scheduled-time="scheduledTime"
           :weather-status="templateDetail.weather_status"
           :peripheral-status="templateDetail.peripheral_status"
+          :path-config="pathConfig"
         />
       </template>
     </div>

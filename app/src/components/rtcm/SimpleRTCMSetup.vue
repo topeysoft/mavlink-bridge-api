@@ -897,12 +897,6 @@ async function handleStop() {
   gap: 0.5rem;
   cursor: pointer;
 
-  input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-  }
-
   span {
     font-weight: 500;
   }

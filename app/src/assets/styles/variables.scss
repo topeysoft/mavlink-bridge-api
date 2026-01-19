@@ -155,3 +155,107 @@ body[data-theme="dark"] {
   --primary-green-light: #4a9a4d;
   --sky-blue: #6bb6d6;
 }
+
+// ===========================================
+// Global Form Field Styling
+// ===========================================
+// These styles ensure checkboxes and radio buttons are visible
+// in both light and dark modes with proper active/checked states
+// Note: Components that hide the native input (like ToggleSwitch) use
+// :not(.sr-only) or scoped styles that override these defaults
+
+input[type="checkbox"]:not([hidden]),
+input[type="radio"]:not([hidden]) {
+  // Reset appearance for consistent cross-browser styling
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  // Base sizing (can be overridden by scoped component styles)
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+
+  // Visual styling
+  border: 2px solid var(--border-color);
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  vertical-align: middle;
+  position: relative;
+  flex-shrink: 0;
+
+  &:hover:not(:disabled) {
+    border-color: var(--primary-green);
+  }
+
+  &:focus {
+    outline: 2px solid var(--primary-green);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+input[type="checkbox"] {
+  border-radius: 4px;
+
+  &:checked {
+    background: var(--primary-green);
+    border-color: var(--primary-green);
+
+    // Checkmark using CSS
+    &::after {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 1px;
+      width: 6px;
+      height: 10px;
+      border: solid white;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+  }
+
+  // Indeterminate state
+  &:indeterminate {
+    background: var(--primary-green);
+    border-color: var(--primary-green);
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 6px;
+      width: 8px;
+      height: 2px;
+      background: white;
+    }
+  }
+}
+
+input[type="radio"] {
+  border-radius: 50%;
+
+  &:checked {
+    background: var(--bg-primary);
+    border-color: var(--primary-green);
+
+    // Inner circle
+    &::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 8px;
+      height: 8px;
+      background: var(--primary-green);
+      border-radius: 50%;
+    }
+  }
+}

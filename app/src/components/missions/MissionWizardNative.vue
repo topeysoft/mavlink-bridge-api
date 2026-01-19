@@ -676,9 +676,6 @@ watch(isOpen, (newValue) => {
 
   input[type="radio"] {
     margin-top: 2px;
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
   }
 
   input[type="radio"]:checked + .radio-label {

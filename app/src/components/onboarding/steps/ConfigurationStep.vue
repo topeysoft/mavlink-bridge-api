@@ -625,11 +625,6 @@ function continueToNext() {
     gap: var(--spacing-sm);
     cursor: pointer;
     font-weight: 600;
-
-    input[type="checkbox"] {
-      width: auto;
-      cursor: pointer;
-    }
   }
 }
 

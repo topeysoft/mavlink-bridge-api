@@ -88,17 +88,6 @@ function handleChange(value: string) {
     cursor: not-allowed;
   }
 
-  input[type="radio"] {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-    flex-shrink: 0;
-    accent-color: var(--primary-green);
-
-    &:disabled {
-      cursor: not-allowed;
-    }
-  }
 }
 
 .radio-content {

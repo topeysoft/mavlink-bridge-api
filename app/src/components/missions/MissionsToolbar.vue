@@ -5,7 +5,6 @@ import FormSelect from '@/components/common/FormSelect.vue'
 
 const emit = defineEmits<{
   createMission: []
-  viewTemplates: []
   toggleView: [view: 'grid' | 'calendar']
   filterStatus: [status: string]
   export: []
@@ -40,13 +39,6 @@ const toggleView = () => {
           <line x1="5" y1="12" x2="19" y2="12"></line>
         </svg>
         Create Mission
-      </Button>
-      <Button variant="outline" @click="emit('viewTemplates')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-        </svg>
-        Templates
       </Button>
       <Button variant="outline" @click="emit('export')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

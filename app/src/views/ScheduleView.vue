@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import Breadcrumb from '@/components/common/Breadcrumb.vue'
 import CalendarCard from '@/components/schedule/CalendarCard.vue'
 import ScheduledMissionsList from '@/components/schedule/ScheduledMissionsList.vue'
 import RecurringSchedules from '@/components/schedule/RecurringSchedules.vue'
 import Button from '@/components/common/Button.vue'
+
+const router = useRouter()
 
 const breadcrumbItems = [
   { label: 'Dashboard', to: '/' },
@@ -11,11 +14,11 @@ const breadcrumbItems = [
 ]
 
 const handleScheduleMission = () => {
-  console.log('Schedule new mission')
+  router.push({ name: 'mission-new' })
 }
 
 const handleNewRecurring = () => {
-  console.log('Create new recurring schedule')
+  router.push({ name: 'mission-new', query: { recurring: 'true' } })
 }
 </script>
 

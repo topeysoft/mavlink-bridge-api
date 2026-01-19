@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import Card from '@/components/common/Card.vue'
 import Badge from '@/components/common/Badge.vue'
+import MissionPathPreview from '@/components/missions/path/MissionPathPreview.vue'
 import { useFeaturesStore } from '@/stores/features'
 import { useZonesStore } from '@/stores/zones'
-import type { MissionTemplate, WeatherCheckResult, PeripheralAvailabilityStatus } from '@client'
+import { useMissionPathGeneration, type PathConfiguration } from '@/composables/useMissionPathGeneration'
+import type { MissionTemplate, WeatherCheckResult, PeripheralAvailabilityStatus, Zone } from '@client'
 
 interface Props {
   template: MissionTemplate
@@ -13,6 +15,7 @@ interface Props {
   scheduledTime: Date | null
   weatherStatus: WeatherCheckResult
   peripheralStatus: PeripheralAvailabilityStatus
+  pathConfig?: PathConfiguration
 }
 
 const props = defineProps<Props>()
@@ -68,7 +71,7 @@ const estimatedDuration = computed(() => {
   // Calculate based on template time and zone areas
   const totalArea = props.selectedZones.reduce((sum, id) => {
     const zone = zonesStore.zones.find(z => z.id === id)
-    return sum + (zone?.area_sqm || 0)
+    return sum + (zone?.area || 0)
   }, 0)
 
   const acres = totalArea / 4047
@@ -96,6 +99,56 @@ const allPeripheralsReady = computed(() => props.peripheralStatus.all_required_a
 
 const nameLabel = computed(() => isConsumerMode.value ? 'Job Name' : 'Mission Name')
 const namePlaceholder = computed(() => isConsumerMode.value ? 'Give your job a name' : 'Enter mission name')
+
+// Path preview setup
+const {
+  setZones,
+  setPathConfig,
+  pathPreviewData,
+  generatedPath
+} = useMissionPathGeneration()
+
+// Get full zone data for preview
+const fullZones = computed((): Zone[] => {
+  return props.selectedZones
+    .map(id => zonesStore.zones.find(z => z.id === id))
+    .filter((z): z is Zone => z !== undefined && z.coordinates.length >= 3)
+})
+
+// Pattern label for display
+const patternLabel = computed(() => {
+  if (!props.pathConfig) return isConsumerMode.value ? 'Standard' : 'Default'
+
+  const labels: Record<string, { consumer: string; technical: string }> = {
+    stripe: { consumer: 'Back & Forth', technical: 'Stripe' },
+    spiral: { consumer: 'Spiral', technical: 'Spiral' },
+    checkerboard: { consumer: 'Checkerboard', technical: 'Checkerboard' },
+    perimeter: { consumer: 'Border Only', technical: 'Perimeter' },
+    random: { consumer: 'Random', technical: 'Random' }
+  }
+
+  const patternInfo = labels[props.pathConfig.pattern] || { consumer: props.pathConfig.pattern, technical: props.pathConfig.pattern }
+  return isConsumerMode.value ? patternInfo.consumer : patternInfo.technical
+})
+
+// Initialize path generation
+function initPathPreview() {
+  if (fullZones.value.length > 0) {
+    setZones(fullZones.value)
+    if (props.pathConfig) {
+      setPathConfig(props.pathConfig)
+    }
+  }
+}
+
+// Watch for changes
+watch([fullZones, () => props.pathConfig], () => {
+  initPathPreview()
+}, { deep: true })
+
+onMounted(() => {
+  initPathPreview()
+})
 </script>
 
 <template>
@@ -201,7 +254,39 @@ const namePlaceholder = computed(() => isConsumerMode.value ? 'Give your job a n
           </div>
         </div>
       </Card>
+
+      <!-- Pattern (if pathConfig provided) -->
+      <Card v-if="pathConfig" class="detail-card">
+        <div class="detail-header">
+          <span class="detail-icon">≡</span>
+          <span class="detail-label">
+            {{ isConsumerMode ? 'Mowing Style' : 'Pattern' }}
+          </span>
+        </div>
+        <div class="detail-content">
+          <span class="detail-value">{{ patternLabel }}</span>
+          <span v-if="!isConsumerMode" class="detail-meta">
+            {{ pathConfig.overlapPercent }}% overlap
+          </span>
+        </div>
+      </Card>
     </div>
+
+    <!-- Path Preview (only show if zones have coordinates) -->
+    <Card v-if="fullZones.length > 0" class="path-preview-card">
+      <div class="path-preview-header">
+        <span class="path-preview-icon">🗺️</span>
+        <span class="path-preview-label">
+          {{ isConsumerMode ? 'Coverage Preview' : 'Path Preview' }}
+        </span>
+      </div>
+      <MissionPathPreview
+        :preview-data="pathPreviewData"
+        height="200px"
+        :show-statistics="!isConsumerMode"
+        :show-layer-toggle="true"
+      />
+    </Card>
 
     <!-- Weather Warning -->
     <Card v-if="!weatherStatus.suitable" class="warning-card">
@@ -458,6 +543,28 @@ const namePlaceholder = computed(() => isConsumerMode.value ? 'Give your job a n
 
 .warning-message {
   font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.path-preview-card {
+  overflow: hidden;
+}
+
+.path-preview-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.path-preview-icon {
+  font-size: 20px;
+}
+
+.path-preview-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
   color: var(--text-secondary);
 }
 </style>

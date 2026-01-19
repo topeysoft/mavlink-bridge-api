@@ -2,7 +2,6 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import MissionsToolbar from '@/components/missions/MissionsToolbar.vue'
-import MissionTemplateCard from '@/components/missions/MissionTemplateCard.vue'
 import MissionCard from '@/components/missions/MissionCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import SkeletonCard from '@/components/common/SkeletonCard.vue'
@@ -21,14 +20,6 @@ const missionsStore = useMissionsStore()
 const zonesStore = useZonesStore()
 const featuresStore = useFeaturesStore()
 
-interface MissionTemplate {
-  id: number
-  name: string
-  emoji: string
-  description: string
-  estimatedTime: string
-}
-
 // Use store data
 const missions = computed(() => missionsStore.missions)
 const loading = computed(() => missionsStore.isLoading)
@@ -41,32 +32,7 @@ watch(storeError, (err) => {
   }
 })
 
-const templates = ref<MissionTemplate[]>([
-  {
-    id: 1,
-    name: 'Weekly Lawn Mowing',
-    emoji: '🌱',
-    description: 'Regular lawn maintenance every week',
-    estimatedTime: '~45 minutes'
-  },
-  {
-    id: 2,
-    name: 'Perimeter Patrol',
-    emoji: '🚨',
-    description: 'Security patrol around property boundaries',
-    estimatedTime: '~30 minutes'
-  },
-  {
-    id: 3,
-    name: 'Snow Clearing',
-    emoji: '❄️',
-    description: 'Automated snow clearing when detected',
-    estimatedTime: '~60 minutes'
-  }
-])
-
 const filterStatus = ref('all')
-const showTemplates = ref(false)
 
 // Adapt Mission type to MissionCard format
 interface DisplayMission {
@@ -127,20 +93,12 @@ const filteredMissions = computed(() => {
 })
 
 const handleCreateMission = () => {
-  // Navigate to mission editor page instead of opening modal
-  router.push('/missions/create')
-}
-
-const handleViewTemplates = () => {
-  showTemplates.value = !showTemplates.value
+  // Navigate to template selection page
+  router.push({ name: 'mission-new' })
 }
 
 const handleFilterStatus = (status: string) => {
   filterStatus.value = status
-}
-
-const handleUseTemplate = (templateId: number) => {
-  console.log('Use template:', templateId)
 }
 
 const handleEditMission = async (id: string) => {
@@ -201,22 +159,9 @@ const handleExport = () => {
   <div class="missions-view">
     <MissionsToolbar
       @create-mission="handleCreateMission"
-      @view-templates="handleViewTemplates"
       @filter-status="handleFilterStatus"
       @export="handleExport"
     />
-
-    <div v-if="showTemplates" class="templates-section">
-      <h2 class="section-title">Mission Templates</h2>
-      <div class="templates-grid">
-        <MissionTemplateCard
-          v-for="template in templates"
-          :key="template.id"
-          :template="template"
-          @use="handleUseTemplate"
-        />
-      </div>
-    </div>
 
     <!-- Missions Section with Skeleton Loaders -->
     <div v-if="loading" class="missions-section">
@@ -245,7 +190,7 @@ const handleExport = () => {
     </div>
 
     <EmptyState
-      v-else-if="!showTemplates && !loading"
+      v-else-if="!loading"
       icon="box"
       title="No Missions Found"
       message="Create your first mission or use a template to get started"
@@ -262,7 +207,6 @@ const handleExport = () => {
   padding: var(--spacing-xl);
 }
 
-.templates-section,
 .missions-section {
   margin-bottom: var(--spacing-2xl);
 }
@@ -272,11 +216,6 @@ const handleExport = () => {
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: var(--spacing-lg);
-}
-
-.templates-grid {
-  @include auto-grid(300px);
-  gap: var(--spacing-lg);
 }
 
 .missions-grid {

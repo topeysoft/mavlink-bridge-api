@@ -67,14 +67,19 @@ const router = createRouter({
           component: () => import('../views/MissionsView.vue'),
         },
         {
-          path: 'missions/create',
-          name: 'mission-create',
-          component: () => import('../views/MissionEditorView.vue'),
+          path: 'missions/new',
+          name: 'mission-new',
+          component: () => import('../views/MissionTemplatesView.vue'),
+        },
+        {
+          path: 'missions/new/:templateId',
+          name: 'mission-new-template',
+          component: () => import('../views/MissionTemplatesView.vue'),
         },
         {
           path: 'missions/edit/:id',
           name: 'mission-edit',
-          component: () => import('../views/MissionEditorView.vue'),
+          component: () => import('../views/MissionTemplatesView.vue'),
         },
         {
           path: 'control',

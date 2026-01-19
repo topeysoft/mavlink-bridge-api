@@ -482,12 +482,6 @@ const totalArea = computed(() => {
     border-color: var(--primary-green);
     background: rgba(44, 95, 45, 0.05);
   }
-
-  input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-  }
 }
 
 .zone-info {
@@ -540,12 +534,6 @@ const totalArea = computed(() => {
   &.selected {
     border-color: var(--primary-green);
     background: rgba(44, 95, 45, 0.05);
-  }
-
-  input[type="radio"] {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
   }
 }
 

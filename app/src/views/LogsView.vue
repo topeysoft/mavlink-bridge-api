@@ -730,10 +730,6 @@ onUnmounted(() => {
     align-items: center;
     gap: 8px;
     cursor: pointer;
-
-    input[type="checkbox"] {
-      cursor: pointer;
-    }
   }
 }
 

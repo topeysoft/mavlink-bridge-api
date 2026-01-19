@@ -34,6 +34,7 @@ from yardrover.models.resources import (
     ResourceResult,
     ResourceType,
     ScheduledMission,
+    Zone,
     ZoneType,
 )
 from yardrover.models.template_data import (
@@ -325,9 +326,24 @@ async def get_template(
         # Check weather suitability
         weather_status = _check_weather_suitability(template)
 
-        # Get compatible zones
-        # TODO: Query actual zones from storage
+        # Get compatible zones from storage
         compatible_zones: List[ZoneSummary] = []
+        if _storage:
+            try:
+                metadata_list = await _storage.list_resources(ResourceType.ZONE, since=0)
+                for meta in metadata_list:
+                    result, data = await _storage.read_resource(ResourceType.ZONE, meta.id)
+                    if result == ResourceResult.SUCCESS and data:
+                        zone = Zone.model_validate_json(data)
+                        if zone.type in template.compatible_zone_types:
+                            compatible_zones.append(ZoneSummary(
+                                id=zone.id,
+                                name=zone.name,
+                                type=zone.type,
+                                area=zone.area
+                            ))
+            except Exception as e:
+                logger.warning(f"Failed to load compatible zones: {e}")
 
         return MissionTemplateDetail(
             template=template,

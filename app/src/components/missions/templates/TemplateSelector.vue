@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import TemplateCard from './TemplateCard.vue'
 import TemplateCategoryTabs from './TemplateCategoryTabs.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -24,9 +24,20 @@ const templatesStore = useMissionTemplatesStore()
 const featuresStore = useFeaturesStore()
 
 const isConsumerMode = computed(() => featuresStore.userMode === 'consumer')
+const searchQuery = ref('')
 
 const displayedTemplates = computed(() => {
   let templates = templatesStore.filteredTemplates
+
+  // Filter by search query
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    templates = templates.filter(t =>
+      t.name.toLowerCase().includes(query) ||
+      t.consumer_name.toLowerCase().includes(query) ||
+      t.description.toLowerCase().includes(query)
+    )
+  }
 
   if (!props.showUnavailable) {
     templates = templates.filter(t => t.available)
@@ -91,6 +102,30 @@ watch(() => featuresStore.userMode, () => {
           : 'Choose a mission template to customize'
         }}
       </p>
+    </div>
+
+    <div class="search-container">
+      <div class="search-input-wrapper">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.35-4.35"></path>
+        </svg>
+        <input
+          v-model="searchQuery"
+          type="text"
+          class="search-input"
+          :placeholder="isConsumerMode ? 'Search jobs...' : 'Search templates...'"
+        />
+        <button
+          v-if="searchQuery"
+          class="clear-search"
+          @click="searchQuery = ''"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <TemplateCategoryTabs
@@ -168,6 +203,92 @@ watch(() => featuresStore.userMode, () => {
 
 .consumer-selector .selector-subtitle {
   font-size: var(--font-size-lg);
+}
+
+.search-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+}
+
+.search-icon {
+  position: absolute;
+  left: var(--spacing-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  padding-left: calc(var(--spacing-sm) + 24px);
+  padding-right: calc(var(--spacing-sm) + 28px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+  }
+}
+
+.consumer-selector .search-input {
+  font-size: var(--font-size-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  padding-left: calc(var(--spacing-md) + 28px);
+  padding-right: calc(var(--spacing-md) + 32px);
+}
+
+.consumer-selector .search-icon {
+  left: var(--spacing-md);
+  width: 20px;
+  height: 20px;
+}
+
+.clear-search {
+  position: absolute;
+  right: var(--spacing-xs);
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: var(--spacing-xs);
+  cursor: pointer;
+  color: var(--text-tertiary);
+  border-radius: var(--border-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, background 0.2s;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover {
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+  }
 }
 
 .loading-container {
