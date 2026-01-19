@@ -14,7 +14,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 # Import API routers
-from yardrover.api import auth, config, health, mavlink, mdns, missions, peripherals, recording, resources, rtcm, setup, websocket, wifi, zones
+from yardrover.api import auth, config, health, mavlink, mdns, mission_templates, missions, peripherals, recording, resources, rtcm, setup, websocket, wifi, zones
 
 # Import auth components
 from yardrover.auth import Role, get_api_key_manager
@@ -283,6 +283,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await resource_storage.start()
             zones.set_storage(resource_storage)
             missions.set_storage(resource_storage)
+            mission_templates.set_storage(resource_storage)
             resources.set_storage(resource_storage)
             logger.info("resource_storage_initialized", path=resource_base_path)
         except Exception as e:
@@ -644,6 +645,7 @@ app.include_router(mavlink.router)
 app.include_router(zones.router)
 app.include_router(recording.router)  # Zone recording endpoints
 app.include_router(missions.router)
+app.include_router(mission_templates.router)
 app.include_router(resources.router)
 app.include_router(rtcm.router)
 app.include_router(peripherals.router)

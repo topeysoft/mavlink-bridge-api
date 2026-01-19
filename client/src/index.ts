@@ -256,6 +256,32 @@ export type {
   RecordingCompleteResult
 } from './zones/ZoneRecordingTypes';
 
+// Mission template exports
+export { MissionTemplateClient } from './missions/MissionTemplateClient';
+export type { ListTemplatesOptions } from './missions/MissionTemplateClient';
+export {
+  TemplateCategory,
+  type UserMode,
+  type MissionScheduleType,
+  type MissionPriority,
+  type WeatherConstraints,
+  type TemplateDefaultSettings,
+  type MissionTemplate,
+  type MissionTemplateSummary,
+  type TemplateCategoryInfo,
+  type MissionTemplateListResponse,
+  type PeripheralRequirement,
+  type PeripheralAvailabilityStatus,
+  type WeatherSummary,
+  type WeatherCheckResult,
+  type SuggestedTimeSlot,
+  type SuggestedSchedule,
+  type WeatherCheckResponse,
+  type ZoneSummary,
+  type MissionTemplateDetail,
+  type MissionFromTemplateRequest,
+  type MissionOperationResponse
+} from './missions/MissionTemplateTypes';
 
 // Version info
 export const VERSION = '1.0.0';

@@ -16,6 +16,7 @@ import { ZoneManager } from './resources/ZoneManager';
 import { MissionManager } from './resources/MissionManager';
 import { PeripheralClient } from './peripherals/PeripheralClient';
 import { ZoneRecordingClient } from './zones/ZoneRecordingClient';
+import { MissionTemplateClient } from './missions/MissionTemplateClient';
 import { EventType, EventHandler, StatusPayload, ConfigChangedPayload, RTCMDataPayload, ErrorPayload, LogPayload, WiFiConnectedPayload, WiFiDisconnectedPayload, WiFiSignalUpdatePayload } from './core/EventTypes';
 import { Configuration, HealthResponse, WiFiCredentials } from './config/ConfigTypes';
 import { WiFiState, WiFiStatus, WiFiNetwork, SignalQuality } from './wifi/WiFiTypes';
@@ -57,6 +58,7 @@ export class MAVLinkBridgeClient {
   private readonly missionManager: MissionManager;
   private readonly peripheralClient: PeripheralClient;
   private readonly zoneRecordingClient: ZoneRecordingClient;
+  private readonly missionTemplateClient: MissionTemplateClient;
   private readonly options: Required<MAVLinkBridgeClientOptions>;
 
   /**
@@ -134,6 +136,9 @@ export class MAVLinkBridgeClient {
 
     // Initialize zone recording client
     this.zoneRecordingClient = new ZoneRecordingClient(this.httpClient);
+
+    // Initialize mission template client
+    this.missionTemplateClient = new MissionTemplateClient(this.httpClient);
   }
 
   /**
@@ -374,6 +379,13 @@ export class MAVLinkBridgeClient {
    */
   get recording (): ZoneRecordingClient {
     return this.zoneRecordingClient;
+  }
+
+  /**
+   * Get mission template client for mission templates
+   */
+  get templates (): MissionTemplateClient {
+    return this.missionTemplateClient;
   }
 
   /**
