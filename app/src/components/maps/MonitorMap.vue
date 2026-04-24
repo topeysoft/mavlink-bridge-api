@@ -9,29 +9,32 @@
  * Intended for dashboards / live-status views. Editing flows continue to use
  * the existing `MapDrawingModal` / `useLeafletMap` composables.
  */
-import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
-import { createRenderer, type MapViewMode } from '@/composables/maps/useMapRenderer'
+import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import {
+  createRenderer,
+  type MapViewMode,
+} from '@/composables/maps/useMapRenderer';
 import type {
   BaseLayer,
   LatLng,
   MapRenderer,
   MowerPose,
   ZoneFeature,
-} from '@/composables/maps/MapRenderer'
+} from '@/composables/maps/MapRenderer';
 
 const props = withDefaults(
   defineProps<{
-    viewMode?: MapViewMode
-    center?: LatLng
-    zoom?: number
-    baseLayer?: BaseLayer
-    theme?: 'light' | 'dark'
-    zones?: ZoneFeature[]
-    path?: LatLng[]
-    mower?: MowerPose | null
+    viewMode?: MapViewMode;
+    center?: LatLng;
+    zoom?: number;
+    baseLayer?: BaseLayer;
+    theme?: 'light' | 'dark';
+    zones?: ZoneFeature[];
+    path?: LatLng[];
+    mower?: MowerPose | null;
     /** 3D only */
-    pitch?: number
-    bearing?: number
+    pitch?: number;
+    bearing?: number;
   }>(),
   {
     viewMode: '2d',
@@ -43,29 +46,29 @@ const props = withDefaults(
     mower: null,
     pitch: 45,
     bearing: 0,
-  }
-)
+  },
+);
 
 const emit = defineEmits<{
-  (e: 'ready', renderer: MapRenderer): void
-  (e: 'error', err: unknown): void
-}>()
+  (e: 'ready', renderer: MapRenderer): void;
+  (e: 'error', err: unknown): void;
+}>();
 
-const containerRef = ref<HTMLDivElement | null>(null)
-const errorMessage = ref<string | null>(null)
-const isLoading = ref(true)
+const containerRef = ref<HTMLDivElement | null>(null);
+const errorMessage = ref<string | null>(null);
+const isLoading = ref(true);
 
-let renderer: MapRenderer | null = null
-let currentMode: MapViewMode | null = null
+let renderer: MapRenderer | null = null;
+let currentMode: MapViewMode | null = null;
 
 async function buildRenderer(mode: MapViewMode) {
-  if (!containerRef.value) return
-  isLoading.value = true
-  errorMessage.value = null
+  if (!containerRef.value) return;
+  isLoading.value = true;
+  errorMessage.value = null;
 
   // Tear down existing
-  renderer?.destroy()
-  renderer = null
+  renderer?.destroy();
+  renderer = null;
 
   try {
     renderer = await createRenderer(mode, {
@@ -76,83 +79,81 @@ async function buildRenderer(mode: MapViewMode) {
       theme: props.theme,
       pitch: props.pitch,
       bearing: props.bearing,
-    })
-    await renderer.init()
-    currentMode = mode
+    });
+    await renderer.init();
+    currentMode = mode;
 
     // Replay current state into the new renderer
-    renderer.setZones(props.zones)
-    renderer.setPath(props.path)
-    renderer.setMowerPose(props.mower)
+    renderer.setZones(props.zones);
+    renderer.setPath(props.path);
+    renderer.setMowerPose(props.mower);
 
-    emit('ready', renderer)
+    emit('ready', renderer);
   } catch (err) {
-    console.error('[MonitorMap] renderer init failed', err)
-    errorMessage.value = err instanceof Error ? err.message : String(err)
-    emit('error', err)
+    console.error('[MonitorMap] renderer init failed', err);
+    errorMessage.value = err instanceof Error ? err.message : String(err);
+    emit('error', err);
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
 }
 
 onMounted(() => {
-  buildRenderer(props.viewMode)
-})
+  buildRenderer(props.viewMode);
+});
 
 onBeforeUnmount(() => {
-  renderer?.destroy()
-  renderer = null
-})
+  renderer?.destroy();
+  renderer = null;
+});
 
 watch(
   () => props.viewMode,
   (mode) => {
-    if (mode !== currentMode) buildRenderer(mode)
-  }
-)
+    if (mode !== currentMode) buildRenderer(mode);
+  },
+);
 
 watch(
   () => props.zones,
   (z) => renderer?.setZones(z),
-  { deep: true }
-)
+  { deep: true },
+);
 
 watch(
   () => props.path,
   (p) => renderer?.setPath(p),
-  { deep: true }
-)
+  { deep: true },
+);
 
 watch(
   () => props.mower,
   (m) => renderer?.setMowerPose(m),
-  { deep: true }
-)
+  { deep: true },
+);
 
 watch(
   () => props.baseLayer,
-  (layer) => renderer?.setBaseLayer(layer)
-)
+  (layer) => renderer?.setBaseLayer(layer),
+);
 
 watch(
   () => [props.pitch, props.bearing] as const,
-  ([pitch, bearing]) => renderer?.setCamera?.({ pitch, bearing })
-)
+  ([pitch, bearing]) => renderer?.setCamera?.({ pitch, bearing }),
+);
 
 function retry() {
-  buildRenderer(props.viewMode)
+  buildRenderer(props.viewMode);
 }
 
-defineExpose({ retry })
+defineExpose({ retry });
 </script>
 
 <template>
   <div class="monitor-map">
     <div ref="containerRef" class="monitor-map__canvas" />
 
-    <div v-if="isLoading" class="monitor-map__overlay">
-      Loading map…
-    </div>
+    <div v-if="isLoading" class="monitor-map__overlay"> Loading map… </div>
 
     <div v-else-if="errorMessage" class="monitor-map__overlay error">
       <p>{{ errorMessage }}</p>

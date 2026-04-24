@@ -3,24 +3,24 @@
  * Small segmented toggle for switching between 2D and 3D monitor views.
  * Kept decoupled from any store so it can be reused in different layouts.
  */
-import { computed } from 'vue'
-import type { MapViewMode } from '@/composables/maps/useMapRenderer'
+import { computed } from 'vue';
+import type { MapViewMode } from '@/composables/maps/useMapRenderer';
 
 const props = defineProps<{
-  modelValue: MapViewMode
+  modelValue: MapViewMode;
   /** Hide the 3D option (e.g. when the feature flag is off). */
-  allow3D?: boolean
-}>()
+  allow3D?: boolean;
+}>();
 
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: MapViewMode): void
-}>()
+  (e: 'update:modelValue', value: MapViewMode): void;
+}>();
 
-const show3D = computed(() => props.allow3D !== false)
+const show3D = computed(() => props.allow3D !== false);
 
 function select(mode: MapViewMode) {
-  if (mode === props.modelValue) return
-  emit('update:modelValue', mode)
+  if (mode === props.modelValue) return;
+  emit('update:modelValue', mode);
 }
 </script>
 
@@ -65,7 +65,9 @@ function select(mode: MapViewMode) {
     font-weight: 600;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition:
+      background 0.15s,
+      color 0.15s;
 
     & + .seg {
       border-left: 1px solid var(--border-color);

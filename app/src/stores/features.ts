@@ -159,7 +159,7 @@ export const useFeaturesStore = defineStore('features', () => {
   // Load saved custom flags or use preset
   const customFlags = ref<FeatureFlags>(
     JSON.parse(localStorage.getItem('yardrover_feature_flags') || 'null') ||
-      { ...MODE_PRESETS[userMode.value] }
+    { ...MODE_PRESETS[userMode.value] }
   )
 
   const useCustomFlags = ref<boolean>(
@@ -200,12 +200,12 @@ export const useFeaturesStore = defineStore('features', () => {
   })
 
   // Check if a feature is enabled
-  function isFeatureEnabled(feature: keyof FeatureFlags): boolean {
+  function isFeatureEnabled (feature: keyof FeatureFlags): boolean {
     return features.value[feature]
   }
 
   // Set user mode
-  function setUserMode(mode: UserMode) {
+  function setUserMode (mode: UserMode) {
     userMode.value = mode
     localStorage.setItem('yardrover_user_mode', mode)
 
@@ -219,13 +219,13 @@ export const useFeaturesStore = defineStore('features', () => {
   }
 
   // Toggle a specific feature
-  function toggleFeature(feature: keyof FeatureFlags) {
+  function toggleFeature (feature: keyof FeatureFlags) {
     customFlags.value[feature] = !customFlags.value[feature]
     saveCustomFlags()
   }
 
   // Enable custom flags
-  function enableCustomFlags() {
+  function enableCustomFlags () {
     useCustomFlags.value = true
     customFlags.value = { ...features.value }
     localStorage.setItem('yardrover_use_custom_flags', 'true')
@@ -233,7 +233,7 @@ export const useFeaturesStore = defineStore('features', () => {
   }
 
   // Reset to preset for current mode
-  function resetToPreset() {
+  function resetToPreset () {
     useCustomFlags.value = false
     customFlags.value = { ...MODE_PRESETS[userMode.value] }
     localStorage.setItem('yardrover_use_custom_flags', 'false')
@@ -241,12 +241,12 @@ export const useFeaturesStore = defineStore('features', () => {
   }
 
   // Save custom flags to localStorage
-  function saveCustomFlags() {
+  function saveCustomFlags () {
     localStorage.setItem('yardrover_feature_flags', JSON.stringify(customFlags.value))
   }
 
   // Import/Export configurations
-  function exportConfiguration(): string {
+  function exportConfiguration (): string {
     return JSON.stringify(
       {
         userMode: userMode.value,
@@ -258,7 +258,7 @@ export const useFeaturesStore = defineStore('features', () => {
     )
   }
 
-  function importConfiguration(config: string): boolean {
+  function importConfiguration (config: string): boolean {
     try {
       const parsed = JSON.parse(config)
       if (parsed.userMode && MODE_PRESETS[parsed.userMode as UserMode]) {

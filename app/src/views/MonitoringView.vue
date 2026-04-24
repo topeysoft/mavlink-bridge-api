@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import Breadcrumb from '@/components/common/Breadcrumb.vue'
-import LiveTelemetryCard from '@/components/monitoring/LiveTelemetryCard.vue'
-import AttitudeIndicator from '@/components/monitoring/AttitudeIndicator.vue'
-import SystemResourcesCard from '@/components/monitoring/SystemResourcesCard.vue'
-import MAVLinkStream from '@/components/monitoring/MAVLinkStream.vue'
-import PositionCard from '@/components/monitoring/PositionCard.vue'
-import ROS2TopicsCard from '@/components/monitoring/ROS2TopicsCard.vue'
+import Breadcrumb from '@/components/common/Breadcrumb.vue';
+import LiveTelemetryCard from '@/components/monitoring/LiveTelemetryCard.vue';
+import LiveMapCard from '@/components/monitoring/LiveMapCard.vue';
+import AttitudeIndicator from '@/components/monitoring/AttitudeIndicator.vue';
+import SystemResourcesCard from '@/components/monitoring/SystemResourcesCard.vue';
+import MAVLinkStream from '@/components/monitoring/MAVLinkStream.vue';
+import PositionCard from '@/components/monitoring/PositionCard.vue';
+import ROS2TopicsCard from '@/components/monitoring/ROS2TopicsCard.vue';
 
 const breadcrumbItems = [
   { label: 'Dashboard', to: '/' },
-  { label: 'Monitoring' }
-]
+  { label: 'Monitoring' },
+];
 </script>
 
 <template>
@@ -18,6 +19,10 @@ const breadcrumbItems = [
     <Breadcrumb :items="breadcrumbItems" />
 
     <div class="monitoring-grid">
+      <div class="grid-full">
+        <LiveMapCard />
+      </div>
+
       <div class="grid-full">
         <LiveTelemetryCard />
       </div>

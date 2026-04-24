@@ -16,14 +16,14 @@ import { createLeafletRenderer } from './useLeafletRenderer'
 
 export type MapViewMode = '2d' | '3d'
 
-export async function createRenderer(
-  mode: MapViewMode,
-  options: MapRendererOptions
+export async function createRenderer (
+    mode: MapViewMode,
+    options: MapRendererOptions
 ): Promise<MapRenderer> {
-  if (mode === '3d') {
-    // Lazy import keeps maplibre-gl out of the main bundle until 3D is used.
-    const { createMapLibreRenderer } = await import('./useMapLibreRenderer')
-    return createMapLibreRenderer(options)
-  }
-  return createLeafletRenderer(options)
+    if (mode === '3d') {
+        // Lazy import keeps maplibre-gl out of the main bundle until 3D is used.
+        const { createMapLibreRenderer } = await import('./useMapLibreRenderer')
+        return createMapLibreRenderer(options)
+    }
+    return createLeafletRenderer(options)
 }

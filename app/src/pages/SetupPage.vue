@@ -122,8 +122,15 @@
                 autocomplete="new-password"
                 required
               />
-              <small class="form-hint" :class="{ 'hint-error': password.length > 0 && !passwordValid }">
-                {{ passwordValid || password.length === 0 ? 'Minimum 8 characters' : 'Password must be at least 8 characters' }}
+              <small
+                class="form-hint"
+                :class="{ 'hint-error': password.length > 0 && !passwordValid }"
+              >
+                {{
+                  passwordValid || password.length === 0
+                    ? 'Minimum 8 characters'
+                    : 'Password must be at least 8 characters'
+                }}
               </small>
             </div>
 
@@ -139,8 +146,17 @@
                 autocomplete="new-password"
                 required
               />
-              <small class="form-hint" :class="{ 'hint-error': confirmPassword.length > 0 && !passwordsMatch }">
-                {{ passwordsMatch || confirmPassword.length === 0 ? 'Must match password above' : 'Passwords do not match' }}
+              <small
+                class="form-hint"
+                :class="{
+                  'hint-error': confirmPassword.length > 0 && !passwordsMatch,
+                }"
+              >
+                {{
+                  passwordsMatch || confirmPassword.length === 0
+                    ? 'Must match password above'
+                    : 'Passwords do not match'
+                }}
               </small>
             </div>
 
@@ -168,7 +184,15 @@
               <button
                 type="submit"
                 class="btn-primary"
-                :disabled="isSubmitting || !deviceName.trim() || !username.trim() || !password.trim() || !confirmPassword.trim() || !passwordValid || !passwordsMatch"
+                :disabled="
+                  isSubmitting ||
+                  !deviceName.trim() ||
+                  !username.trim() ||
+                  !password.trim() ||
+                  !confirmPassword.trim() ||
+                  !passwordValid ||
+                  !passwordsMatch
+                "
               >
                 <span v-if="!isSubmitting">Complete Setup</span>
                 <span v-else class="loading">
@@ -292,7 +316,12 @@ function startSetup() {
 }
 
 async function handleSetup() {
-  if (!deviceName.value.trim() || !username.value.trim() || !password.value.trim()) return;
+  if (
+    !deviceName.value.trim() ||
+    !username.value.trim() ||
+    !password.value.trim()
+  )
+    return;
 
   if (!passwordValid.value) {
     setupError.value = 'Password must be at least 8 characters long.';
