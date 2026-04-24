@@ -49,6 +49,9 @@ export interface FeatureFlags {
   apiConsole: boolean // Direct API/MAVLink console
   debugMode: boolean // Debug information and logs
   experimentalFeatures: boolean // Beta/experimental features
+
+  // Visualization
+  mapView3D: boolean // WebGL 3D monitoring view (MapLibre GL)
 }
 
 /**
@@ -83,6 +86,7 @@ const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
     apiConsole: false,
     debugMode: false,
     experimentalFeatures: false,
+    mapView3D: false,
   },
   'power-user': {
     missionTemplates: true,
@@ -112,6 +116,7 @@ const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
     apiConsole: false,
     debugMode: false,
     experimentalFeatures: false,
+    mapView3D: true,
   },
   developer: {
     missionTemplates: true,
@@ -141,6 +146,7 @@ const MODE_PRESETS: Record<UserMode, FeatureFlags> = {
     apiConsole: true,
     debugMode: true,
     experimentalFeatures: true,
+    mapView3D: true,
   },
 }
 

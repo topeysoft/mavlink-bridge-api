@@ -27,6 +27,7 @@ from yardrover.core.errors import YardRoverError
 from yardrover.core.events import EventBus, get_event_bus
 from yardrover.core.health import HealthMonitor, get_health_monitor
 from yardrover.core.logging import configure_logging
+from yardrover.core.reset_flag import check_and_handle_reset_flag
 from yardrover.core.storage import Storage, get_storage
 from yardrover.models.config import Settings
 
@@ -119,6 +120,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             device_name=config_manager.config.device.name,
             hostname=config_manager.config.device.hostname,
         )
+
+        # 2a. Check SD-card boot-flag reset BEFORE auth stores load from disk.
+        await check_and_handle_reset_flag(config_manager)
 
         # 3. Initialize storage
         storage = get_storage(config_manager.config.storage.base_path)

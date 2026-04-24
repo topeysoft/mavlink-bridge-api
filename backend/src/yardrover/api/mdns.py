@@ -6,10 +6,13 @@ Provides REST API for mDNS service advertisement and discovery.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 import structlog
 
-from ..auth import SecurityContext, require_operator, require_viewer
+from ..auth import Role, SecurityContext, require_operator, require_viewer
+from ..auth.api_keys import get_api_key_manager
+from ..auth.dependencies import get_optional_api_key_strict
+from ..core.config import get_config_manager
 from ..core.errors import NetworkError
 from ..models.network import (
     MDNSConfig,
@@ -23,6 +26,46 @@ logger = structlog.get_logger(__name__)
 
 # Create router
 router = APIRouter(prefix="/api/mdns", tags=["mdns"])
+
+
+def is_truly_in_setup_mode() -> bool:
+    """Return True only when setup is genuinely incomplete.
+
+    This mirrors setup status logic: setup is complete only when both
+    security.setup_completed is true and at least one admin API key exists.
+    """
+    config_manager = get_config_manager()
+    api_key_manager = get_api_key_manager()
+
+    admin_keys = [key for key in api_key_manager.list_keys() if key.role == Role.ADMIN]
+    has_admin_key = len(admin_keys) > 0
+
+    setup_completed = config_manager.config.security.setup_completed and has_admin_key
+    return not setup_completed
+
+
+async def require_viewer_or_setup_discovery(
+    context: SecurityContext | None = Depends(get_optional_api_key_strict),
+) -> SecurityContext | None:
+    """Allow viewer auth, or anonymous only during true setup mode.
+
+    Anonymous access is allowed only when setup is genuinely incomplete and
+    require_auth_during_setup is disabled.
+    """
+    if context is not None:
+        return context
+
+    config_manager = get_config_manager()
+    security = config_manager.config.security
+
+    if is_truly_in_setup_mode() and not security.require_auth_during_setup:
+        return None
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required. Provide X-API-Key header or Authorization Bearer token.",
+        headers={"WWW-Authenticate": 'ApiKey realm="X-API-Key"'},
+    )
 
 
 # Dependency to get mDNS manager from app state
@@ -62,7 +105,7 @@ async def get_mdns_status(
 async def discover_services(
     request_body: MDNSDiscoverRequest,
     mdns_manager: Annotated[MDNSManager, Depends(get_mdns_manager)],
-    context: SecurityContext = Depends(require_viewer),
+    context: SecurityContext | None = Depends(require_viewer_or_setup_discovery),
 ) -> MDNSDiscoverResponse:
     """
     Trigger mDNS service discovery.

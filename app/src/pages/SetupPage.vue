@@ -94,6 +94,57 @@
             </div>
 
             <div class="form-group">
+              <label for="username">Admin Username</label>
+              <input
+                id="username"
+                v-model="username"
+                type="text"
+                placeholder="admin"
+                :disabled="isSubmitting"
+                maxlength="64"
+                autocomplete="username"
+                required
+              />
+              <small class="form-hint">
+                Username for the initial administrator account
+              </small>
+            </div>
+
+            <div class="form-group">
+              <label for="password">Admin Password</label>
+              <input
+                id="password"
+                v-model="password"
+                type="password"
+                placeholder="At least 8 characters"
+                :disabled="isSubmitting"
+                maxlength="128"
+                autocomplete="new-password"
+                required
+              />
+              <small class="form-hint" :class="{ 'hint-error': password.length > 0 && !passwordValid }">
+                {{ passwordValid || password.length === 0 ? 'Minimum 8 characters' : 'Password must be at least 8 characters' }}
+              </small>
+            </div>
+
+            <div class="form-group">
+              <label for="confirmPassword">Confirm Password</label>
+              <input
+                id="confirmPassword"
+                v-model="confirmPassword"
+                type="password"
+                placeholder="Re-enter password"
+                :disabled="isSubmitting"
+                maxlength="128"
+                autocomplete="new-password"
+                required
+              />
+              <small class="form-hint" :class="{ 'hint-error': confirmPassword.length > 0 && !passwordsMatch }">
+                {{ passwordsMatch || confirmPassword.length === 0 ? 'Must match password above' : 'Passwords do not match' }}
+              </small>
+            </div>
+
+            <div class="form-group">
               <label for="adminKeyName">Admin Key Name</label>
               <input
                 id="adminKeyName"
@@ -117,7 +168,7 @@
               <button
                 type="submit"
                 class="btn-primary"
-                :disabled="isSubmitting || !deviceName.trim()"
+                :disabled="isSubmitting || !deviceName.trim() || !username.trim() || !password.trim() || !confirmPassword.trim() || !passwordValid || !passwordsMatch"
               >
                 <span v-if="!isSubmitting">Complete Setup</span>
                 <span v-else class="loading">
@@ -210,7 +261,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { useConnectionStore } from '../stores/connection';
@@ -223,12 +274,17 @@ const connectionStore = useConnectionStore();
 // State
 const currentStep = ref<'welcome' | 'configure' | 'success'>('welcome');
 const deviceName = ref('YardRover');
+const username = ref('admin');
+const password = ref('');
+const confirmPassword = ref('');
 const adminKeyName = ref('Owner');
 const isSubmitting = ref(false);
 const setupError = ref<string | null>(null);
 const setupComplete = ref(false);
 const generatedApiKey = ref('');
 const copied = ref(false);
+const passwordValid = computed(() => password.value.length >= 8);
+const passwordsMatch = computed(() => password.value === confirmPassword.value);
 
 // Actions
 function startSetup() {
@@ -236,7 +292,17 @@ function startSetup() {
 }
 
 async function handleSetup() {
-  if (!deviceName.value.trim()) return;
+  if (!deviceName.value.trim() || !username.value.trim() || !password.value.trim()) return;
+
+  if (!passwordValid.value) {
+    setupError.value = 'Password must be at least 8 characters long.';
+    return;
+  }
+
+  if (!passwordsMatch.value) {
+    setupError.value = 'Passwords do not match.';
+    return;
+  }
 
   // Check if we have a connected device
   if (!connectionStore.client) {
@@ -257,6 +323,9 @@ async function handleSetup() {
     // Complete setup
     const apiKey = await authStore.completeSetup(authClient, {
       device_name: deviceName.value.trim(),
+      username: username.value.trim(),
+      password: password.value,
+      display_name: username.value.trim(),
       admin_key_name: adminKeyName.value.trim() || 'Owner',
       admin_key_description: 'Owner admin key created during initial setup',
     });
@@ -283,7 +352,7 @@ async function handleSetup() {
         "This device has already been configured. If you need to reconfigure it, you'll need to reset it first using physical access to the device.";
     } else if (error?.status === 400) {
       setupError.value =
-        'Invalid input. Please check that your device name and admin key name are valid (1-128 characters).';
+        'Invalid input. Check device name, username, password, and admin key name and try again.';
     } else {
       setupError.value =
         error instanceof Error

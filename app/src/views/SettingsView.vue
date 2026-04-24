@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import Breadcrumb from '@/components/common/Breadcrumb.vue'
 import HomeLocationSettings from '@/components/settings/HomeLocationSettings.vue'
 import ConnectionSettings from '@/components/settings/ConnectionSettings.vue'
@@ -14,8 +16,13 @@ import ConsumerSettings from '@/components/settings/ConsumerSettings.vue'
 import SecuritySettings from '@/components/settings/SecuritySettings.vue'
 import SetupQuickAccessCards from '@/components/settings/SetupQuickAccessCards.vue'
 import { useFeaturesStore } from '@/stores/features'
+import { useNotifications } from '@/composables/useNotifications'
 
 const featuresStore = useFeaturesStore()
+const route = useRoute()
+const router = useRouter()
+const { t } = useI18n()
+const { showNotification } = useNotifications()
 
 const isConsumerMode = computed(() => featuresStore.userMode === 'consumer')
 
@@ -23,6 +30,20 @@ const breadcrumbItems = [
   { label: 'Dashboard', to: '/' },
   { label: 'Settings' }
 ]
+
+onMounted(async () => {
+  if (route.query.recovery === '1') {
+    showNotification({
+      type: 'info',
+      message: t('auth.login.help.recoveryToast'),
+      timeout: 8000
+    })
+    await nextTick()
+    const securitySection = document.querySelector('[data-section="security"]') as HTMLElement | null
+    securitySection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    router.replace({ path: '/settings' })
+  }
+})
 </script>
 
 <template>
@@ -37,7 +58,7 @@ const breadcrumbItems = [
       </section>
 
       <!-- Security Settings (Password & PIN) -->
-      <section class="settings-section">
+      <section class="settings-section" data-section="security">
         <SecuritySettings />
       </section>
 
@@ -58,7 +79,7 @@ const breadcrumbItems = [
       </section>
 
       <!-- Security Settings (Password & PIN) -->
-      <section class="settings-section">
+      <section class="settings-section" data-section="security">
         <SecuritySettings />
       </section>
 

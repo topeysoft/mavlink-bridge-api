@@ -41,3 +41,4 @@ security:
   rate_limit_window_seconds: 60
   cors_origins:
   - '*'
+debug: true

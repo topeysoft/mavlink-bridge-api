@@ -85,7 +85,9 @@ import {
   Compass,
   BatteryCharging,
   Cog,
-  PlugZap
+  PlugZap,
+  Copy,
+  Key
 } from 'lucide-vue-next'
 
 export type IconName =
@@ -149,6 +151,8 @@ export type IconName =
   | 'search'
   | 'filter'
   | 'zap'
+  | 'copy'
+  | 'key'
   // Peripheral Types
   | 'peripheral-mower'
   | 'peripheral-grass-collector'
@@ -252,6 +256,8 @@ export const iconMap: Record<IconName, Component> = {
   search: Search,
   filter: Filter,
   zap: Zap,
+  copy: Copy,
+  key: Key,
   // Peripheral Types
   'peripheral-mower': Scissors,
   'peripheral-grass-collector': Package,

@@ -45,6 +45,40 @@ export interface MessageSchema {
       switchToPin: string
       forgotPassword: string
       needSetup: string
+      sessionExpired: string
+      help: {
+        trigger: string
+        modalTitle: string
+        intro: string
+        sectionTryFirst: string
+        useApiKey: {
+          title: string
+          body: string
+          action: string
+        }
+        usePin: {
+          title: string
+          body: string
+          action: string
+        }
+        sectionReset: string
+        resetWarning: string
+        resetIntro: string
+        resetStepsTitle: string
+        resetStep1: string
+        resetStep2: string
+        resetStep3: string
+        resetStep3Filename: string
+        resetStep4: string
+        devShortcutTitle: string
+        devShortcutBody: string
+        devShortcutCommand: string
+        devShortcutCaption: string
+        copy: string
+        copied: string
+        close: string
+        recoveryToast: string
+      }
     }
     setup: {
       title: string

@@ -281,6 +281,31 @@ async def get_optional_api_key(
         return None
 
 
+async def get_optional_api_key_strict(
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    authorization: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+) -> Optional[SecurityContext]:
+    """Get current API key if provided and valid, otherwise return None only when absent.
+
+    This differs from get_optional_api_key by preserving authentication errors
+    (e.g., invalid tokens/keys) instead of treating them as anonymous requests.
+
+    Args:
+        x_api_key: API key from X-API-Key header
+        authorization: JWT token from Authorization header
+
+    Returns:
+        SecurityContext if authenticated, None if no credentials were provided
+
+    Raises:
+        HTTPException: If credentials were provided but invalid
+    """
+    if x_api_key is None and authorization is None:
+        return None
+
+    return await get_current_api_key(x_api_key, authorization)
+
+
 async def verify_websocket_token(token: str) -> SecurityContext:
     """Verify JWT token for WebSocket authentication.
 

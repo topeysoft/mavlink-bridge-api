@@ -18,6 +18,11 @@
               {{ t('auth.login.subtitle') }}
             </p>
 
+            <div v-if="sessionExpiredNotice" class="session-expired-banner" role="status">
+              <component :is="getIcon('info')" :size="18" :stroke-width="2" />
+              <span>{{ sessionExpiredNotice }}</span>
+            </div>
+
             <!-- Login Method Tabs (Power User & Developer modes) -->
             <div v-if="!isConsumerMode" class="login-tabs">
               <button
@@ -37,7 +42,7 @@
                 PIN
               </button>
               <button
-                v-if="isDeveloperMode"
+                v-if="isDeveloperMode || allowApiKeyRecovery"
                 type="button"
                 class="tab"
                 :class="{ active: loginMethod === 'apikey' }"
@@ -215,21 +220,32 @@
               <strong>API Key Login</strong>
               API keys are for automation and CLI tools. Use username/password or PIN for interactive login.
             </p>
+            <p class="help-text help-trigger-row">
+              <button type="button" class="text-link" @click="showHelpModal = true">
+                {{ t('auth.login.help.trigger') }}
+              </button>
+            </p>
           </div>
           <div class="login-footer" v-else>
             <p class="help-text">
               <strong>First time setup?</strong>
               Your username and password were created during initial setup.
             </p>
-            <p class="help-text" v-if="!isConsumerMode">
-              <strong>Forgot your password?</strong>
-              You'll need physical access to the device to reset it.
+            <p class="help-text help-trigger-row">
+              <button type="button" class="text-link" @click="showHelpModal = true">
+                {{ t('auth.login.help.trigger') }}
+              </button>
             </p>
           </div>
           </div>
         </div>
       </div>
     </div>
+    <LoginHelpModal
+      v-model="showHelpModal"
+      :user-mode="featuresStore.userMode"
+      @switch-method="handleSwitchMethod"
+    />
   </StandaloneLayout>
 </template>
 
@@ -242,6 +258,8 @@ import { useConnectionStore } from '../stores/connection'
 import { useFeaturesStore } from '../stores/features'
 import StandaloneLayout from '@/layouts/StandaloneLayout.vue'
 import PinInput from '@/components/common/PinInput.vue'
+import LoginHelpModal from '@/components/login/LoginHelpModal.vue'
+import { getIcon } from '@/utils/iconMap'
 
 const { t } = useI18n()
 
@@ -264,6 +282,18 @@ const isLoggingIn = ref(false)
 const loginError = ref<string | null>(null)
 const showPassword = ref(false)
 const showApiKey = ref(false)
+const showHelpModal = ref(false)
+const allowApiKeyRecovery = ref(false)
+const sessionExpiredNotice = ref<string | null>(null)
+
+function handleSwitchMethod(method: 'pin' | 'apikey') {
+  if (method === 'apikey') {
+    allowApiKeyRecovery.value = true
+  }
+  loginMethod.value = method
+  showHelpModal.value = false
+  loginError.value = null
+}
 
 // Actions
 async function handlePasswordLogin() {
@@ -386,8 +416,11 @@ async function handleApiKeyLogin() {
     // Attempt login with API key
     await authStore.login(authClient, apiKey.value)
 
-    // Redirect to dashboard on success (use replace to avoid back button issues)
-    router.replace('/')
+    if (allowApiKeyRecovery.value) {
+      router.replace({ path: '/settings', query: { recovery: '1' } })
+    } else {
+      router.replace('/')
+    }
   } catch (error: any) {
     console.error('API key login failed:', error)
 
@@ -427,7 +460,7 @@ onMounted(() => {
   // Check if redirected due to session expiry
   const route = router.currentRoute.value
   if (route.query.reason === 'session_expired') {
-    loginError.value = 'Your session has expired. Please log in again.'
+    sessionExpiredNotice.value = t('auth.login.sessionExpired')
   }
 })
 </script>
@@ -740,6 +773,25 @@ onMounted(() => {
   }
 }
 
+.session-expired-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  background: rgba(23, 162, 184, 0.08);
+  border: 1px solid rgba(23, 162, 184, 0.3);
+  border-radius: 8px;
+  color: #0c5460;
+  font-size: 0.9rem;
+  line-height: 1.4;
+
+  svg {
+    flex-shrink: 0;
+    color: #17a2b8;
+  }
+}
+
 .login-footer {
   border-top: 1px solid #e0e0e0;
   padding-top: 1.5rem;
@@ -758,6 +810,11 @@ onMounted(() => {
       color: $dark;
       font-weight: 600;
     }
+  }
+
+  .help-trigger-row {
+    text-align: center;
+    margin-top: 0.5rem;
   }
 
   .text-link {

@@ -206,6 +206,11 @@ class Settings(BaseSettings):
     storage_path: Path = Field(default=Path("/var/lib/yardrover"))
     resource_storage_path: Optional[Path] = None
 
+    # SD-card boot-flag reset path. When set, overrides the default boot-partition
+    # search (/boot/firmware/yardrover-reset, /boot/yardrover-reset). If the file
+    # exists at startup, credentials are wiped and setup mode re-entered.
+    reset_flag_path: Optional[Path] = None
+
     # Network settings
     wifi_auto_connect: bool = Field(default=True)
     ap_mode_enabled: bool = Field(default=True)
@@ -300,7 +305,7 @@ class Settings(BaseSettings):
 
         return self
 
-    @field_validator("storage_path", "resource_storage_path", "tls_cert_file", "tls_key_file", "tls_ca_certs")
+    @field_validator("storage_path", "resource_storage_path", "tls_cert_file", "tls_key_file", "tls_ca_certs", "reset_flag_path")
     @classmethod
     def expand_path(cls, v: Optional[Path]) -> Optional[Path]:
         """Expand path, keeping relative paths as-is for development."""
